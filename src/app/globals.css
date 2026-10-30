@@ -168,6 +168,15 @@
   html {
     @apply font-sans;
     -webkit-tap-highlight-color: transparent;
+    /* Always keep room for the scrollbar, so pages never shift sideways
+       when one page scrolls and the next does not. */
+    scrollbar-gutter: stable;
+  }
+  /* Radix dialogs and menus lock scrolling and add a right margin the
+     size of the scrollbar. The gutter above already holds that space, so
+     the margin would push the page left while they are open. */
+  html body[data-scroll-locked] {
+    margin-right: 0 !important;
   }
   body {
     @apply bg-background text-foreground;
