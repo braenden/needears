@@ -1,0 +1,14 @@
+pnpm-lock.yaml
+.next
+next-env.d.ts
+coverage
+supabase/.temp
+supabase/.branches
+docs
+.claude
+supabase/seed-storage
+test-results
+playwright-report
+.lighthouseci
+CHANGELOG.md
+private

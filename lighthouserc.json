@@ -1,0 +1,57 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm start --port 3000",
+      "startServerReadyPattern": "Ready",
+      "url": [
+        "http://localhost:3000/feed",
+        "http://localhost:3000/t/first-light-demo-seed0001",
+        "http://localhost:3000/u/jonas"
+      ],
+      "numberOfRuns": 3,
+      "settings": {
+        "chromeFlags": "--no-sandbox",
+        "throttlingMethod": "devtools"
+      }
+    },
+    "assert": {
+      "assertMatrix": [
+        {
+          "matchingUrlPattern": ".*",
+          "assertions": {
+            "categories:performance": [
+              "error",
+              {
+                "minScore": 0.9,
+                "aggregationMethod": "median-run"
+              }
+            ],
+            "categories:accessibility": [
+              "error",
+              {
+                "minScore": 1,
+                "aggregationMethod": "median-run"
+              }
+            ]
+          }
+        },
+        {
+          "matchingUrlPattern": ".*/t/.*",
+          "assertions": {
+            "largest-contentful-paint": [
+              "error",
+              {
+                "maxNumericValue": 2500,
+                "aggregationMethod": "median-run"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": ".lighthouseci/reports"
+    }
+  }
+}

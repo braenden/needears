@@ -1,0 +1,38 @@
+name: Local stack
+description: >
+  Installs dependencies, starts the local Supabase stack with the seed data,
+  writes .env.local from it and builds the app, so a job can run
+  `pnpm start` against a real database.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+    - uses: supabase/setup-cli@v3
+      with:
+        version: latest
+    # Only what the app talks to: Postgres, Auth, PostgREST, Storage, the API
+    # gateway and Mailpit (for magic links).
+    - run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta,realtime
+      shell: bash
+    - name: Write .env.local from the local stack
+      shell: bash
+      run: |
+        eval "$(supabase status -o env 2>/dev/null)"
+        {
+          echo "NEXT_PUBLIC_SITE_URL=http://localhost:3000"
+          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          echo "CRON_SECRET=ci-only-not-a-secret"
+        } > .env.local
+    - run: pnpm build
+      shell: bash
+      env:
+        NEXT_TELEMETRY_DISABLED: 1

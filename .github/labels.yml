@@ -1,0 +1,22 @@
+# Synced to GitHub by .github/workflows/labels.yml. Labels not listed here are kept.
+- name: good first issue
+  color: "7057ff"
+  description: Small, well defined, and a good way into the codebase
+- name: help wanted
+  color: "008672"
+  description: Extra attention or an outside contributor is welcome
+- name: bug
+  color: "d73a4a"
+  description: Something is broken
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or improvement
+- name: documentation
+  color: "0075ca"
+  description: Docs only
+- name: security
+  color: "b60205"
+  description: Security related
+- name: dependencies
+  color: "0366d6"
+  description: Dependency updates

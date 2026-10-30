@@ -1,0 +1,56 @@
+-- Test helpers (temporary, gone after the transaction).
+-- Users: alice 1111..., bob 2222..., carol 3333..., dave 4444...
+create function pg_temp.make_user(p_id uuid, p_handle text, p_age interval default interval '30 days')
+returns uuid
+language plpgsql
+as $$
+begin
+  insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
+  values ('00000000-0000-0000-0000-000000000000', p_id, 'authenticated', 'authenticated',
+    p_handle || '@test.local', jsonb_build_object('handle', p_handle), now(), now());
+  update public.profiles set created_at = now() - p_age where id = p_id;
+  return p_id;
+end;
+$$;
+
+-- Inserts a track in seeding mode (no storage check, no rate limit).
+create function pg_temp.make_track(
+  p_owner uuid,
+  p_status public.track_status default 'live',
+  p_genre text default 'house'
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  tid uuid := gen_random_uuid();
+  obj uuid := gen_random_uuid();
+begin
+  perform set_config('needears.seeding', 'on', true);
+  insert into public.tracks (id, owner_id, title, genre_id, duration_ms, audio_key, peaks_key, status)
+  values (tid, p_owner, 'Test track', (select id from public.genres where slug = p_genre), 60000,
+    p_owner || '/' || obj || '.mp3', p_owner || '/' || obj || '.json', p_status);
+  perform set_config('needears.seeding', 'off', true);
+  return tid;
+end;
+$$;
+
+-- Creates the reservation and storage objects a real upload leaves behind.
+create function pg_temp.make_objects(p_owner uuid, p_object uuid, p_object_owner uuid default null)
+returns void
+language sql
+as $$
+  insert into private.upload_reservations (object_id, user_id) values (p_object, p_owner);
+  insert into storage.objects (bucket_id, name, owner_id, metadata)
+  values
+    ('audio', p_owner || '/' || p_object || '.mp3', coalesce(p_object_owner, p_owner)::text,
+      '{"size": 1000, "mimetype": "audio/mpeg"}'),
+    ('peaks', p_owner || '/' || p_object || '.json', coalesce(p_object_owner, p_owner)::text,
+      '{"size": 100, "mimetype": "application/json"}');
+$$;
+
+select pg_temp.make_user('11111111-1111-4111-8111-111111111111', 'alice');
+select pg_temp.make_user('22222222-2222-4222-8222-222222222222', 'bob');
+select pg_temp.make_user('33333333-3333-4333-8333-333333333333', 'carol');
+select pg_temp.make_user('44444444-4444-4444-8444-444444444444', 'dave');
+update public.profiles set role = 'admin' where handle = 'dave';

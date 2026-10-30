@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release PR
+    runs-on: ubuntu-latest
+    steps:
+      # Opens and updates a release pull request from the conventional
+      # commits on main, and tags the release when it is merged. A pull
+      # request opened with the default GITHUB_TOKEN does not start CI, so
+      # the required checks never run on it; RELEASE_PLEASE_TOKEN (a fine
+      # grained token with contents and pull requests write) fixes that.
+      - uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

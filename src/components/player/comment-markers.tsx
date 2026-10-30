@@ -1,0 +1,177 @@
+"use client";
+
+import { useRef, useState } from "react";
+
+import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
+import { CATEGORY_LABELS } from "@/config/labels";
+import { formatTime } from "@/lib/time";
+import { cn } from "@/lib/utils";
+import type { Comment } from "@/types/view";
+
+const LONG_PRESS_MS = 450;
+
+function excerpt(text: string, max = 90) {
+  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
+}
+
+/**
+ * The marker layer under the waveform: one avatar per timed comment. Hover or
+ * focus shows the comment, click jumps there. On touch, tap jumps and a long
+ * press shows the comment. One tab stop for the whole row; arrow keys move
+ * between markers (roving tabindex), so a busy track is not 50 tab stops.
+ */
+export function CommentMarkers({
+  comments,
+  durationMs,
+  activeCommentId,
+  onSelect,
+}: {
+  comments: Comment[];
+  durationMs: number;
+  activeCommentId?: string | null;
+  onSelect: (comment: Comment) => void;
+}) {
+  const sorted = [...comments].sort(
+    (a, b) => (a.time_ms ?? 0) - (b.time_ms ?? 0),
+  );
+  const [focusIndex, setFocusIndex] = useState(0);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+
+  const move = (index: number) => {
+    const next = (index + sorted.length) % sorted.length;
+    setFocusIndex(next);
+    buttons.current[next]?.focus();
+  };
+
+  const clearPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+
+  return (
+    <div
+      role="group"
+      aria-label="Comment markers"
+      className="relative mt-1.5 h-7"
+      onKeyDown={(event) => {
+        const keys: Record<string, number> = {
+          ArrowLeft: focusIndex - 1,
+          ArrowRight: focusIndex + 1,
+          Home: 0,
+          End: sorted.length - 1,
+        };
+        const target = keys[event.key];
+        if (target === undefined || event.shiftKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        move(target);
+      }}
+    >
+      {sorted.map((comment, index) => {
+        const left = ((comment.time_ms ?? 0) / durationMs) * 100;
+        const active = comment.id === activeCommentId;
+        const previewing = comment.id === previewId;
+        const name = displayNameOf(comment.author);
+        const time = formatTime(comment.time_ms ?? 0);
+        const previewIdAttr = `marker-preview-${comment.id}`;
+        return (
+          <div
+            key={comment.id}
+            className={cn(
+              "absolute top-0 -translate-x-1/2 motion-safe:animate-marker-in",
+              (previewing || active) && "z-10",
+            )}
+            style={{ left: `${left}%`, animationDelay: `${index * 40}ms` }}
+          >
+            <button
+              ref={(el) => {
+                buttons.current[index] = el;
+              }}
+              type="button"
+              tabIndex={index === focusIndex ? 0 : -1}
+              aria-describedby={previewing ? previewIdAttr : undefined}
+              aria-current={active ? "true" : undefined}
+              onClick={() => {
+                if (longPressed.current) {
+                  longPressed.current = false;
+                  return;
+                }
+                setFocusIndex(index);
+                onSelect(comment);
+              }}
+              onPointerEnter={(e) => {
+                if (e.pointerType === "mouse") setPreviewId(comment.id);
+              }}
+              onPointerLeave={(e) => {
+                if (e.pointerType === "mouse") setPreviewId(null);
+              }}
+              onPointerDown={(e) => {
+                if (e.pointerType === "mouse") return;
+                longPressed.current = false;
+                pressTimer.current = setTimeout(() => {
+                  longPressed.current = true;
+                  setPreviewId(comment.id);
+                }, LONG_PRESS_MS);
+              }}
+              onPointerUp={clearPress}
+              onPointerCancel={() => {
+                clearPress();
+                setPreviewId(null);
+              }}
+              onContextMenu={(e) => e.preventDefault()}
+              onFocus={() => setPreviewId(comment.id)}
+              onBlur={() => setPreviewId(null)}
+              className={cn(
+                "relative grid size-7 place-items-center rounded-full outline-none",
+                "focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+            >
+              <UserAvatar
+                profile={comment.author}
+                size="sm"
+                className={cn(
+                  "size-5 ring-2 ring-card transition-transform duration-(--duration-fast)",
+                  active && "ring-primary",
+                  previewing && "scale-110",
+                )}
+              />
+              <span className="sr-only">{`Comment by ${name} at ${time}`}</span>
+            </button>
+            {previewing ? (
+              <div
+                id={previewIdAttr}
+                role="tooltip"
+                className={cn(
+                  "absolute bottom-full mb-2 w-64 max-w-[70vw] rounded-lg bg-popover p-3 text-left text-sm text-popover-foreground shadow-pop",
+                  left < 30
+                    ? "left-0"
+                    : left > 70
+                      ? "right-0"
+                      : "left-1/2 -translate-x-1/2",
+                )}
+              >
+                <span className="flex items-baseline gap-2 text-xs text-muted-foreground">
+                  <span className="min-w-0 truncate font-medium text-foreground">
+                    {name}
+                  </span>
+                  <span data-numeric className="shrink-0">
+                    {time}
+                  </span>
+                  <span className="shrink-0">
+                    {CATEGORY_LABELS[comment.category]}
+                  </span>
+                </span>
+                <span className="mt-1 block leading-snug">
+                  {excerpt(comment.body)}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

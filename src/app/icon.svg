@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <style>
+    .bar { fill: #1b1917; }
+    .marker { fill: #0a6194; }
+    @media (prefers-color-scheme: dark) {
+      .bar { fill: #eee9e2; }
+      .marker { fill: #5ec2f7; }
+    }
+  </style>
+  <rect class="bar" x="3" y="15" width="4.5" height="10" rx="2.25" />
+  <rect class="bar" x="10" y="9" width="4.5" height="22" rx="2.25" />
+  <rect class="bar" x="17" y="17" width="4.5" height="8" rx="2.25" />
+  <rect class="bar" x="24" y="12" width="4.5" height="16" rx="2.25" />
+  <circle class="marker" cx="19.25" cy="7.5" r="4" />
+</svg>

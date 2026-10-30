@@ -1,0 +1,376 @@
+"use client";
+
+import { useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { EyeOffIcon } from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  CommentComposer,
+  type CommentComposerHandle,
+  type CommentDraft,
+  type SubmitResult,
+} from "@/components/comments/comment-composer";
+import {
+  activeCommentAt,
+  type CommentFilter,
+  CommentList,
+} from "@/components/comments/comment-list";
+import { RelativeTime } from "@/components/common/relative-time";
+import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
+import {
+  WaveformPlayer,
+  type WaveformPlayerHandle,
+} from "@/components/player/waveform-player";
+import { ReactionBar } from "@/components/reaction-bar";
+import { ReportDialog, type ReportResult } from "@/components/report-dialog";
+import { ReputationBadge } from "@/components/reputation-badge";
+import { Badge } from "@/components/ui/badge";
+import { FEEDBACK_WANT_LABELS, LEVEL_DISPLAY_LABELS } from "@/config/labels";
+import { siteUrl } from "@/config/site";
+import { useSignedUrl } from "@/hooks/use-signed-url";
+import { browserClient } from "@/lib/supabase/lazy";
+import type {
+  Comment,
+  Profile,
+  ReactionKind,
+  ReportReason,
+  Track,
+} from "@/types/view";
+
+const COMMENT_COLUMNS =
+  "id, track_id, author_id, time_ms, category, body, is_helpful, status, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+
+type TrackViewer = {
+  userId: string;
+  profile: Profile;
+  commentsPerHour: number;
+};
+
+export function TrackView({
+  track,
+  audioUrl: initialAudioUrl,
+  initialComments,
+  initialReactions,
+  viewer,
+  startSeconds,
+  initialFilter,
+}: {
+  track: Track;
+  audioUrl: string | null;
+  initialComments: Comment[];
+  initialReactions: ReactionKind[];
+  viewer: TrackViewer | null;
+  startSeconds: number;
+  initialFilter: CommentFilter;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const audioUrl = useSignedUrl(track.slug, initialAudioUrl);
+  const player = useRef<WaveformPlayerHandle>(null);
+  const composer = useRef<CommentComposerHandle>(null);
+  const [comments, setComments] = useState(initialComments);
+  const [timeMs, setTimeMs] = useState(startSeconds * 1000);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mine, setMine] = useState(initialReactions);
+  const [counts, setCounts] = useState(track.reaction_counts);
+  const [filter, setFilter] = useState<CommentFilter>(initialFilter);
+  const [reporting, setReporting] = useState<
+    { type: "track" } | { type: "comment"; id: string } | null
+  >(null);
+
+  const isOwner = viewer?.userId === track.owner_id;
+  const viewerKind = !viewer ? "signed_out" : isOwner ? "owner" : "visitor";
+  const activeId = selectedId ?? activeCommentAt(comments, timeMs)?.id ?? null;
+  const owner = displayNameOf(track.owner);
+  const shareUrl = `${siteUrl()}/t/${track.slug}`;
+
+  // Back to this second after signing in.
+  function signIn() {
+    const back = `${pathname}${timeMs > 0 ? `?t=${Math.floor(timeMs / 1000)}` : ""}`;
+    router.push(`/login?next=${encodeURIComponent(back)}`);
+  }
+
+  async function submit(draft: CommentDraft): Promise<SubmitResult> {
+    if (!viewer) return { ok: false, error: "failed" };
+    const { data, error } = await (
+      await browserClient()
+    )
+      .from("comments")
+      .insert({
+        // author_id defaults to the signed in user in the database.
+        track_id: track.id,
+        body: draft.body,
+        category: draft.category,
+        time_ms: draft.timeMs,
+      })
+      .select(COMMENT_COLUMNS)
+      .single();
+    if (error) {
+      if (error.code === "PT429") return { ok: false, error: "rate_limited" };
+      if (error.code === "42501") return { ok: false, error: "unavailable" };
+      return { ok: false, error: "failed" };
+    }
+    setComments((list) => [...list, data as unknown as Comment]);
+    return { ok: true };
+  }
+
+  async function toggleHelpful(comment: Comment, helpful: boolean) {
+    setComments((list) =>
+      list.map((c) =>
+        c.id === comment.id ? { ...c, is_helpful: helpful } : c,
+      ),
+    );
+    const { error } = await (
+      await browserClient()
+    )
+      .from("comments")
+      .update({ is_helpful: helpful })
+      .eq("id", comment.id);
+    if (error) {
+      setComments((list) =>
+        list.map((c) =>
+          c.id === comment.id ? { ...c, is_helpful: !helpful } : c,
+        ),
+      );
+      toast.error("Couldn't mark that as Helpful. Try again.");
+      return;
+    }
+    if (helpful)
+      toast.success(
+        `Marked as Helpful. ${displayNameOf(comment.author)} gets credit for it.`,
+      );
+  }
+
+  async function toggleReaction(kind: ReactionKind, on: boolean) {
+    if (!viewer) return;
+    setMine((m) => (on ? [...m, kind] : m.filter((k) => k !== kind)));
+    setCounts((c) => ({ ...c, [kind]: Math.max(0, c[kind] + (on ? 1 : -1)) }));
+    const { error } = on
+      ? await (
+          await browserClient()
+        )
+          .from("reactions")
+          .insert({ track_id: track.id, kind })
+      : await (
+          await browserClient()
+        )
+          .from("reactions")
+          .delete()
+          .eq("track_id", track.id)
+          .eq("user_id", viewer.userId)
+          .eq("kind", kind);
+    // A duplicate means it was already there: nothing to undo.
+    if (error && error.code !== "23505") {
+      setMine((m) => (on ? m.filter((k) => k !== kind) : [...m, kind]));
+      setCounts((c) => ({
+        ...c,
+        [kind]: Math.max(0, c[kind] + (on ? -1 : 1)),
+      }));
+      toast.error(
+        error.code === "PT429"
+          ? "You've reacted a lot in the last hour. Try again in a bit."
+          : "Something broke on our side. Try again, or come back in a minute.",
+      );
+    }
+  }
+
+  async function sendReport(report: {
+    reason: ReportReason;
+    details: string;
+  }): Promise<ReportResult> {
+    if (!viewer || !reporting) return { ok: false, error: "failed" };
+    const { error } = await (await browserClient()).from("reports").insert({
+      target_type: reporting.type,
+      track_id: reporting.type === "track" ? track.id : null,
+      comment_id: reporting.type === "comment" ? reporting.id : null,
+      reason: report.reason,
+      details: report.details,
+    });
+    if (error)
+      return {
+        ok: false,
+        error: error.code === "PT429" ? "rate_limited" : "failed",
+      };
+    return { ok: true };
+  }
+
+  function changeFilter(next: CommentFilter) {
+    setFilter(next);
+    const url = new URL(window.location.href);
+    if (next === "all") url.searchParams.delete("filter");
+    else url.searchParams.set("filter", next);
+    window.history.replaceState(window.history.state, "", url);
+  }
+
+  return (
+    <article className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
+      {track.status === "hidden" ? (
+        <p
+          role="status"
+          className="mb-6 flex items-start gap-2 rounded-xl border border-dashed p-4 text-sm text-muted-foreground"
+        >
+          <EyeOffIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          This track is hidden while it is reviewed. Only you and the moderators
+          can see it.
+        </p>
+      ) : null}
+
+      <header>
+        <h1 className="font-display text-3xl leading-[1.05] font-bold tracking-tight break-words sm:text-4xl">
+          {track.title}
+        </h1>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+          <Link
+            href={`/u/${track.owner.handle}`}
+            className="flex items-center gap-2 rounded-md text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <UserAvatar profile={track.owner} size="sm" />
+            {owner}
+          </Link>
+          <ReputationBadge helpful={track.owner.reputation} />
+          <Link
+            href={`/feed?tab=latest&genre=${track.genre.slug}`}
+            className="rounded-xs outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {track.genre.name}
+          </Link>
+          <RelativeTime date={track.published_at} />
+        </div>
+      </header>
+
+      <div className="sticky top-14 z-30 -mx-4 mt-6 bg-background/90 px-4 py-2 backdrop-blur-md sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+        <WaveformPlayer
+          ref={player}
+          title={track.title}
+          durationMs={track.duration_ms}
+          peaks={track.peaks}
+          audioUrl={audioUrl}
+          initialTimeMs={startSeconds * 1000}
+          comments={comments}
+          activeCommentId={activeId}
+          keyboardScope="global"
+          onTimeChange={(ms) => {
+            setTimeMs(ms);
+            setSelectedId(null);
+          }}
+          onMarkerSelect={(c) => setSelectedId(c.id)}
+          onCommentHere={(ms) =>
+            viewer ? composer.current?.focusAt(ms) : signIn()
+          }
+        />
+      </div>
+
+      <ReactionBar
+        className="mt-4"
+        counts={counts}
+        mine={mine}
+        signedIn={Boolean(viewer)}
+        shareUrl={shareUrl}
+        onSignIn={signIn}
+        onToggle={(kind, on) => void toggleReaction(kind, on)}
+      />
+
+      <section aria-label="About this track" className="mt-6 grid gap-3">
+        {track.description ? (
+          <p className="max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-line">
+            {track.description}
+          </p>
+        ) : null}
+        <dl className="grid gap-1 text-sm">
+          {track.feedback_wants.length > 0 ? (
+            <div className="flex flex-wrap gap-x-2">
+              <dt className="text-muted-foreground">Wants feedback on</dt>
+              <dd>
+                {track.feedback_wants
+                  .map((w) => FEEDBACK_WANT_LABELS[w])
+                  .join(", ")}
+              </dd>
+            </div>
+          ) : null}
+          {track.level ? (
+            <div className="flex flex-wrap gap-x-2">
+              <dt className="text-muted-foreground">Experience</dt>
+              <dd>{LEVEL_DISPLAY_LABELS[track.level]}</dd>
+            </div>
+          ) : null}
+        </dl>
+        {track.tags.length > 0 ? (
+          <ul aria-label="Tags" className="flex flex-wrap gap-1.5">
+            {track.tags.map((tag) => (
+              <li key={tag}>
+                <Badge variant="outline">{tag}</Badge>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {viewer && !isOwner ? (
+          <div>
+            <ReportDialog
+              target="track"
+              trigger={undefined}
+              open={reporting?.type === "track"}
+              onOpenChange={(open) =>
+                setReporting(open ? { type: "track" } : null)
+              }
+              onSubmit={sendReport}
+            />
+          </div>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="comments-heading" className="mt-10">
+        <h2
+          id="comments-heading"
+          className="mb-4 text-xl font-semibold tracking-tight"
+        >
+          Comments
+        </h2>
+        <CommentComposer
+          ref={composer}
+          currentTimeMs={timeMs}
+          durationMs={track.duration_ms}
+          signedIn={Boolean(viewer)}
+          commentsPerHour={viewer?.commentsPerHour}
+          onSubmit={submit}
+          onSignIn={signIn}
+        />
+        <CommentList
+          className="mt-6"
+          comments={comments}
+          viewer={viewerKind}
+          activeCommentId={activeId}
+          filter={filter}
+          onFilterChange={changeFilter}
+          onJump={(c) => {
+            if (c.time_ms !== null) player.current?.seekTo(c.time_ms);
+            setSelectedId(c.id);
+          }}
+          onToggleHelpful={(c, helpful) => void toggleHelpful(c, helpful)}
+          onReport={(c) => setReporting({ type: "comment", id: c.id })}
+          onSignIn={signIn}
+          onCopyLink={async () => {
+            try {
+              await navigator.clipboard.writeText(shareUrl);
+              toast.success("Link copied.");
+            } catch {
+              toast.error(
+                "Couldn't copy the link. Copy it from the address bar instead.",
+              );
+            }
+          }}
+        />
+        <ReportDialog
+          target="comment"
+          trigger={null}
+          open={reporting?.type === "comment"}
+          onOpenChange={(open) => {
+            if (!open) setReporting(null);
+          }}
+          onSubmit={sendReport}
+        />
+      </section>
+    </article>
+  );
+}

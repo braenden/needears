@@ -1,0 +1,22 @@
+name: Keep alive
+
+# Calls /api/health once a day so the free Supabase project never pauses
+# for inactivity. Skipped until the repository variable PRODUCTION_URL is set.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    name: Ping /api/health
+    if: ${{ vars.PRODUCTION_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: curl --fail --silent --show-error --retry 3 --retry-delay 10 "$PRODUCTION_URL/api/health"
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
