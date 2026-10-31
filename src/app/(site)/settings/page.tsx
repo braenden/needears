@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import {
+  isFreshSession,
+  REAUTH_WINDOW_MS,
+  sessionAuthenticatedAt,
+} from "@/lib/api/reauth";
+import { googleClientId } from "@/lib/auth/google-client-id";
 import { parseLinks } from "@/lib/data/profiles";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
@@ -35,29 +42,31 @@ function Section({
   );
 }
 
-export default async function SettingsPage({
-  searchParams,
-}: PageProps<"/settings">) {
+export default async function SettingsPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/login?next=/settings");
-  const query = await searchParams;
   const supabase = await createClient();
-  const [{ data: tracks }, { data: prefs }, { data: ids }] = await Promise.all([
-    supabase
-      .from("tracks")
-      .select("id, slug, title, status, published_at")
-      .eq("owner_id", viewer.userId)
-      .order("published_at", { ascending: false }),
-    supabase
-      .from("profiles")
-      .select(
-        "email_notifications, avatar_key, avatar_url, working_on, daw, links",
-      )
-      .eq("id", viewer.userId)
-      .single(),
-    // The ways this person can sign in (email link, Google).
-    supabase.auth.getUserIdentities(),
-  ]);
+  const [{ data: tracks }, { data: prefs }, { data: ids }, { data: claims }] =
+    await Promise.all([
+      supabase
+        .from("tracks")
+        .select("id, slug, title, status, published_at")
+        .eq("owner_id", viewer.userId)
+        .order("published_at", { ascending: false }),
+      supabase
+        .from("profiles")
+        .select(
+          "email_notifications, avatar_key, avatar_url, working_on, daw, links",
+        )
+        .eq("id", viewer.userId)
+        .single(),
+      // The ways this person can sign in (email link, Google).
+      supabase.auth.getUserIdentities(),
+      // When this session signed in, for connecting Google.
+      supabase.auth.getClaims(),
+    ]);
+  const signedInAt = sessionAuthenticatedAt(claims?.claims.amr);
+  const freshUntil = signedInAt === null ? null : signedInAt + REAUTH_WINDOW_MS;
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
@@ -81,10 +90,15 @@ export default async function SettingsPage({
         <Section id="accounts-heading" title="Connected accounts">
           <ConnectedAccounts
             identities={ids?.identities ?? []}
-            linked={query.linked === "google"}
-            linkError={
-              typeof query.link_error === "string" ? query.link_error : null
+            accountEmail={
+              typeof claims?.claims.email === "string"
+                ? claims.claims.email
+                : null
             }
+            googleClientId={googleClientId()}
+            scriptNonce={(await headers()).get("x-nonce") ?? undefined}
+            fresh={isFreshSession(claims?.claims.amr, REAUTH_WINDOW_MS)}
+            freshUntil={freshUntil}
           />
         </Section>
 

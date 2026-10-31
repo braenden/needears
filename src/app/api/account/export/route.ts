@@ -83,6 +83,16 @@ export async function GET(request: Request) {
       createdAt: user.created_at,
       lastSignInAt: user.last_sign_in_at ?? null,
       providers: user.app_metadata.providers ?? [],
+      // The ways to sign in, with the address each one uses.
+      identities: (user.identities ?? []).map((identity) => ({
+        provider: identity.provider,
+        email:
+          typeof identity.identity_data?.email === "string"
+            ? identity.identity_data.email
+            : null,
+        createdAt: identity.created_at ?? null,
+        lastSignInAt: identity.last_sign_in_at ?? null,
+      })),
     },
     profile: profile.data,
     tracks: tracks.data,

@@ -1,3 +1,8 @@
+// How recent the session's own sign-in must be for actions that hand over
+// the account: deleting it, or connecting another way to sign in to it. A
+// stolen or forgotten session cannot do either.
+export const REAUTH_WINDOW_MS = 10 * 60 * 1000;
+
 // When the session presenting a request last proved who it is, from the
 // `amr` claim of its access token: one entry per method (password, otp,
 // oauth, ...) with a UNIX timestamp in seconds. Refreshing a token keeps

@@ -23,8 +23,10 @@ function nextPath(value: string | string[] | undefined): string {
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams;
   const next = nextPath(params.next);
-  // ?reauth=1 asks a signed in person to prove it again (account deletion).
-  const reauth = params.reauth === "1";
+  // ?reauth asks a signed in person to prove it again: before deleting the
+  // account (1) or connecting a Google account (connect).
+  const reauth =
+    params.reauth === "1" || params.reauth === "connect" ? params.reauth : null;
   if (!reauth && (await getViewer())) redirect(next === "/" ? "/feed" : next);
   return (
     <div className="mx-auto w-full max-w-sm px-4 py-16">
@@ -32,9 +34,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         {reauth ? "Sign in again" : "Sign in to Need Ears"}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {reauth
-          ? "To delete your account, sign in again with the same Google account or email as before."
-          : "Sign in to upload tracks and leave comments."}
+        {reauth === "connect"
+          ? "Sign in again to connect Google. For your safety, connecting another way to sign in needs a recent sign-in."
+          : reauth
+            ? "To delete your account, sign in again with the same Google account or email as before."
+            : "Sign in to upload tracks and leave comments."}
       </p>
       {params.error ? (
         <p role="alert" className="mt-4 text-sm text-destructive">

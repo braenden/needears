@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { UserIdentity } from "@supabase/supabase-js";
 import { Loader2Icon, MailIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  GoogleGlyph,
+  GoogleIdButton,
+} from "@/components/auth/google-id-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,8 +21,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { callbackUrl } from "@/lib/auth/callback-url";
 import { browserClient } from "@/lib/supabase/lazy";
+
+/** Where to prove it is you again before connecting Google. */
+export const REAUTH_TO_CONNECT = "/login?reauth=connect&next=%2Fsettings";
 
 /** The identities that matter here: the email one and Google. */
 export function accountsOf(identities: UserIdentity[]) {
@@ -33,68 +40,86 @@ const emailOf = (identity: UserIdentity | null) =>
     : null;
 
 /** What to say when connecting Google did not work. */
-export function linkErrorText(code: string): string {
+export function linkErrorText(code: string | undefined): string {
   if (code === "identity_already_exists")
     return "That Google account already belongs to another profile.";
   if (code === "manual_linking_disabled")
     return "Connecting a Google account isn't available right now.";
-  if (code === "access_denied")
-    return "Google wasn't connected. You can try again any time.";
   return "Couldn't connect Google. Try again, or come back in a minute.";
+}
+
+/** What disconnecting Google means for this person. */
+export function disconnectText(
+  googleEmail: string | null,
+  accountEmail: string | null,
+): string {
+  const same =
+    !!googleEmail &&
+    !!accountEmail &&
+    googleEmail.toLowerCase() === accountEmail.toLowerCase();
+  if (same)
+    return `Your Google account uses the same address as your profile (${accountEmail}), so signing in with Google keeps working: it connects again by itself. Disconnecting only matters for a Google account with another address.`;
+  return `You can no longer sign in with ${googleEmail ?? "Google"}. You still sign in with an email link to ${accountEmail ?? "your address"}.`;
 }
 
 /**
  * The ways someone can sign in: the email link and Google. A Google account
  * can be connected (also one with another address) and disconnected again,
- * as long as the email link is still there to sign in with.
+ * as long as the email link is still there to sign in with. Connecting
+ * needs a recent sign-in, like deleting the account.
  */
 export function ConnectedAccounts({
   identities,
-  linked = false,
-  linkError = null,
+  accountEmail,
+  googleClientId,
+  scriptNonce,
+  fresh,
+  freshUntil,
 }: {
   identities: UserIdentity[];
-  /** Back from connecting Google (?linked=google). */
-  linked?: boolean;
-  /** Back from a failed attempt (?link_error=...). */
-  linkError?: string | null;
+  /** The account's own address. */
+  accountEmail: string | null;
+  /** Without it, Google cannot be connected here. */
+  googleClientId: string | null;
+  scriptNonce?: string;
+  /** This session signed in recently enough to connect Google. */
+  fresh: boolean;
+  /** Until when (ms since 1970) it counts as recent, checked again on use. */
+  freshUntil: number | null;
 }) {
   const router = useRouter();
   const { email, google } = accountsOf(identities);
-  const [busy, setBusy] = useState<"connect" | "disconnect" | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  // Say how connecting went, once, and take it out of the address.
-  useEffect(() => {
-    if (!linked && !linkError) return;
-    if (linkError) toast.error(linkErrorText(linkError));
-    else toast.success("Google connected.");
-    const url = new URL(window.location.href);
-    url.searchParams.delete("linked");
-    url.searchParams.delete("link_error");
-    window.history.replaceState(window.history.state, "", url);
-  }, [linked, linkError]);
-
-  async function connect() {
-    setBusy("connect");
+  async function connect(credential: string, rawNonce: string) {
+    // The page may have been open a while since the last sign-in.
+    if (freshUntil === null || Date.now() >= freshUntil) {
+      toast("Sign in again to connect Google.");
+      router.push(REAUTH_TO_CONNECT);
+      return true;
+    }
     const { error } = await (
       await browserClient()
     ).auth.linkIdentity({
       provider: "google",
-      options: { redirectTo: callbackUrl("/settings?linked=google") },
+      token: credential,
+      nonce: rawNonce,
     });
-    // On success the browser is on its way to Google.
     if (error) {
-      setBusy(null);
-      toast.error(linkErrorText(error.code ?? "failed"));
+      toast.error(linkErrorText(error.code));
+      return false;
     }
+    toast.success("Google connected.");
+    router.refresh();
+    return true;
   }
 
   async function disconnect() {
     if (!google || !email) return;
-    setBusy("disconnect");
+    setDisconnecting(true);
     const { error } = await (await browserClient()).auth.unlinkIdentity(google);
-    setBusy(null);
+    setDisconnecting(false);
     setConfirming(false);
     if (error) {
       toast.error("Couldn't disconnect Google. Try again.");
@@ -117,7 +142,7 @@ export function ConnectedAccounts({
             {emailOf(email) ?? "Not set up"}
           </span>
         </li>
-        <li className="grid gap-2 px-4 py-3">
+        <li className="grid gap-3 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <GoogleGlyph />
             <span className="text-sm font-medium">Google</span>
@@ -129,27 +154,39 @@ export function ConnectedAccounts({
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={!email || busy !== null}
+                disabled={!email || disconnecting}
                 aria-describedby={email ? undefined : "google-only-note"}
                 onClick={() => setConfirming(true)}
               >
                 Disconnect
               </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={busy !== null}
-                onClick={() => void connect()}
-              >
-                {busy === "connect" ? (
-                  <Loader2Icon className="motion-safe:animate-spin" />
-                ) : null}
-                Connect Google
+            ) : googleClientId && !fresh ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={REAUTH_TO_CONNECT}>Connect Google</Link>
               </Button>
-            )}
+            ) : null}
           </div>
+          {!google && googleClientId && fresh ? (
+            <GoogleIdButton
+              clientId={googleClientId}
+              scriptNonce={scriptNonce}
+              busyLabel="Connecting…"
+              // Google draws its button at most 400 pixels wide.
+              className="max-w-[400px]"
+              onCredential={connect}
+              onUnavailable={() =>
+                toast.error(
+                  "Google isn't available right now. Try again in a minute.",
+                )
+              }
+            />
+          ) : null}
+          {!google && googleClientId && !fresh ? (
+            <p className="text-sm text-muted-foreground">
+              To connect Google, sign in again first. You come straight back
+              here.
+            </p>
+          ) : null}
           {google && !email ? (
             <p id="google-only-note" className="text-sm text-muted-foreground">
               Add a way to sign in with email first. Sign in once with an email
@@ -164,8 +201,7 @@ export function ConnectedAccounts({
           <DialogHeader>
             <DialogTitle>Disconnect Google?</DialogTitle>
             <DialogDescription>
-              You can no longer sign in with {emailOf(google) ?? "Google"}. You
-              still sign in with an email link to {emailOf(email)}.
+              {disconnectText(emailOf(google), accountEmail ?? emailOf(email))}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -177,10 +213,10 @@ export function ConnectedAccounts({
             <Button
               type="button"
               variant="destructive"
-              disabled={busy !== null}
+              disabled={disconnecting}
               onClick={() => void disconnect()}
             >
-              {busy === "disconnect" ? (
+              {disconnecting ? (
                 <Loader2Icon className="motion-safe:animate-spin" />
               ) : null}
               Disconnect
@@ -189,28 +225,5 @@ export function ConnectedAccounts({
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function GoogleGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4 shrink-0">
-      <path
-        fill="#4285F4"
-        d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.5 5.5 0 0 1-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.7z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.9-3c-1 .7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.4 14.4a7.2 7.2 0 0 1 0-4.7V6.6h-4a12 12 0 0 0 0 10.9l4-3.1z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 4.8c1.7 0 3.3.6 4.5 1.8l3.4-3.4A12 12 0 0 0 1.4 6.6l4 3.1C6.3 6.9 8.9 4.8 12 4.8z"
-      />
-    </svg>
   );
 }
