@@ -9,7 +9,7 @@ import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import type { ProfileSummary, TrackSummary } from "@/types/view";
 
-import { SEARCH_MIN_LENGTH } from "./search-field";
+import { SEARCH_MIN_LENGTH } from "@/config/limits";
 
 export type TrackHit = Pick<
   TrackSummary,

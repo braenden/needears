@@ -10,6 +10,7 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
       user={viewer?.profile ?? null}
       isAdmin={viewer?.isAdmin ?? false}
       unread={viewer?.unread ?? 0}
+      showSearch
     >
       {children}
     </AppShell>
