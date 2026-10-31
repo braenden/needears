@@ -22,3 +22,9 @@ export const MODERATION_REASON_MAX = 500;
 // here so a crafted URL cannot ask Postgres for a huge offset (issue 022).
 export const FEED_PAGE_SIZE = 20;
 export const FEED_MAX_PAGE = 50;
+
+// Search: the database ignores shorter or longer queries and returns at most
+// SEARCH_MAX_RESULTS.
+export const SEARCH_MIN_LENGTH = 2;
+export const SEARCH_MAX_LENGTH = 100;
+export const SEARCH_MAX_RESULTS = 50;

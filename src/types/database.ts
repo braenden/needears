@@ -856,6 +856,19 @@ export type Database = {
         };
       };
       reserve_upload: { Args: { p_track?: string }; Returns: string };
+      search: {
+        Args: { p_limit?: number; p_query: string };
+        Returns: {
+          display_name: string;
+          handle: string;
+          id: string;
+          kind: string;
+          rank: number;
+          slug: string;
+          title: string;
+        }[];
+      };
+      tags_text: { Args: { p_tags: string[] }; Returns: string };
       track_under_review: { Args: { p_track: string }; Returns: boolean };
       track_upload_allowance: { Args: never; Returns: number };
       weekly_helpful_leaders: {
