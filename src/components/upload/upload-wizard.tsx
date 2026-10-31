@@ -12,6 +12,7 @@ import {
 import { MiniWaveform } from "@/components/track/mini-waveform";
 import { Button } from "@/components/ui/button";
 import { FEEDBACK_WANT_LABELS } from "@/config/labels";
+import { reputationLevels } from "@/config/reputation";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -99,7 +100,7 @@ export function publishErrorText(
     case "upload_interrupted":
       return "The upload stopped. Check your connection and try again. Your details are still here.";
     case "rate_limited":
-      return `You've hit today's upload limit (${rateLimit?.limit ?? 2} per day for now). Try again ${rateLimit?.retry ?? "tomorrow"}.`;
+      return `You've hit today's upload limit (${rateLimit?.limit ?? reputationLevels[0]!.limits.tracksPerDay} per day for now). Try again ${rateLimit?.retry ?? "tomorrow"}.`;
     case "encode_failed":
       return "Something went wrong while preparing the stream. Try again, or upload an mp3.";
     case "unknown":

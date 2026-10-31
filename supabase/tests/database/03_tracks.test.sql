@@ -83,6 +83,7 @@ select results_eq(
 select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c1111111-1111-4111-8111-111111111111');
 select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c2222222-2222-4222-8222-222222222222');
 select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c3333333-3333-4333-8333-333333333333');
+select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c5555555-5555-4555-8555-555555555555');
 -- An object in carol's folder that bob uploaded.
 select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c4444444-4444-4444-8444-444444444444',
   '22222222-2222-4222-8222-222222222222');
@@ -108,12 +109,13 @@ select throws_ok(
 );
 select lives_ok(
   $$ select pg_temp.insert_track('c1111111-1111-4111-8111-111111111111');
-     select pg_temp.insert_track('c2222222-2222-4222-8222-222222222222') $$,
-  'a new user can upload two tracks a day'
+     select pg_temp.insert_track('c2222222-2222-4222-8222-222222222222');
+     select pg_temp.insert_track('c3333333-3333-4333-8333-333333333333') $$,
+  'a user can upload three tracks a day'
 );
 select throws_ok(
-  $$ select pg_temp.insert_track('c3333333-3333-4333-8333-333333333333') $$,
-  'PT429', 'rate_limited', 'the third upload in a day is rate limited'
+  $$ select pg_temp.insert_track('c5555555-5555-4555-8555-555555555555') $$,
+  'PT429', 'rate_limited', 'the fourth upload in a day is rate limited'
 );
 reset role;
 

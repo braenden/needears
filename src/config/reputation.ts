@@ -26,9 +26,13 @@ export type ReputationLevel = {
   limits: RateLimits;
 };
 
+// Uploads are the same for everyone: giving good feedback says nothing about
+// needing to upload more. Reputation raises the comment, report and
+// reaction limits only.
+const uploadLimits = { tracksPerDay: 3, tracksPerWeek: 10 };
+
 const baseLimits: RateLimits = {
-  tracksPerDay: 2,
-  tracksPerWeek: 6,
+  ...uploadLimits,
   commentsPerHour: 60,
   reportsPerDay: 20,
   reactionsPerHour: 120,
@@ -56,8 +60,7 @@ export const reputationLevels: readonly ReputationLevel[] = [
     minHelpful: 15,
     description: "People can count on their comments.",
     limits: {
-      tracksPerDay: 4,
-      tracksPerWeek: 12,
+      ...uploadLimits,
       commentsPerHour: 120,
       reportsPerDay: 40,
       reactionsPerHour: 240,
@@ -69,8 +72,7 @@ export const reputationLevels: readonly ReputationLevel[] = [
     minHelpful: 60,
     description: "Their feedback has helped again and again.",
     limits: {
-      tracksPerDay: 6,
-      tracksPerWeek: 20,
+      ...uploadLimits,
       commentsPerHour: 180,
       reportsPerDay: 60,
       reactionsPerHour: 360,
