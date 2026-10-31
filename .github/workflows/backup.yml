@@ -1,0 +1,82 @@
+name: Backup
+
+# Nightly encrypted backup of the production database, kept as a workflow
+# artifact for 90 days. On Sundays it also lists every Storage object and
+# copies the ones that are new since the week before (scripts/backup.sh).
+# Skipped until the secrets SUPABASE_DB_URL and BACKUP_AGE_RECIPIENT are set.
+#
+# Artifacts of a public repository can be downloaded by anyone signed in to
+# GitHub, so only age encrypted archives are uploaded.
+#
+# Restore into a new Supabase project (with the age identity file key.txt):
+#   1. age -d -i key.txt needears-db-*.tar.gz.age | tar xz
+#   2. psql --single-transaction -v ON_ERROR_STOP=1 -f roles.sql -f schema.sql -c 'SET session_replication_role = replica' -f data.sql -c 'SET session_replication_role = origin' -f cron.sql -d "$NEW_DB_URL"
+#   3. For each weekly archive, oldest first: age -d -i key.txt needears-storage-*.tar.gz.age | tar xz, then with the CLI linked to the new project: for b in objects/*; do supabase storage cp -r "$b" ss:/// --experimental; done
+
+on:
+  schedule:
+    - cron: "41 2 * * 1-6"
+    - cron: "41 2 * * 0"
+  workflow_dispatch:
+    inputs:
+      storage:
+        description: Also list Storage and copy objects from the last 8 days
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          if [ -n "$SUPABASE_DB_URL" ] && [ -n "$BACKUP_AGE_RECIPIENT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Backup skipped: SUPABASE_DB_URL or BACKUP_AGE_RECIPIENT is not set."
+          fi
+
+  backup:
+    name: Back up
+    needs: check
+    if: ${{ needs.check.outputs.ready == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.95.4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+      - run: ./scripts/backup.sh
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_STORAGE: ${{ (github.event.schedule == '41 2 * * 0' || inputs.storage) && 'true' || 'false' }}
+          BACKUP_OUT: backup
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backup-${{ github.run_id }}
+          path: backup/
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error

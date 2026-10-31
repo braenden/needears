@@ -29,8 +29,33 @@ function toInt16(input: Float32Array, start: number, end: number) {
   return out;
 }
 
-self.onmessage = (event: MessageEvent<EncodeRequest>) => {
+// A dedicated worker only receives messages from the page that created it,
+// and those arrive with an empty origin. Anything else is ignored.
+function isOwnMessage(event: MessageEvent) {
+  return event.origin === "" || event.origin === self.location.origin;
+}
+
+function isEncodeRequest(data: unknown): data is EncodeRequest {
+  if (typeof data !== "object" || data === null) return false;
+  const { channels, sampleRate, kbps } = data as Partial<EncodeRequest>;
+  return (
+    Array.isArray(channels) &&
+    channels.length >= 1 &&
+    channels.length <= 2 &&
+    channels.every(
+      (c) => c instanceof Float32Array && c.length === channels[0]!.length,
+    ) &&
+    typeof sampleRate === "number" &&
+    sampleRate > 0 &&
+    typeof kbps === "number" &&
+    kbps > 0
+  );
+}
+
+self.onmessage = (event: MessageEvent<unknown>) => {
+  if (!isOwnMessage(event)) return;
   try {
+    if (!isEncodeRequest(event.data)) throw new Error("Invalid request");
     const { channels, sampleRate, kbps } = event.data;
     const [left, right] = channels;
     if (!left) throw new Error("No audio");

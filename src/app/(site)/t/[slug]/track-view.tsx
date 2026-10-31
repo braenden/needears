@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOffIcon } from "lucide-react";
+import { EyeOffIcon, PencilIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -26,13 +27,18 @@ import {
 import { ReactionBar } from "@/components/reaction-bar";
 import { ReportDialog, type ReportResult } from "@/components/report-dialog";
 import { ReputationBadge } from "@/components/reputation-badge";
+import type { EditTrackResult } from "@/components/track/edit-track-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type { Details } from "@/components/upload/upload-state";
 import { FEEDBACK_WANT_LABELS, LEVEL_DISPLAY_LABELS } from "@/config/labels";
 import { siteUrl } from "@/config/site";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { browserClient } from "@/lib/supabase/lazy";
+import { parseTags } from "@/lib/upload/tags";
 import type {
   Comment,
+  Genre,
   Profile,
   ReactionKind,
   ReportReason,
@@ -41,6 +47,15 @@ import type {
 
 const COMMENT_COLUMNS =
   "id, track_id, author_id, time_ms, category, body, is_helpful, status, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+
+// Only the owner needs it, so everyone else never downloads it.
+const EditTrackDialog = dynamic(
+  () =>
+    import("@/components/track/edit-track-dialog").then(
+      (m) => m.EditTrackDialog,
+    ),
+  { ssr: false },
+);
 
 type TrackViewer = {
   userId: string;
@@ -56,6 +71,7 @@ export function TrackView({
   viewer,
   startSeconds,
   initialFilter,
+  genres,
 }: {
   track: Track;
   audioUrl: string | null;
@@ -64,6 +80,8 @@ export function TrackView({
   viewer: TrackViewer | null;
   startSeconds: number;
   initialFilter: CommentFilter;
+  /** Only passed to the owner, for editing the details. */
+  genres: Genre[] | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -76,6 +94,7 @@ export function TrackView({
   const [mine, setMine] = useState(initialReactions);
   const [counts, setCounts] = useState(track.reaction_counts);
   const [filter, setFilter] = useState<CommentFilter>(initialFilter);
+  const [editing, setEditing] = useState(false);
   const [reporting, setReporting] = useState<
     { type: "track" } | { type: "comment"; id: string } | null
   >(null);
@@ -196,6 +215,36 @@ export function TrackView({
     return { ok: true };
   }
 
+  async function saveDetails(details: Details): Promise<EditTrackResult> {
+    const supabase = await browserClient();
+    let genreId: number | undefined;
+    if (details.genre !== track.genre.slug) {
+      const { data, error } = await supabase
+        .from("genres")
+        .select("id")
+        .eq("slug", details.genre)
+        .single();
+      if (error) return { ok: false };
+      genreId = data.id;
+    }
+    const { data, error } = await supabase
+      .from("tracks")
+      .update({
+        title: details.title.trim(),
+        description: details.description.trim(),
+        tags: parseTags(details.tags),
+        feedback_wants: details.feedbackWants,
+        level: details.level,
+        ...(genreId === undefined ? {} : { genre_id: genreId }),
+      })
+      .eq("id", track.id)
+      .select("id");
+    if (error || data.length === 0) return { ok: false };
+    toast.success("Details saved.");
+    router.refresh();
+    return { ok: true };
+  }
+
   function changeFilter(next: CommentFilter) {
     setFilter(next);
     const url = new URL(window.location.href);
@@ -305,6 +354,26 @@ export function TrackView({
             ))}
           </ul>
         ) : null}
+        {isOwner && genres ? (
+          <div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => setEditing(true)}
+            >
+              <PencilIcon /> Edit details
+            </Button>
+            <EditTrackDialog
+              track={track}
+              genres={genres}
+              open={editing}
+              onOpenChange={setEditing}
+              onSave={saveDetails}
+            />
+          </div>
+        ) : null}
         {viewer && !isOwner ? (
           <div>
             <ReportDialog
@@ -340,6 +409,7 @@ export function TrackView({
           className="mt-6"
           comments={comments}
           viewer={viewerKind}
+          ownerId={track.owner_id}
           activeCommentId={activeId}
           filter={filter}
           onFilterChange={changeFilter}
