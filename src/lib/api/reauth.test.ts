@@ -24,6 +24,15 @@ describe("sessionAuthenticatedAt", () => {
 });
 
 describe("isFreshSession", () => {
+  it("ignores a factor added to an old session", () => {
+    // Enrolling TOTP on a stolen session adds a fresh totp entry.
+    const amr = [
+      { method: "oauth", timestamp: seconds(now - 5 * 24 * 3600 * 1000) },
+      { method: "totp", timestamp: seconds(now - 60 * 1000) },
+    ];
+    expect(isFreshSession(amr, window, now)).toBe(false);
+  });
+
   it("accepts a session that signed in five minutes ago", () => {
     const amr = [{ method: "otp", timestamp: seconds(now - 5 * 60 * 1000) }];
     expect(isFreshSession(amr, window, now)).toBe(true);
