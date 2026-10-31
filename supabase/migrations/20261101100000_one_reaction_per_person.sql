@@ -1,21 +1,30 @@
 -- One reaction per person per track.
 --
--- A person picks one of the four reactions (or none). Choosing another one
--- replaces it: insert with `on conflict (track_id, user_id) do update set
--- kind = excluded.kind`, or update `kind`. Changing it keeps the time it was
+-- A person picks one of the four reactions (or none). The app inserts a
+-- reaction when the person has none, updates `kind` to change it, and
+-- deletes it to take it back. (An upsert from the API would also try to set
+-- track_id, which users have no grant for.) Changing keeps the time it was
 -- first given, so switching back and forth does not lift a track in
 -- Trending, and it counts against the hourly reaction limit like adding one.
 --
 -- Where someone had several, the newest is kept.
 
-delete from public.reactions r
-using public.reactions newer
-where newer.track_id = r.track_id
-  and newer.user_id = r.user_id
-  and (newer.created_at, newer.kind::text) > (r.created_at, r.kind::text);
+-- One statement, so the lock holds from the clean up to the new key and
+-- no reaction slips in between.
+do $$
+begin
+  lock table public.reactions in share row exclusive mode;
 
-alter table public.reactions drop constraint reactions_pkey;
-alter table public.reactions add primary key (track_id, user_id);
+  delete from public.reactions r
+  using public.reactions newer
+  where newer.track_id = r.track_id
+    and newer.user_id = r.user_id
+    and (newer.created_at, newer.kind::text) > (r.created_at, r.kind::text);
+
+  alter table public.reactions drop constraint reactions_pkey;
+  alter table public.reactions add primary key (track_id, user_id);
+end;
+$$;
 
 grant update (kind) on public.reactions to authenticated;
 
@@ -31,7 +40,24 @@ create policy "Users change their own reaction" on public.reactions
   );
 
 -- Changing the reaction counts like adding one (rate limit), and the
--- counts on the track follow.
+-- counts on the track follow. An update that keeps the same kind is free.
+create or replace function private.reactions_before_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and new.kind is not distinct from old.kind then
+    return new;
+  end if;
+  perform private.consume_rate_limit(new.user_id, 'reaction');
+  return new;
+end;
+$$;
+
+revoke execute on function private.reactions_before_insert() from public, anon, authenticated;
+
 drop trigger reactions_before_insert on public.reactions;
 create trigger reactions_before_insert
   before insert or update of kind on public.reactions

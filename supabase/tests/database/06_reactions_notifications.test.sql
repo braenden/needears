@@ -42,8 +42,7 @@ select throws_ok(
 select set_config('request.jwt.claims', '{"sub": "33333333-3333-4333-8333-333333333333", "role": "authenticated"}', true);
 set local role authenticated;
 select lives_ok(
-  $$ insert into public.reactions (track_id, kind) values ((select track from ids), 'eyes')
-     on conflict (track_id, user_id) do update set kind = excluded.kind $$,
+  $$ update public.reactions set kind = 'eyes' where track_id = (select track from ids) $$,
   'choosing another reaction replaces the old one'
 );
 update public.reactions set kind = 'heart' where user_id = '22222222-2222-4222-8222-222222222222';
