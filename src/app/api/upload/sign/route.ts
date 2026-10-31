@@ -14,6 +14,8 @@ const bodySchema = z
     size: z.number().int().positive().max(AUDIO_MAX_BYTES),
     type: z.literal(AUDIO_MIME),
     durationMs: z.number().int().min(MIN_DURATION_MS).max(MAX_DURATION_MS),
+    // Set when the upload is a new version of this track.
+    trackId: z.uuid().optional(),
   })
   .strict();
 
@@ -47,7 +49,9 @@ export async function POST(request: Request) {
   // Reserves the object id. The storage policies only accept objects with a
   // valid reservation, and reserving fails when the user has no uploads
   // left, so nobody uploads a file the database would then reject.
-  const reserved = await auth.supabase.rpc("reserve_upload");
+  const reserved = await auth.supabase.rpc("reserve_upload", {
+    p_track: body.data.trackId?.toLowerCase(),
+  });
   if (reserved.error) return databaseError(reserved.error);
 
   const objectId = reserved.data;

@@ -24,6 +24,7 @@ export type Database = {
           status: Database["public"]["Enums"]["comment_status"];
           time_ms: number | null;
           track_id: string;
+          version_id: string | null;
         };
         Insert: {
           author_id?: string;
@@ -39,6 +40,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["comment_status"];
           time_ms?: number | null;
           track_id: string;
+          version_id?: string | null;
         };
         Update: {
           author_id?: string;
@@ -54,6 +56,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["comment_status"];
           time_ms?: number | null;
           track_id?: string;
+          version_id?: string | null;
         };
         Relationships: [
           {
@@ -75,6 +78,13 @@ export type Database = {
             columns: ["track_id"];
             isOneToOne: false;
             referencedRelation: "tracks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "comments_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "track_versions";
             referencedColumns: ["id"];
           },
         ];
@@ -326,6 +336,7 @@ export type Database = {
           status: Database["public"]["Enums"]["report_status"];
           target_type: Database["public"]["Enums"]["report_target"];
           track_id: string | null;
+          version_id: string | null;
         };
         Insert: {
           comment_id?: string | null;
@@ -340,6 +351,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["report_status"];
           target_type: Database["public"]["Enums"]["report_target"];
           track_id?: string | null;
+          version_id?: string | null;
         };
         Update: {
           comment_id?: string | null;
@@ -354,6 +366,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["report_status"];
           target_type?: Database["public"]["Enums"]["report_target"];
           track_id?: string | null;
+          version_id?: string | null;
         };
         Relationships: [
           {
@@ -382,6 +395,13 @@ export type Database = {
             columns: ["track_id"];
             isOneToOne: false;
             referencedRelation: "tracks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reports_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "track_versions";
             referencedColumns: ["id"];
           },
         ];
@@ -452,6 +472,50 @@ export type Database = {
             foreignKeyName: "track_upload_ips_track_id_fkey";
             columns: ["track_id"];
             isOneToOne: true;
+            referencedRelation: "tracks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      track_versions: {
+        Row: {
+          audio_key: string;
+          created_at: string;
+          duration_ms: number;
+          id: string;
+          loudness: number | null;
+          note: string;
+          peaks_key: string;
+          track_id: string;
+          version_no: number;
+        };
+        Insert: {
+          audio_key: string;
+          created_at?: string;
+          duration_ms: number;
+          id?: string;
+          loudness?: number | null;
+          note?: string;
+          peaks_key: string;
+          track_id: string;
+          version_no: number;
+        };
+        Update: {
+          audio_key?: string;
+          created_at?: string;
+          duration_ms?: number;
+          id?: string;
+          loudness?: number | null;
+          note?: string;
+          peaks_key?: string;
+          track_id?: string;
+          version_no?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "track_versions_track_id_fkey";
+            columns: ["track_id"];
+            isOneToOne: false;
             referencedRelation: "tracks";
             referencedColumns: ["id"];
           },
@@ -756,7 +820,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
-      reserve_upload: { Args: never; Returns: string };
+      reserve_upload: { Args: { p_track?: string }; Returns: string };
       track_under_review: { Args: { p_track: string }; Returns: boolean };
       track_upload_allowance: { Args: never; Returns: number };
     };
