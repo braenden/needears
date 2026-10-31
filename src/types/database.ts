@@ -81,6 +81,8 @@ export type Database = {
       };
       email_queue: {
         Row: {
+          attempts: number;
+          claimed_at: string | null;
           created_at: string;
           id: number;
           notification_id: string;
@@ -88,6 +90,8 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          attempts?: number;
+          claimed_at?: string | null;
           created_at?: string;
           id?: never;
           notification_id: string;
@@ -95,6 +99,8 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          attempts?: number;
+          claimed_at?: string | null;
           created_at?: string;
           id?: never;
           notification_id?: string;
@@ -617,11 +623,12 @@ export type Database = {
         Returns: boolean;
       };
       email_batch: {
-        Args: { p_limit?: number };
+        Args: { p_daily_budget?: number; p_limit?: number };
         Returns: {
           email: string;
           items: Json;
           queue_ids: number[];
+          total: number;
           user_id: string;
         }[];
       };
@@ -717,6 +724,7 @@ export type Database = {
       };
       forget_expired_upload_reservations: { Args: never; Returns: undefined };
       is_admin: { Args: never; Returns: boolean };
+      mark_emails_failed: { Args: { p_ids: number[] }; Returns: undefined };
       mark_emails_sent: { Args: { p_ids: number[] }; Returns: undefined };
       orphaned_upload_objects: {
         Args: { p_limit?: number };

@@ -4,7 +4,10 @@
 -- email_notifications on also gets a row in `email_queue`. GET
 -- /api/cron/send-emails runs every hour, sends one email per person with
 -- everything still waiting, and marks the rows sent. Sent rows are deleted
--- after 7 days. Moderation notices are not emailed.
+-- after 7 days, and rows that could not be sent within 3 days too.
+-- Moderation notices are not emailed. The email names who did what on which
+-- track, but never quotes comment text, so nobody can mail links or
+-- phishing text to other people through us.
 --
 -- A queue row points at its notification instead of copying names and
 -- text, so deleting a comment, a track or an account also removes what
@@ -22,6 +25,10 @@ create table public.email_queue (
   user_id uuid not null references public.profiles (id) on delete cascade,
   notification_id uuid not null unique references public.notifications (id) on delete cascade,
   created_at timestamptz not null default now(),
+  -- Set when a run picks the row, so two runs never send the same email.
+  claimed_at timestamptz,
+  -- Sends the email provider refused for good; the row is dropped at three.
+  attempts integer not null default 0,
   sent_at timestamptz
 );
 
@@ -60,16 +67,22 @@ create trigger notifications_queue_email
   after insert on public.notifications
   for each row execute function private.notifications_queue_email();
 
--- One row per person with waiting emails, oldest first, at most p_limit
--- people (80, under the daily quota of the email provider). Rows of people
--- who have since turned email off, or were banned, are dropped first, and
--- so are rows about a comment or track that is no longer live.
-create function public.email_batch(p_limit integer default 80)
-returns table (user_id uuid, email text, items jsonb, queue_ids bigint[])
+-- One row per person with waiting emails, oldest first. At most p_limit
+-- people per run, and at most p_daily_budget emails in any 24 hours, so the
+-- email provider's daily quota keeps room for sign in links. Rows of people
+-- who have since turned email off or were banned are dropped first, and so
+-- are rows about a comment or track that is no longer live. The rows handed
+-- out are claimed for 15 minutes. An email lists at most 20 events; the
+-- count says how many there were.
+create function public.email_batch(p_limit integer default 20, p_daily_budget integer default 60)
+returns table (user_id uuid, email text, total integer, items jsonb, queue_ids bigint[])
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  sent_today integer;
+  room integer;
 begin
   delete from public.email_queue q
   using public.profiles p
@@ -87,30 +100,55 @@ begin
         and not exists (select 1 from public.comments c where c.id = n.comment_id and c.status = 'live'))
     );
 
+  -- Each email marks its rows in one call, so one sent_at per email.
+  select count(distinct q.sent_at) into sent_today
+  from public.email_queue q where q.sent_at > now() - interval '1 day';
+  room := least(greatest(p_limit, 0), greatest(p_daily_budget - sent_today, 0), 80);
+
   return query
-  select q.user_id, u.email::text,
-    jsonb_agg(
+  with picked as (
+    select q.user_id
+    from public.email_queue q
+    join auth.users u on u.id = q.user_id
+    where q.sent_at is null
+      and q.attempts < 3
+      and (q.claimed_at is null or q.claimed_at < now() - interval '15 minutes')
+      and u.email is not null
+    group by q.user_id
+    order by min(q.created_at)
+    limit room
+  ),
+  claimed as (
+    update public.email_queue q
+    set claimed_at = now()
+    from picked
+    where q.user_id = picked.user_id
+      and q.sent_at is null
+      and q.attempts < 3
+      and (q.claimed_at is null or q.claimed_at < now() - interval '15 minutes')
+    returning q.id, q.user_id, q.notification_id, q.created_at
+  )
+  select c.user_id, u.email::text, count(*)::integer,
+    coalesce(jsonb_agg(
       jsonb_build_object(
         'kind', n.kind,
-        'created_at', n.created_at,
         'actor', coalesce(nullif(a.display_name, ''), a.handle),
         'track_title', t.title,
         'track_slug', t.slug,
-        'time_ms', c.time_ms,
-        'excerpt', left(c.body, 200)
-      ) order by n.created_at
-    ),
-    array_agg(q.id order by q.created_at)
-  from public.email_queue q
-  join public.notifications n on n.id = q.notification_id
-  join auth.users u on u.id = q.user_id
+        'time_ms', cm.time_ms
+      ) order by n.created_at desc
+    ) filter (where c.rn <= 20), '[]'::jsonb),
+    array_agg(c.id)
+  from (
+    select claimed.*, row_number() over (partition by claimed.user_id order by claimed.created_at desc) as rn
+    from claimed
+  ) c
+  join public.notifications n on n.id = c.notification_id
+  join auth.users u on u.id = c.user_id
   join public.tracks t on t.id = n.track_id
   left join public.profiles a on a.id = n.actor_id
-  left join public.comments c on c.id = n.comment_id
-  where q.sent_at is null and u.email is not null
-  group by q.user_id, u.email
-  order by min(q.created_at)
-  limit least(greatest(p_limit, 1), 80);
+  left join public.comments cm on cm.id = n.comment_id
+  group by c.user_id, u.email;
 end;
 $$;
 
@@ -123,6 +161,17 @@ as $$
   update public.email_queue set sent_at = now() where id = any (p_ids) and sent_at is null;
 $$;
 
+-- The provider refused the email for good (not a quota or server error).
+create function public.mark_emails_failed(p_ids bigint[])
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.email_queue set attempts = attempts + 1, claimed_at = null
+  where id = any (p_ids) and sent_at is null;
+$$;
+
 create or replace function private.purge_expired_data()
 returns void
 language sql
@@ -132,10 +181,14 @@ as $$
   delete from public.track_upload_ips where created_at < now() - interval '30 days';
   delete from private.rate_limit_events where created_at < now() - interval '8 days';
   delete from public.email_queue where sent_at < now() - interval '7 days';
+  -- Nothing waits longer than three days.
+  delete from public.email_queue where sent_at is null and created_at < now() - interval '3 days';
 $$;
 
 revoke execute on function private.notifications_queue_email() from public, anon, authenticated;
-revoke execute on function public.email_batch(integer) from public, anon, authenticated;
+revoke execute on function public.email_batch(integer, integer) from public, anon, authenticated;
 revoke execute on function public.mark_emails_sent(bigint[]) from public, anon, authenticated;
-grant execute on function public.email_batch(integer) to service_role;
+revoke execute on function public.mark_emails_failed(bigint[]) from public, anon, authenticated;
+grant execute on function public.email_batch(integer, integer) to service_role;
 grant execute on function public.mark_emails_sent(bigint[]) to service_role;
+grant execute on function public.mark_emails_failed(bigint[]) to service_role;

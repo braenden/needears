@@ -20,7 +20,7 @@ jobs:
     steps:
       - run: |
           if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET is not set"; exit 0; fi
-          curl --fail --silent --show-error --retry 2 --retry-delay 10 \
+          curl --fail --silent --show-error --output /dev/null \
             -H "Authorization: Bearer $CRON_SECRET" "$PRODUCTION_URL/api/cron/send-emails"
         env:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
