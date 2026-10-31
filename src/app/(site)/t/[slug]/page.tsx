@@ -23,7 +23,10 @@ export async function generateMetadata({
   const description =
     track.description.slice(0, 160) ||
     `${track.genre.name} track by ${owner}, ${formatTime(track.duration_ms)}. Listen and leave timestamped feedback.`;
-  const image = `/api/og/${track.slug}`;
+  // The image is drawn from the latest version. A new version gets a new
+  // URL, so sites that cache link previews pick up the new waveform.
+  const latest = data.versions[data.versions.length - 1];
+  const image = `/api/og/${track.slug}${latest && latest.version_no > 1 ? `?v=${latest.version_no}` : ""}`;
   return {
     title: `${track.title} by ${owner}`,
     description,
@@ -55,7 +58,7 @@ export default async function TrackPage({
   const [{ slug }, query] = await Promise.all([params, searchParams]);
   const [data, viewer] = await Promise.all([loadTrack(slug), getViewer()]);
   if (!data) notFound();
-  const { track, audioUrl, comments } = data;
+  const { track, audioUrl, comments, versions } = data;
 
   let mine: ReactionKind[] = [];
   if (viewer) {
@@ -97,6 +100,7 @@ export default async function TrackPage({
       initialFilter={filter}
       initialShowResolved={query.resolved !== "hide"}
       genres={genres}
+      versions={versions}
     />
   );
 }

@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOffIcon, PencilIcon } from "lucide-react";
+import { EyeOffIcon, PencilIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -28,12 +28,15 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { ReportDialog, type ReportResult } from "@/components/report-dialog";
 import { ReputationBadge } from "@/components/reputation-badge";
 import type { EditTrackResult } from "@/components/track/edit-track-dialog";
+import { VersionPicker } from "@/components/versions/version-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Details } from "@/components/upload/upload-state";
+import type { PlayableVersion } from "@/lib/data/tracks";
 import { FEEDBACK_WANT_LABELS, LEVEL_DISPLAY_LABELS } from "@/config/labels";
 import { siteUrl } from "@/config/site";
 import { usePlayCounter } from "@/hooks/use-play-counter";
+import { matchGainDb } from "@/lib/audio/loudness";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { formatPlays } from "@/lib/plays";
 import { browserClient } from "@/lib/supabase/lazy";
@@ -51,7 +54,20 @@ import type {
 const COMMENT_COLUMNS =
   "id, track_id, author_id, parent_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
 
-// Only the owner needs it, so everyone else never downloads it.
+// Only the owner needs these, so everyone else never downloads them.
+const NewVersion = dynamic(
+  () => import("./new-version").then((m) => m.NewVersion),
+  {
+    ssr: false,
+    // Same size as the real button, so nothing moves when it loads.
+    loading: () => (
+      <Button variant="outline" size="sm" disabled>
+        <UploadIcon /> Upload a new version
+      </Button>
+    ),
+  },
+);
+
 const EditTrackDialog = dynamic(
   () =>
     import("@/components/track/edit-track-dialog").then(
@@ -76,6 +92,7 @@ export function TrackView({
   initialFilter,
   initialShowResolved,
   genres,
+  versions,
 }: {
   track: Track;
   audioUrl: string | null;
@@ -87,6 +104,8 @@ export function TrackView({
   initialShowResolved: boolean;
   /** Only passed to the owner, for editing the details. */
   genres: Genre[] | null;
+  /** Oldest first; the last one is the latest. */
+  versions: PlayableVersion[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -101,17 +120,52 @@ export function TrackView({
   const [filter, setFilter] = useState<CommentFilter>(initialFilter);
   const [showResolved, setShowResolved] = useState(initialShowResolved);
   const [editing, setEditing] = useState(false);
+  const latest = versions[versions.length - 1];
+  const [versionId, setVersionId] = useState(latest?.id ?? null);
+  const [previousVersionId, setPreviousVersionId] = useState<string | null>(
+    null,
+  );
   const countPlay = usePlayCounter(track.id, track.duration_ms);
   const [reporting, setReporting] = useState<
     { type: "track" } | { type: "comment"; id: string } | null
   >(null);
 
   const isOwner = viewer?.userId === track.owner_id;
+  // With more than one version, the player, the markers and the list follow
+  // the picked version. Until a new version arrives from the server after
+  // publishing, the latest one plays.
+  const versioned = versions.length > 1;
+  const current = versions.find((v) => v.id === versionId) ?? latest;
+  const isLatest = !current || current.id === latest?.id;
+  const playing = {
+    durationMs: current?.duration_ms ?? track.duration_ms,
+    peaks: current?.peaks ?? track.peaks,
+    // The latest version's URL is refreshed when it expires.
+    audioUrl: isLatest ? audioUrl : (current?.audioUrl ?? null),
+  };
+  const measured = versions
+    .map((v) => v.loudness)
+    .filter((l): l is number => l !== null);
+  const gainDb = versioned
+    ? matchGainDb(
+        current?.loudness ?? null,
+        measured.length > 0 ? Math.min(...measured) : null,
+      )
+    : 0;
+  const versionNumbers = Object.fromEntries(
+    versions.map((v) => [v.id, v.version_no]),
+  );
+  const onVersion = (c: ThreadComment) =>
+    !versioned || !c.version_id || c.version_id === current?.id;
   const viewerKind = !viewer ? "signed_out" : isOwner ? "owner" : "visitor";
   // Replies sit at their parent's time, so only top-level comments get a
   // marker on the waveform.
   const topLevel = comments.filter((c) => !c.parent_id);
-  const activeId = selectedId ?? activeCommentAt(topLevel, timeMs)?.id ?? null;
+  const listed = comments.filter(onVersion);
+  const activeId =
+    selectedId ??
+    activeCommentAt(topLevel.filter(onVersion), timeMs)?.id ??
+    null;
   const owner = displayNameOf(track.owner);
   const shareUrl = `${siteUrl()}/t/${track.slug}`;
 
@@ -146,6 +200,8 @@ export function TrackView({
         body: draft.body,
         category: draft.category,
         time_ms: draft.timeMs,
+        // Left out, the database uses the latest version.
+        ...(versioned && current ? { version_id: current.id } : {}),
       })
       .select(COMMENT_COLUMNS)
       .single();
@@ -326,6 +382,13 @@ export function TrackView({
     return { ok: true };
   }
 
+  function pickVersion(id: string) {
+    if (id === current?.id) return;
+    setPreviousVersionId(current?.id ?? null);
+    setVersionId(id);
+    setSelectedId(null);
+  }
+
   function changeShowResolved(next: boolean) {
     setShowResolved(next);
     const url = new URL(window.location.href);
@@ -381,13 +444,27 @@ export function TrackView({
         </div>
       </header>
 
+      {versioned && current ? (
+        <VersionPicker
+          className="mt-6"
+          versions={versions}
+          currentId={current.id}
+          previousId={previousVersionId}
+          onSelect={pickVersion}
+        />
+      ) : null}
+
       <div className="sticky top-14 z-30 -mx-4 mt-6 bg-background/90 px-4 py-2 backdrop-blur-md sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
         <WaveformPlayer
           ref={player}
           title={track.title}
-          durationMs={track.duration_ms}
-          peaks={track.peaks}
-          audioUrl={audioUrl}
+          durationMs={playing.durationMs}
+          peaks={playing.peaks}
+          audioUrl={playing.audioUrl}
+          keepPosition
+          currentVersionId={versioned ? current?.id : undefined}
+          versionNumbers={versioned ? versionNumbers : undefined}
+          gainDb={gainDb}
           initialTimeMs={startSeconds * 1000}
           comments={topLevel}
           activeCommentId={activeId}
@@ -465,6 +542,20 @@ export function TrackView({
               onOpenChange={setEditing}
               onSave={saveDetails}
             />
+            {track.status === "live" ? (
+              <div className="mt-2">
+                <NewVersion
+                  trackId={track.id}
+                  trackTitle={track.title}
+                  versionCount={versions.length}
+                  onPublished={(version) => {
+                    setPreviousVersionId(current?.id ?? null);
+                    setVersionId(version.id);
+                    router.refresh();
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
         ) : null}
         {viewer && !isOwner ? (
@@ -492,7 +583,7 @@ export function TrackView({
         <CommentComposer
           ref={composer}
           currentTimeMs={timeMs}
-          durationMs={track.duration_ms}
+          durationMs={playing.durationMs}
           signedIn={Boolean(viewer)}
           commentsPerHour={viewer?.commentsPerHour}
           onSubmit={submit}
@@ -500,7 +591,7 @@ export function TrackView({
         />
         <CommentList
           className="mt-6"
-          comments={comments}
+          comments={listed}
           viewer={viewerKind}
           ownerId={track.owner_id}
           activeCommentId={activeId}

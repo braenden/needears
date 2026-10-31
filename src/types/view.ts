@@ -83,9 +83,9 @@ export type TrackVersion = {
 };
 
 // A comment that knows which version it was left on (comments.version_id).
-export type VersionedComment = Comment & { version_id?: string };
+export type VersionedComment = Comment & { version_id?: string | null };
 
 // A comment that may be a reply (parent_id set) or resolved by the track
 // owner. Optional so lists that do not load threads still type-check.
 export type ThreadComment = Comment &
-  Partial<Pick<Tables<"comments">, "parent_id" | "resolved_at">>;
+  Partial<Pick<Tables<"comments">, "parent_id" | "resolved_at" | "version_id">>;

@@ -73,6 +73,11 @@ export type WaveformPlayerProps = {
   currentVersionId?: string;
   /** Version id to its number, for "on v1" in marker labels. */
   versionNumbers?: Record<string, number>;
+  /**
+   * Turns playback down by this many dB (0 or less), to level match
+   * versions in A/B. Only ever down, so nothing can clip.
+   */
+  gainDb?: number;
   /** Fires once per second while playing and on every seek. */
   onTimeChange?: (ms: number) => void;
   onMarkerSelect?: (comment: Comment) => void;
@@ -137,6 +142,7 @@ export function WaveformPlayer({
   keepPosition = false,
   currentVersionId,
   versionNumbers,
+  gainDb = 0,
   onTimeChange,
   onMarkerSelect,
   onCommentHere,
@@ -163,10 +169,19 @@ export function WaveformPlayer({
   // Position and play state carried from the old source to the new one.
   const handoffRef = useRef<{ time: number; playing: boolean } | null>(null);
   const onTimeChangeRef = useRef(onTimeChange);
+  // Read when a new source is created, so mute and level carry over.
+  const mutedRef = useRef(muted);
+  const volume = Math.min(1, 10 ** (Math.min(0, gainDb) / 20));
+  const volumeRef = useRef(volume);
   useEffect(() => {
     onTimeChangeRef.current = onTimeChange;
     keepPositionRef.current = keepPosition;
-  }, [onTimeChange, keepPosition]);
+    mutedRef.current = muted;
+    volumeRef.current = volume;
+  }, [onTimeChange, keepPosition, muted, volume]);
+  useEffect(() => {
+    wsRef.current?.setVolume(volume);
+  }, [volume]);
 
   const status: Status = !audioUrl
     ? "ready"
@@ -206,6 +221,8 @@ export function WaveformPlayer({
         ...readColors(root),
       });
       wsRef.current = ws;
+      ws.setVolume(volumeRef.current);
+      ws.setMuted(mutedRef.current);
       let lastSecond = -1;
       const report = (seconds: number) => {
         const whole = Math.floor(seconds);
