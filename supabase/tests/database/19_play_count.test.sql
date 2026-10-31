@@ -36,9 +36,11 @@ select throws_ok(
 -- Nobody but the service role can call it or write the count.
 select set_config('request.jwt.claims', '{"sub": "22222222-2222-4222-8222-222222222222", "role": "authenticated"}', true);
 set local role authenticated;
-select throws_ok(
-  $$ select public.record_play((select track from ids), 'ip:me') $$,
-  '42501', null, 'signed in users cannot call record_play'
+-- Checked with has_function_privilege: calling a function without EXECUTE
+-- after `set role` crashes some local Postgres builds.
+select ok(
+  not has_function_privilege('authenticated', 'public.record_play(uuid, text, uuid)', 'execute'),
+  'signed in users cannot call record_play'
 );
 select throws_ok(
   $$ update public.tracks set play_count = 999 where id = (select track from ids) $$,

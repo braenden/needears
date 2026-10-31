@@ -1,13 +1,11 @@
-// How recent a sign in must be for account deletion and for adding or
-// removing a way to sign in. The database enforces the same window for
-// sign in methods (private.reauth_window() in
-// supabase/migrations/20261031190000_identity_link_guard.sql); keep the two
-// equal.
+// How recent the session's own sign in must be for account deletion and
+// for adding or removing a way to sign in (POST /api/account/identity-intent,
+// whose intent the database requires for the change).
 export const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 
 // The `amr` methods that are a sign in. Others (totp, phone, webauthn) can
 // be added to an existing session by whoever holds it, so they do not make
-// a session fresh. Kept equal to private.sign_in_methods() in the database.
+// a session fresh.
 export const SIGN_IN_METHODS = [
   "otp",
   "magiclink",
