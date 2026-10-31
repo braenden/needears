@@ -42,6 +42,7 @@ export type Database = {
           category: Database["public"]["Enums"]["feedback_category"];
           created_at: string;
           edited_at: string | null;
+          end_ms: number | null;
           first_helpful_at: string | null;
           helpful_at: string | null;
           id: string;
@@ -59,6 +60,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["feedback_category"];
           created_at?: string;
           edited_at?: string | null;
+          end_ms?: number | null;
           first_helpful_at?: string | null;
           helpful_at?: string | null;
           id?: string;
@@ -76,6 +78,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["feedback_category"];
           created_at?: string;
           edited_at?: string | null;
+          end_ms?: number | null;
           first_helpful_at?: string | null;
           helpful_at?: string | null;
           id?: string;
@@ -566,6 +569,7 @@ export type Database = {
           play_count: number;
           published_at: string;
           reaction_counts: Json;
+          reference_url: string | null;
           slug: string;
           status: Database["public"]["Enums"]["track_status"];
           tags: string[];
@@ -587,6 +591,7 @@ export type Database = {
           play_count?: number;
           published_at?: string;
           reaction_counts?: Json;
+          reference_url?: string | null;
           slug?: string;
           status?: Database["public"]["Enums"]["track_status"];
           tags?: string[];
@@ -608,6 +613,7 @@ export type Database = {
           play_count?: number;
           published_at?: string;
           reaction_counts?: Json;
+          reference_url?: string | null;
           slug?: string;
           status?: Database["public"]["Enums"]["track_status"];
           tags?: string[];
@@ -742,6 +748,7 @@ export type Database = {
           play_count: number;
           published_at: string;
           reaction_counts: Json;
+          reference_url: string | null;
           slug: string;
           status: Database["public"]["Enums"]["track_status"];
           tags: string[];
@@ -772,6 +779,7 @@ export type Database = {
           play_count: number;
           published_at: string;
           reaction_counts: Json;
+          reference_url: string | null;
           slug: string;
           status: Database["public"]["Enums"]["track_status"];
           tags: string[];
@@ -802,6 +810,7 @@ export type Database = {
           play_count: number;
           published_at: string;
           reaction_counts: Json;
+          reference_url: string | null;
           slug: string;
           status: Database["public"]["Enums"]["track_status"];
           tags: string[];

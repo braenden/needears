@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/api/auth";
 import { BodyError, databaseError, jsonError, readJson } from "@/lib/api/http";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_DURATION_MS, MIN_DURATION_MS } from "@/config/upload";
+import { isAllowedLinkUrl } from "@/config/profile";
 import { LOUDNESS_MAX, LOUDNESS_MIN } from "@/config/versions";
 import { objectKeys } from "@/lib/upload/keys";
 import { verifyUpload } from "@/lib/upload/verify";
@@ -27,6 +28,13 @@ const bodySchema = z
       .number()
       .min(LOUDNESS_MIN)
       .max(LOUDNESS_MAX)
+      .nullable()
+      .default(null),
+    // A link to a track the uploader is aiming for (profile link hosts).
+    referenceUrl: z
+      .string()
+      .trim()
+      .refine(isAllowedLinkUrl)
       .nullable()
       .default(null),
     waveformColor: z
@@ -106,6 +114,7 @@ export async function POST(request: Request) {
       audio_key: keys.audioKey,
       peaks_key: keys.peaksKey,
       waveform_color: input.waveformColor,
+      reference_url: input.referenceUrl,
     })
     .select("id, slug")
     .single();
