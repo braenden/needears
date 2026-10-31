@@ -34,7 +34,7 @@ describe("renderDigest", () => {
       [
         item({
           actor: "<img src=x onerror=alert(1)>\r\nBcc: x",
-          track_title: "abc‮evil",
+          track_title: "abc\u202eevil",
         }),
       ],
       1,
@@ -42,6 +42,6 @@ describe("renderDigest", () => {
     );
     expect(html).not.toContain("<img");
     expect(html).toContain("&lt;img");
-    expect(text).not.toMatch(/[\r‮]/);
+    expect(text).not.toMatch(/[\r\u202e]/);
   });
 });

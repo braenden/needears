@@ -34,6 +34,6 @@ export const config = {
   // at the root (icon.svg). Only root level: a page path like
   // /t/name.png must still get the CSP and a fresh nonce.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/health|api/og|[^/]+\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/health|api/og|api/tracks/[^/]+/markers$|[^/]+\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
