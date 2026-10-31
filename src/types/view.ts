@@ -38,6 +38,7 @@ export type TrackSummary = Pick<
   | "title"
   | "duration_ms"
   | "comment_count"
+  | "play_count"
   | "published_at"
   | "feedback_wants"
 > & {
