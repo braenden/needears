@@ -1,14 +1,9 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/api/auth";
 import { BodyError, jsonError, readJson } from "@/lib/api/http";
-import { isFreshSession } from "@/lib/api/reauth";
+import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-
-// How recent the session's own sign in must be. Deleting an account needs a
-// fresh login in this session, so a stolen or forgotten session cannot do
-// it, even when the owner has just signed in somewhere else.
-const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 
 const bodySchema = z.object({ confirm: z.string() }).strict();
 
@@ -52,6 +47,8 @@ export async function POST(request: Request) {
   const claims = await auth.supabase.auth.getClaims(auth.token ?? undefined);
   if (
     claims.error ||
+    // This session's own sign in, so a stolen or forgotten session cannot
+    // do it even when the owner has just signed in somewhere else.
     !isFreshSession(claims.data?.claims.amr, REAUTH_WINDOW_MS)
   ) {
     return jsonError(

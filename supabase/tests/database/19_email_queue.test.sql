@@ -118,8 +118,8 @@ reset role;
 select ok(
   not has_function_privilege('authenticated', 'public.email_batch(integer, integer)', 'execute')
     and not has_function_privilege('anon', 'public.email_batch(integer, integer)', 'execute')
-    and not has_function_privilege('authenticated', 'public.mark_emails_sent(bigint[])', 'execute')
-    and not has_function_privilege('anon', 'public.mark_emails_sent(bigint[])', 'execute')
+    and not has_function_privilege('authenticated', 'public.mark_emails_sent(bigint[], integer)', 'execute')
+    and not has_function_privilege('anon', 'public.mark_emails_sent(bigint[], integer)', 'execute')
     and not has_function_privilege('authenticated', 'public.mark_emails_failed(bigint[])', 'execute')
     and not has_table_privilege('anon', 'public.email_queue', 'select'),
   'only the service role can read or mark the queue'

@@ -6,3 +6,6 @@ export const EMAILS_PER_DAY = 60;
 export const EMAILS_PER_RUN = 20;
 // Events listed in one email; the rest are counted.
 export const EMAIL_ITEMS_MAX = 20;
+// Room kept free in the daily budget for account security emails (a way
+// to sign in added or removed), which the digest may not use.
+export const SECURITY_EMAIL_RESERVE = 10;

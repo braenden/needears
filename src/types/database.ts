@@ -127,7 +127,10 @@ export type Database = {
           claimed_at: string | null;
           created_at: string;
           id: number;
-          notification_id: string;
+          kind: string | null;
+          notification_id: string | null;
+          payload: Json | null;
+          recipient: string | null;
           sent_at: string | null;
           user_id: string;
         };
@@ -136,7 +139,10 @@ export type Database = {
           claimed_at?: string | null;
           created_at?: string;
           id?: never;
-          notification_id: string;
+          kind?: string | null;
+          notification_id?: string | null;
+          payload?: Json | null;
+          recipient?: string | null;
           sent_at?: string | null;
           user_id: string;
         };
@@ -145,7 +151,10 @@ export type Database = {
           claimed_at?: string | null;
           created_at?: string;
           id?: never;
-          notification_id?: string;
+          kind?: string | null;
+          notification_id?: string | null;
+          payload?: Json | null;
+          recipient?: string | null;
           sent_at?: string | null;
           user_id?: string;
         };
@@ -721,6 +730,10 @@ export type Database = {
         Args: { p_extension: string; p_name: string };
         Returns: boolean;
       };
+      create_identity_intent: {
+        Args: { p_action: string; p_provider: string; p_user: string };
+        Returns: undefined;
+      };
       email_batch: {
         Args: { p_daily_budget?: number; p_limit?: number };
         Returns: {
@@ -879,6 +892,16 @@ export type Database = {
           rank: number;
           slug: string;
           title: string;
+        }[];
+      };
+      security_email_batch: {
+        Args: { p_daily_budget?: number; p_limit?: number };
+        Returns: {
+          kind: string;
+          payload: Json;
+          queue_id: number;
+          recipients: string[];
+          user_id: string;
         }[];
       };
       tags_text: { Args: { p_tags: string[] }; Returns: string };
