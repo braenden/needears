@@ -2,7 +2,7 @@
 -- test and rolled back afterwards.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(3);
+select plan(4);
 \ir _helpers.psql
 
 create temp table ids as
@@ -18,6 +18,10 @@ insert into public.reactions (track_id, kind) values ((select track from ids), '
 select throws_ok(
   $$ insert into public.reactions (track_id, kind) values ((select track from ids), 'heart') $$,
   'PT429', 'rate_limited', 'toggling a reaction runs into the hourly limit'
+);
+select throws_ok(
+  $$ update public.reactions set kind = 'heart' where kind = 'fire' $$,
+  'PT429', 'rate_limited', 'changing a reaction counts against the same limit'
 );
 select lives_ok(
   $$ delete from public.reactions where kind = 'fire' $$,
