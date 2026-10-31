@@ -18,7 +18,9 @@ export function ProfileLinks({
     >
       {links.map((link) => {
         const host = hostOf(link.url);
-        const label = link.label.trim() || (host ? hostName(host) : link.url);
+        // Always the service's name, so the text can never name one place
+        // while the link goes to another.
+        const label = host ? hostName(host) : link.url;
         return (
           <li key={link.url} className="min-w-0">
             <a

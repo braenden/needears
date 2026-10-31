@@ -34,6 +34,22 @@ describe("profile links", () => {
     );
   });
 
+  it("names the service, whatever label was stored", () => {
+    render(
+      <ProfileLinks
+        links={[
+          {
+            label: "https://on.soundcloud.com/abc",
+            url: "https://tiktok.com/@someone",
+          },
+        ]}
+      />,
+    );
+    const link = screen.getByRole("link", { name: /TikTok/ });
+    expect(link).toHaveAttribute("href", "https://tiktok.com/@someone");
+    expect(screen.queryByText(/soundcloud/i)).toBeNull();
+  });
+
   it("opens links in a new tab without passing the referrer", () => {
     render(
       <ProfileLinks
