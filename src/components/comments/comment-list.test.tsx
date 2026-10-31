@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { comments } from "@/mocks/comments";
+import { comments, threadedComments } from "@/mocks/comments";
 import { jonas } from "@/mocks/profiles";
 
 import {
@@ -105,6 +105,121 @@ describe("CommentList filter", () => {
     );
     await user.click(screen.getByRole("button", { name: "Jump to 1:42" }));
     expect(onJump).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }));
+  });
+});
+
+const renderThread = (ui: React.ReactElement) =>
+  render(<TooltipProvider>{ui}</TooltipProvider>);
+
+describe("CommentList threads", () => {
+  const topLevel = threadedComments.filter((c) => !c.parent_id);
+
+  it("groups replies under their comment and leaves them out of the counts", () => {
+    renderThread(<CommentList comments={threadedComments} viewer="visitor" />);
+    expect(screen.getByRole("tab", { name: /All/ })).toHaveTextContent(
+      String(topLevel.length),
+    );
+    const replies = screen.getByRole("list", { name: "Replies to Mia" });
+    expect(within(replies).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("opens a reply box on Reply, sends it, and closes it", async () => {
+    const user = userEvent.setup();
+    const onReply = vi.fn(async () => ({ ok: true as const }));
+    renderThread(
+      <CommentList
+        comments={threadedComments}
+        viewer="visitor"
+        onReply={onReply}
+      />,
+    );
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    const [first] = screen.getAllByRole("button", { name: "Reply" });
+    await user.click(first!);
+    const box = screen.getByRole("textbox", { name: /Reply to/ });
+    expect(box).toHaveFocus();
+    await user.type(box, "Thanks, trying it now");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(onReply).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "c5" }),
+      "Thanks, trying it now",
+    );
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("closes the reply box with Escape and refuses an empty reply", async () => {
+    const user = userEvent.setup();
+    const onReply = vi.fn(async () => ({ ok: true as const }));
+    renderThread(
+      <CommentList
+        comments={threadedComments}
+        viewer="visitor"
+        onReply={onReply}
+      />,
+    );
+    await user.click(screen.getAllByRole("button", { name: "Reply" })[0]!);
+    const form = screen
+      .getByRole("textbox", { name: /Reply to/ })
+      .closest("form")!;
+    await user.click(within(form).getByRole("button", { name: "Reply" }));
+    expect(screen.getByText("Write something first.")).toBeInTheDocument();
+    expect(onReply).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("asks signed-out listeners to sign in instead of replying", async () => {
+    const user = userEvent.setup();
+    const onSignIn = vi.fn();
+    renderThread(
+      <CommentList
+        comments={threadedComments}
+        viewer="signed_out"
+        onReply={vi.fn()}
+        onSignIn={onSignIn}
+      />,
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "Sign in to reply" })[0]!,
+    );
+    expect(onSignIn).toHaveBeenCalled();
+  });
+
+  it("lets the owner resolve and reopen, and hides resolved on request", async () => {
+    const user = userEvent.setup();
+    const onToggleResolved = vi.fn();
+    renderThread(
+      <CommentList
+        comments={threadedComments}
+        viewer="owner"
+        onToggleResolved={onToggleResolved}
+      />,
+    );
+    expect(screen.getByText("Resolved")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reopen" }));
+    expect(onToggleResolved).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "c3" }),
+      false,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /Show resolved/ }));
+    expect(screen.queryByText("Resolved")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /All/ })).toHaveTextContent(
+      String(topLevel.length - 1),
+    );
+  });
+
+  it("does not offer Resolve to visitors", () => {
+    renderThread(
+      <CommentList
+        comments={threadedComments}
+        viewer="visitor"
+        onToggleResolved={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Mark as resolved|Reopen/ }),
+    ).not.toBeInTheDocument();
   });
 });
 
