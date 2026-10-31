@@ -3,9 +3,10 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BellIcon, MenuIcon, PlusIcon } from "lucide-react";
+import { BellIcon, MenuIcon, PlusIcon, SearchIcon } from "lucide-react";
 
 import { Logo } from "@/components/brand/logo";
+import { SearchField } from "@/components/search/search-field";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,12 @@ export type HeaderProps = {
   unread?: number;
   /** Name for the nav landmark. Needs to be unique if there are several on a page. */
   navLabel?: string;
+  /** Search box (wide) or search button (narrow). Off until /search exists. */
+  showSearch?: boolean;
+  /** Let / focus the search box. Only one header on a page should. */
+  searchShortcut?: boolean;
+  /** Where the search form goes. */
+  searchAction?: string;
 };
 
 /**
@@ -75,6 +82,9 @@ export function SiteHeader({
   isAdmin = false,
   unread = 0,
   navLabel = "Main",
+  showSearch = false,
+  searchShortcut = true,
+  searchAction = "/search",
 }: HeaderProps) {
   const pathname = usePathname();
 
@@ -104,7 +114,27 @@ export function SiteHeader({
           </ul>
         </nav>
 
-        <div className="ml-auto flex items-center gap-1">
+        {showSearch ? (
+          <SearchField
+            shortcut={searchShortcut}
+            action={searchAction}
+            className="ml-auto hidden w-full max-w-64 @3xl:block"
+          />
+        ) : null}
+
+        <div
+          className={cn(
+            "ml-auto flex items-center gap-1",
+            showSearch && "@3xl:ml-0",
+          )}
+        >
+          {showSearch ? (
+            <Button variant="ghost" size="icon" asChild className="@3xl:hidden">
+              <Link href={searchAction} aria-label="Search">
+                <SearchIcon />
+              </Link>
+            </Button>
+          ) : null}
           <Button asChild size="sm" className="mr-1">
             <Link href="/upload">
               <PlusIcon />
