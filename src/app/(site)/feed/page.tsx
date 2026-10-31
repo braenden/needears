@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronUpIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { WeeklyEars } from "@/components/feed/weekly-ears";
 import { Button } from "@/components/ui/button";
 import { getGenres } from "@/lib/data/profiles";
 import { clampPage } from "@/lib/data/parse";
 import { FEED_TABS, type FeedTab, getFeed } from "@/lib/data/tracks";
 import { getViewer } from "@/lib/data/viewer";
+import { getWeeklyLeaders } from "@/lib/data/weekly";
 import { cn } from "@/lib/utils";
 import { FeedList } from "./feed-list";
 import { GenreFilter } from "./genre-filter";
@@ -47,65 +49,92 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
     (viewer ? "needs-ears" : "latest");
   const genre = genres.find((g) => g.slug === params.genre) ?? null;
   const page = clampPage(params.page);
-  const { tracks, hasMore } = await getFeed(tab, genre?.slug ?? null, page);
+  const [{ tracks, hasMore }, weekly] = await Promise.all([
+    getFeed(tab, genre?.slug ?? null, page),
+    getWeeklyLeaders(),
+  ]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Feed</h1>
-        <GenreFilter genres={genres} value={genre?.slug ?? ""} tab={tab} />
-      </div>
+    <div className="@container mx-auto w-full max-w-5xl px-4 py-8 sm:py-10">
+      <div className="grid gap-8 @4xl:grid-cols-[minmax(0,1fr)_15rem]">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <h1 className="font-display text-3xl font-bold tracking-tight">
+              Feed
+            </h1>
+            <GenreFilter genres={genres} value={genre?.slug ?? ""} tab={tab} />
+          </div>
 
-      <nav aria-label="Feed tabs" className="mt-6 border-b">
-        <ul className="-mb-px flex gap-1">
-          {FEED_TABS.map((t) => (
-            <li key={t}>
-              <Link
-                href={feedHref(t, genre?.slug ?? null)}
-                aria-current={t === tab ? "page" : undefined}
-                className={cn(
-                  "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-                  "aria-[current=page]:border-primary aria-[current=page]:text-foreground",
-                )}
-              >
-                {TAB_LABELS[t]}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      {tab === "needs-ears" ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          Tracks that haven&apos;t had much feedback yet. Give feedback, and
-          your own tracks get seen more.
-        </p>
-      ) : null}
-
-      <div className="mt-6">
-        <h2 className="sr-only">
-          {TAB_LABELS[tab]}
-          {genre ? `, ${genre.name}` : ""}
-        </h2>
-        {page > 1 ? (
-          <Button asChild variant="ghost" size="sm" className="mb-4">
-            <Link href={feedHref(tab, genre?.slug ?? null)}>
-              <ChevronUpIcon /> Back to the top
-            </Link>
-          </Button>
-        ) : null}
-        {tracks.length === 0 ? (
-          <FeedEmpty tab={tab} genreName={genre?.name ?? null} page={page} />
-        ) : (
-          <FeedList
-            key={`${tab}-${genre?.slug ?? ""}-${page}`}
-            initial={tracks}
-            initialHasMore={hasMore}
-            tab={tab}
-            genre={genre?.slug ?? null}
-            page={page}
-            label={`${TAB_LABELS[tab]}${genre ? `, ${genre.name}` : ""}`}
+          <nav aria-label="Feed tabs" className="mt-6 border-b">
+            <ul className="-mb-px flex gap-1">
+              {FEED_TABS.map((t) => (
+                <li key={t}>
+                  <Link
+                    href={feedHref(t, genre?.slug ?? null)}
+                    aria-current={t === tab ? "page" : undefined}
+                    className={cn(
+                      "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                      "aria-[current=page]:border-primary aria-[current=page]:text-foreground",
+                    )}
+                  >
+                    {TAB_LABELS[t]}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          {/* On narrow screens the weekly list is a row under the tabs. */}
+          <WeeklyEars
+            variant="row"
+            leaders={weekly.leaders}
+            resetsAt={weekly.resetsAt}
+            className="mt-4 @4xl:hidden"
           />
-        )}
+          {tab === "needs-ears" ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Tracks that haven&apos;t had much feedback yet. Give feedback, and
+              your own tracks get seen more.
+            </p>
+          ) : null}
+
+          <div className="mt-6">
+            <h2 className="sr-only">
+              {TAB_LABELS[tab]}
+              {genre ? `, ${genre.name}` : ""}
+            </h2>
+            {page > 1 ? (
+              <Button asChild variant="ghost" size="sm" className="mb-4">
+                <Link href={feedHref(tab, genre?.slug ?? null)}>
+                  <ChevronUpIcon /> Back to the top
+                </Link>
+              </Button>
+            ) : null}
+            {tracks.length === 0 ? (
+              <FeedEmpty
+                tab={tab}
+                genreName={genre?.name ?? null}
+                page={page}
+              />
+            ) : (
+              <FeedList
+                key={`${tab}-${genre?.slug ?? ""}-${page}`}
+                initial={tracks}
+                initialHasMore={hasMore}
+                tab={tab}
+                genre={genre?.slug ?? null}
+                page={page}
+                label={`${TAB_LABELS[tab]}${genre ? `, ${genre.name}` : ""}`}
+              />
+            )}
+          </div>
+        </div>
+        <aside aria-label="This week" className="hidden @4xl:block">
+          <WeeklyEars
+            leaders={weekly.leaders}
+            resetsAt={weekly.resetsAt}
+            className="sticky top-20"
+          />
+        </aside>
       </div>
     </div>
   );

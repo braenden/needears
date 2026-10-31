@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDownUpIcon,
@@ -17,6 +17,7 @@ import {
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
+import { BadgeIcons, type BadgeKind } from "@/components/profile/badges";
 import { ReputationBadge } from "@/components/reputation-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,10 +104,14 @@ export function threadComments<T extends ThreadComment>(comments: T[]) {
 
 type Viewer = "owner" | "visitor" | "signed_out";
 
+// Badges per author id, read by every comment and reply header.
+const AuthorBadges = createContext<Record<string, BadgeKind[]>>({});
+
 export function CommentList({
   comments,
   viewer,
   ownerId,
+  authorBadges = {},
   activeCommentId,
   defaultFilter = "all",
   defaultSort = "time",
@@ -132,6 +137,8 @@ export function CommentList({
   viewer: Viewer;
   /** The track owner. Their comments get an Uploader badge. */
   ownerId?: string;
+  /** Badges per author id, shown as small icons next to the name. */
+  authorBadges?: Record<string, BadgeKind[]>;
   activeCommentId?: string | null;
   defaultFilter?: CommentFilter;
   defaultSort?: CommentSort;
@@ -187,117 +194,119 @@ export function CommentList({
   ];
 
   return (
-    <div className={cn("@container", className)}>
-      <Tabs
-        value={filter}
-        onValueChange={(v) => setFilter(v as CommentFilter)}
-        className="gap-0"
-      >
-        <div className="flex items-end justify-between gap-3 border-b">
-          <TabsList
-            variant="line"
-            aria-label="Filter comments"
-            className="min-w-0 border-b-0"
-          >
-            {filters.map(([value, label]) => (
-              <TabsTrigger key={value} value={value}>
-                {label}
-                <span data-numeric className="text-xs text-muted-foreground">
-                  {counts[value]}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mb-1 shrink-0 text-muted-foreground"
-              >
-                <ArrowDownUpIcon />
-                <span className="hidden @sm:inline">
-                  {sort === "time" ? "By time" : "Newest"}
-                </span>
-                <span className="sr-only @sm:hidden">Sort comments</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Sort comments</DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={sort}
-                onValueChange={(v) => setSort(v as CommentSort)}
-              >
-                <DropdownMenuRadioItem value="time">
-                  By time in the track
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="newest">
-                  Newest first
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {resolvedCount > 0 ? (
-          <div className="flex justify-end pt-2">
-            <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
-              <input
-                type="checkbox"
-                checked={showResolved}
-                onChange={(e) => {
-                  setShowResolvedState(e.target.checked);
-                  onShowResolvedChange?.(e.target.checked);
-                }}
-                className="size-4 accent-(--primary)"
-              />
-              Show resolved
-              <span data-numeric>({resolvedCount})</span>
-            </label>
+    <AuthorBadges value={authorBadges}>
+      <div className={cn("@container", className)}>
+        <Tabs
+          value={filter}
+          onValueChange={(v) => setFilter(v as CommentFilter)}
+          className="gap-0"
+        >
+          <div className="flex items-end justify-between gap-3 border-b">
+            <TabsList
+              variant="line"
+              aria-label="Filter comments"
+              className="min-w-0 border-b-0"
+            >
+              {filters.map(([value, label]) => (
+                <TabsTrigger key={value} value={value}>
+                  {label}
+                  <span data-numeric className="text-xs text-muted-foreground">
+                    {counts[value]}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mb-1 shrink-0 text-muted-foreground"
+                >
+                  <ArrowDownUpIcon />
+                  <span className="hidden @sm:inline">
+                    {sort === "time" ? "By time" : "Newest"}
+                  </span>
+                  <span className="sr-only @sm:hidden">Sort comments</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Sort comments</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={sort}
+                  onValueChange={(v) => setSort(v as CommentSort)}
+                >
+                  <DropdownMenuRadioItem value="time">
+                    By time in the track
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="newest">
+                    Newest first
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        ) : null}
 
-        {filters.map(([value]) => (
-          <TabsContent
-            key={value}
-            value={value}
-            className="focus-visible:ring-offset-2"
-          >
-            {loading ? (
-              <CommentListSkeleton />
-            ) : visible.length === 0 ? (
-              <CommentsEmpty
-                filter={filter}
-                viewer={viewer}
-                onShowAll={() => setFilter("all")}
-                onSignIn={onSignIn}
-                onCopyLink={onCopyLink}
-              />
-            ) : (
-              <ol className="divide-y">
-                {visible.map((comment) => (
-                  <CommentItem
-                    key={comment.id}
-                    comment={comment}
-                    viewer={viewer}
-                    fromOwner={!!ownerId && comment.author_id === ownerId}
-                    ownerId={ownerId}
-                    active={comment.id === activeCommentId}
-                    onJump={onJump}
-                    onToggleHelpful={onToggleHelpful}
-                    onReport={onReport}
-                    replies={replies.get(comment.id) ?? []}
-                    onReply={onReply}
-                    onToggleResolved={onToggleResolved}
-                    onSignIn={onSignIn}
-                  />
-                ))}
-              </ol>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
-    </div>
+          {resolvedCount > 0 ? (
+            <div className="flex justify-end pt-2">
+              <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+                <input
+                  type="checkbox"
+                  checked={showResolved}
+                  onChange={(e) => {
+                    setShowResolvedState(e.target.checked);
+                    onShowResolvedChange?.(e.target.checked);
+                  }}
+                  className="size-4 accent-(--primary)"
+                />
+                Show resolved
+                <span data-numeric>({resolvedCount})</span>
+              </label>
+            </div>
+          ) : null}
+
+          {filters.map(([value]) => (
+            <TabsContent
+              key={value}
+              value={value}
+              className="focus-visible:ring-offset-2"
+            >
+              {loading ? (
+                <CommentListSkeleton />
+              ) : visible.length === 0 ? (
+                <CommentsEmpty
+                  filter={filter}
+                  viewer={viewer}
+                  onShowAll={() => setFilter("all")}
+                  onSignIn={onSignIn}
+                  onCopyLink={onCopyLink}
+                />
+              ) : (
+                <ol className="divide-y">
+                  {visible.map((comment) => (
+                    <CommentItem
+                      key={comment.id}
+                      comment={comment}
+                      viewer={viewer}
+                      fromOwner={!!ownerId && comment.author_id === ownerId}
+                      ownerId={ownerId}
+                      active={comment.id === activeCommentId}
+                      onJump={onJump}
+                      onToggleHelpful={onToggleHelpful}
+                      onReport={onReport}
+                      replies={replies.get(comment.id) ?? []}
+                      onReply={onReply}
+                      onToggleResolved={onToggleResolved}
+                      onSignIn={onSignIn}
+                    />
+                  ))}
+                </ol>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+    </AuthorBadges>
   );
 }
 
@@ -497,6 +506,7 @@ function CommentHeader({
 }) {
   const name = displayNameOf(comment.author);
   const profileHref = `/u/${comment.author.handle}`;
+  const badges = useContext(AuthorBadges)[comment.author_id] ?? [];
   return (
     <div className="flex items-start gap-2">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
@@ -524,6 +534,7 @@ function CommentHeader({
           </Badge>
         ) : null}
         <ReputationBadge helpful={comment.author.reputation} />
+        <BadgeIcons badges={badges} />
         <RelativeTime
           date={comment.created_at}
           className="text-xs text-muted-foreground"

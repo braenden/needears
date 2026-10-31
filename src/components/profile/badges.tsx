@@ -128,3 +128,48 @@ export function BadgeList({
     </ul>
   );
 }
+
+/**
+ * Badges as small icons next to a name, for the comment list. Golden ear is
+ * left out there: the reputation chip next to it already says so.
+ */
+export function BadgeIcons({
+  badges,
+  className,
+}: {
+  badges: BadgeKind[];
+  className?: string;
+}) {
+  const kinds = ORDER.filter(
+    (kind) => kind !== "golden_ear" && badges.includes(kind),
+  );
+  if (kinds.length === 0) return null;
+  return (
+    <ul
+      aria-label="Badges"
+      className={cn("flex items-center gap-0.5", className)}
+    >
+      {kinds.map((kind) => {
+        const { name, how, Icon } = BADGES[kind];
+        return (
+          <li key={kind}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={name}
+                  className="grid size-5 cursor-help place-items-center rounded-full bg-primary-soft text-primary-text outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Icon className="size-3" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-60">
+                <span className="font-medium">{name}.</span> {how}
+              </TooltipContent>
+            </Tooltip>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

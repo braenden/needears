@@ -32,6 +32,7 @@ import { VersionPicker } from "@/components/versions/version-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Details } from "@/components/upload/upload-state";
+import type { BadgeKind } from "@/components/profile/badges";
 import type { PlayableVersion } from "@/lib/data/tracks";
 import { FEEDBACK_WANT_LABELS, LEVEL_DISPLAY_LABELS } from "@/config/labels";
 import { siteUrl } from "@/config/site";
@@ -93,6 +94,7 @@ export function TrackView({
   initialShowResolved,
   genres,
   versions,
+  authorBadges,
 }: {
   track: Track;
   audioUrl: string | null;
@@ -106,6 +108,7 @@ export function TrackView({
   genres: Genre[] | null;
   /** Oldest first; the last one is the latest. */
   versions: PlayableVersion[];
+  authorBadges: Record<string, BadgeKind[]>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -594,6 +597,7 @@ export function TrackView({
           comments={listed}
           viewer={viewerKind}
           ownerId={track.owner_id}
+          authorBadges={authorBadges}
           activeCommentId={activeId}
           filter={filter}
           onFilterChange={changeFilter}
