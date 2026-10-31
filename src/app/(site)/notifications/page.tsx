@@ -8,7 +8,6 @@ import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import type { Database } from "@/types/database";
 import { MarkRead } from "./mark-read";
 
 export const metadata: Metadata = {
@@ -18,7 +17,7 @@ export const metadata: Metadata = {
 
 type Row = {
   id: string;
-  kind: Database["public"]["Enums"]["notification_kind"];
+  kind: (typeof LISTED_KINDS)[number];
   read_at: string | null;
   created_at: string;
   actor: {
@@ -30,7 +29,10 @@ type Row = {
   comment: { time_ms: number | null } | null;
 };
 
-const VERBS: Record<Row["kind"], string> = {
+// Moderation notices are not listed here yet.
+const LISTED_KINDS = ["comment", "reply", "helpful"] as const;
+
+const VERBS: Record<(typeof LISTED_KINDS)[number], string> = {
   comment: "commented on",
   reply: "replied to your comment on",
   helpful: "marked your comment as Helpful on",
@@ -46,6 +48,7 @@ export default async function NotificationsPage() {
       "id, kind, read_at, created_at, actor:profiles!notifications_actor_id_fkey(handle, display_name, avatar_url), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms)",
     )
     .eq("user_id", viewer.userId)
+    .in("kind", [...LISTED_KINDS])
     .order("created_at", { ascending: false })
     .limit(50);
   const rows = (data ?? []) as unknown as Row[];
