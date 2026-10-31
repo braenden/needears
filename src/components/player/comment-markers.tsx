@@ -6,7 +6,7 @@ import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { CATEGORY_LABELS } from "@/config/labels";
 import { formatSpan } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import type { Comment, RangeComment } from "@/types/view";
+import type { Comment, RangeComment, VersionedComment } from "@/types/view";
 
 const LONG_PRESS_MS = 450;
 
@@ -24,11 +24,15 @@ export function CommentMarkers({
   comments,
   durationMs,
   activeCommentId,
+  currentVersionId,
+  versionNumbers,
   onSelect,
 }: {
-  comments: Comment[];
+  comments: VersionedComment[];
   durationMs: number;
   activeCommentId?: string | null;
+  currentVersionId?: string;
+  versionNumbers?: Record<string, number>;
   onSelect: (comment: Comment) => void;
 }) {
   const sorted = [...comments].sort(
@@ -102,6 +106,15 @@ export function CommentMarkers({
           (comment as RangeComment).end_ms,
         );
         const previewIdAttr = `marker-preview-${comment.id}`;
+        // Comments from another version stay visible but step back.
+        const otherVersion =
+          !!currentVersionId &&
+          !!comment.version_id &&
+          comment.version_id !== currentVersionId;
+        const versionNo = comment.version_id
+          ? versionNumbers?.[comment.version_id]
+          : undefined;
+        const onVersion = otherVersion && versionNo ? `, on v${versionNo}` : "";
         return (
           <div
             key={comment.id}
@@ -154,16 +167,25 @@ export function CommentMarkers({
                 "focus-visible:ring-2 focus-visible:ring-ring",
               )}
             >
-              <UserAvatar
-                profile={comment.author}
-                size="sm"
-                className={cn(
-                  "size-5 ring-2 ring-card transition-transform duration-(--duration-fast)",
-                  active && "ring-primary",
-                  previewing && "scale-110",
-                )}
-              />
-              <span className="sr-only">{`Comment by ${name} at ${time}`}</span>
+              {otherVersion && !active && !previewing ? (
+                // Another version: a hollow dot instead of the avatar, so it
+                // steps back without fading text below readable contrast.
+                <span
+                  aria-hidden="true"
+                  className="size-2.5 rounded-full border-2 border-wave"
+                />
+              ) : (
+                <UserAvatar
+                  profile={comment.author}
+                  size="sm"
+                  className={cn(
+                    "size-5 ring-2 ring-card transition-transform duration-(--duration-fast)",
+                    active && "ring-primary",
+                    previewing && "scale-110",
+                  )}
+                />
+              )}
+              <span className="sr-only">{`Comment by ${name} at ${time}${onVersion}`}</span>
             </button>
             {previewing ? (
               <div
@@ -188,6 +210,9 @@ export function CommentMarkers({
                   <span className="shrink-0">
                     {CATEGORY_LABELS[comment.category]}
                   </span>
+                  {otherVersion && versionNo ? (
+                    <span className="shrink-0">on v{versionNo}</span>
+                  ) : null}
                 </span>
                 <span className="mt-1 block leading-snug">
                   {excerpt(comment.body)}

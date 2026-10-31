@@ -69,3 +69,22 @@ export type Comment = Pick<
 
 // A comment on a stretch of the track (comments.end_ms), 1:42 to 1:58.
 export type RangeComment = Comment & { end_ms?: number | null };
+
+// One uploaded version of a track (track_versions). Version 1 is the first
+// upload; the track's own audio, peaks and duration mirror the latest one.
+export type TrackVersion = {
+  id: string;
+  version_no: number;
+  /** "What changed", written by the owner. */
+  note: string | null;
+  duration_ms: number;
+  created_at: string;
+};
+
+// A comment that knows which version it was left on (comments.version_id).
+export type VersionedComment = Comment & { version_id?: string };
+
+// A comment that may be a reply (parent_id set) or resolved by the track
+// owner. Optional so lists that do not load threads still type-check.
+export type ThreadComment = Comment &
+  Partial<Pick<Tables<"comments">, "parent_id" | "resolved_at">>;

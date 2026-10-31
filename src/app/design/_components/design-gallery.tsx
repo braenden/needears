@@ -13,10 +13,14 @@ import { PeopleSection } from "./people-section";
 import { PlayerSection } from "./player-section";
 import { PrimitivesSection } from "./primitives-section";
 import { ProfileV11Section } from "./profile-v11-section";
+import { SearchSection } from "./search-section";
 import { RangeSection } from "./range-section";
 import { ShellSection } from "./shell-section";
+import { ThreadsSection } from "./threads-section";
 import { TokensSection } from "./tokens-section";
 import { UploadSection } from "./upload-section";
+import { VersionsSection } from "./versions-section";
+import { WeeklySection } from "./weekly-section";
 
 const CONTENTS = [
   ["brand", "Brand"],
@@ -26,8 +30,11 @@ const CONTENTS = [
   ["player", "WaveformPlayer"],
   ["composer", "CommentComposer"],
   ["comment-list", "CommentList"],
+  ["versions", "Versions and A/B"],
+  ["threads", "Replies and Resolved"],
   ["range", "Ranges and export"],
   ["track-card", "TrackCard"],
+  ["weekly", "Weekly list"],
   ["upload", "UploadWizard"],
   ["profile", "ProfileHeader"],
   ["reputation", "ReputationBadge"],
@@ -35,6 +42,7 @@ const CONTENTS = [
   ["empty-states", "EmptyState"],
   ["report", "ReportDialog"],
   ["profile-v11", "Profile photo and badges"],
+  ["search", "Search"],
   ["shell", "AppShell"],
   ["phone", "Phone width"],
   ["themes", "Both themes"],
@@ -44,7 +52,7 @@ export function DesignGallery() {
   const { resolvedTheme, setTheme } = useTheme();
 
   return (
-    <AppShell user={jonas} unread={2}>
+    <AppShell user={jonas} unread={2} showSearch searchAction="/design#search">
       <div className="mx-auto max-w-6xl px-4 lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-10">
         <nav aria-label="Design system sections" className="hidden lg:block">
           <ul className="sticky top-20 grid gap-0.5 py-10 text-sm">
@@ -91,11 +99,15 @@ export function DesignGallery() {
           <TokensSection />
           <PrimitivesSection />
           <PlayerSection />
+          <VersionsSection />
+          <ThreadsSection />
           <RangeSection />
           <FeedSection />
+          <WeeklySection />
           <UploadSection />
           <PeopleSection />
           <ProfileV11Section />
+          <SearchSection />
           <ShellSection />
         </div>
       </div>

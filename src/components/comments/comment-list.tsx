@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import Link from "next/link";
 import {
   ArrowDownUpIcon,
   CheckIcon,
+  CircleCheckIcon,
   EllipsisIcon,
   FlagIcon,
+  ReplyIcon,
+  RotateCcwIcon,
   ThumbsUpIcon,
   UndoIcon,
 } from "lucide-react";
@@ -31,19 +35,28 @@ import { CATEGORY_LABELS } from "@/config/labels";
 import { isTrusted } from "@/config/reputation";
 import { formatSpan } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import type { Comment, RangeComment } from "@/types/view";
+import type { Comment, RangeComment, ThreadComment } from "@/types/view";
+
+import type { SubmitResult } from "./comment-composer";
+import { ReplyComposer } from "./reply-composer";
 
 export type CommentFilter = "all" | "helpful" | "trusted";
 export type CommentSort = "time" | "newest";
 
-export function filterComments(comments: Comment[], filter: CommentFilter) {
+export function filterComments<T extends Comment>(
+  comments: T[],
+  filter: CommentFilter,
+) {
   if (filter === "helpful") return comments.filter((c) => c.is_helpful);
   if (filter === "trusted")
     return comments.filter((c) => isTrusted(c.author.reputation));
   return comments;
 }
 
-export function sortComments(comments: Comment[], sort: CommentSort) {
+export function sortComments<T extends Comment>(
+  comments: T[],
+  sort: CommentSort,
+) {
   const copy = [...comments];
   if (sort === "newest") {
     return copy.sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -67,11 +80,33 @@ export function activeCommentAt(comments: Comment[], timeMs: number) {
   return active;
 }
 
+/**
+ * Splits a flat list into top-level comments and replies grouped by parent,
+ * replies oldest first. Replies to a comment that is not in the list are
+ * dropped, since there is nothing to hang them under.
+ */
+export function threadComments<T extends ThreadComment>(comments: T[]) {
+  const top = comments.filter((c) => !c.parent_id);
+  const ids = new Set(top.map((c) => c.id));
+  const replies = new Map<string, T[]>();
+  for (const c of comments) {
+    if (!c.parent_id || !ids.has(c.parent_id)) continue;
+    const list = replies.get(c.parent_id) ?? [];
+    list.push(c);
+    replies.set(c.parent_id, list);
+  }
+  for (const list of replies.values()) {
+    list.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+  return { top, replies };
+}
+
 type Viewer = "owner" | "visitor" | "signed_out";
 
 export function CommentList({
   comments,
   viewer,
+  ownerId,
   activeCommentId,
   defaultFilter = "all",
   defaultSort = "time",
@@ -85,10 +120,18 @@ export function CommentList({
   onReport,
   onSignIn,
   onCopyLink,
+  onReply,
+  onToggleResolved,
+  showResolved: showResolvedProp,
+  defaultShowResolved = true,
+  onShowResolvedChange,
   className,
 }: {
-  comments: Comment[];
+  /** Top-level comments and replies together. Replies have parent_id set. */
+  comments: ThreadComment[];
   viewer: Viewer;
+  /** The track owner. Their comments get an Uploader badge. */
+  ownerId?: string;
   activeCommentId?: string | null;
   defaultFilter?: CommentFilter;
   defaultSort?: CommentSort;
@@ -103,8 +146,18 @@ export function CommentList({
   onReport?: (comment: Comment) => void;
   onSignIn?: () => void;
   onCopyLink?: () => void;
+  /** Shows Reply on top-level comments. Signed-out viewers get onSignIn instead. */
+  onReply?: (parent: ThreadComment, body: string) => Promise<SubmitResult>;
+  /** Owner only: resolve or reopen a top-level comment. */
+  onToggleResolved?: (comment: ThreadComment, resolved: boolean) => void;
+  showResolved?: boolean;
+  defaultShowResolved?: boolean;
+  onShowResolvedChange?: (show: boolean) => void;
   className?: string;
 }) {
+  const [showResolvedState, setShowResolvedState] =
+    useState(defaultShowResolved);
+  const showResolved = showResolvedProp ?? showResolvedState;
   const [filterState, setFilterState] = useState<CommentFilter>(defaultFilter);
   const [sortState, setSortState] = useState<CommentSort>(defaultSort);
   const filter = filterProp ?? filterState;
@@ -118,12 +171,15 @@ export function CommentList({
     onSortChange?.(next);
   };
 
+  const { top, replies } = threadComments(comments);
+  const resolvedCount = top.filter((c) => c.resolved_at).length;
+  const shown = showResolved ? top : top.filter((c) => !c.resolved_at);
   const counts: Record<CommentFilter, number> = {
-    all: comments.length,
-    helpful: filterComments(comments, "helpful").length,
-    trusted: filterComments(comments, "trusted").length,
+    all: shown.length,
+    helpful: filterComments(shown, "helpful").length,
+    trusted: filterComments(shown, "trusted").length,
   };
-  const visible = sortComments(filterComments(comments, filter), sort);
+  const visible = sortComments(filterComments(shown, filter), sort);
   const filters: [CommentFilter, string][] = [
     ["all", "All"],
     ["helpful", "Helpful"],
@@ -183,6 +239,24 @@ export function CommentList({
           </DropdownMenu>
         </div>
 
+        {resolvedCount > 0 ? (
+          <div className="flex justify-end pt-2">
+            <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+              <input
+                type="checkbox"
+                checked={showResolved}
+                onChange={(e) => {
+                  setShowResolvedState(e.target.checked);
+                  onShowResolvedChange?.(e.target.checked);
+                }}
+                className="size-4 accent-(--primary)"
+              />
+              Show resolved
+              <span data-numeric>({resolvedCount})</span>
+            </label>
+          </div>
+        ) : null}
+
         {filters.map(([value]) => (
           <TabsContent
             key={value}
@@ -206,10 +280,16 @@ export function CommentList({
                     key={comment.id}
                     comment={comment}
                     viewer={viewer}
+                    fromOwner={!!ownerId && comment.author_id === ownerId}
+                    ownerId={ownerId}
                     active={comment.id === activeCommentId}
                     onJump={onJump}
                     onToggleHelpful={onToggleHelpful}
                     onReport={onReport}
+                    replies={replies.get(comment.id) ?? []}
+                    onReply={onReply}
+                    onToggleResolved={onToggleResolved}
+                    onSignIn={onSignIn}
                   />
                 ))}
               </ol>
@@ -224,19 +304,37 @@ export function CommentList({
 function CommentItem({
   comment,
   viewer,
+  fromOwner,
+  ownerId,
   active,
   onJump,
   onToggleHelpful,
   onReport,
+  replies,
+  onReply,
+  onToggleResolved,
+  onSignIn,
 }: {
-  comment: Comment;
+  comment: ThreadComment;
   viewer: Viewer;
+  fromOwner: boolean;
+  ownerId?: string;
   active: boolean;
   onJump?: (comment: Comment) => void;
   onToggleHelpful?: (comment: Comment, helpful: boolean) => void;
   onReport?: (comment: Comment) => void;
+  replies: ThreadComment[];
+  onReply?: (parent: ThreadComment, body: string) => Promise<SubmitResult>;
+  onToggleResolved?: (comment: ThreadComment, resolved: boolean) => void;
+  onSignIn?: () => void;
 }) {
   const name = displayNameOf(comment.author);
+  const resolved = !!comment.resolved_at;
+  const [replying, setReplying] = useState(false);
+  const replyButton = useRef<HTMLButtonElement>(null);
+  const canResolve = viewer === "owner" && !!onToggleResolved;
+
+  const profileHref = `/u/${comment.author.handle}`;
   return (
     <li
       aria-current={active ? "true" : undefined}
@@ -246,38 +344,26 @@ function CommentItem({
           "before:absolute before:inset-y-2 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary",
       )}
     >
-      <UserAvatar profile={comment.author} className="mt-0.5" />
+      {/* The name next to it is the link for keyboard and screen readers. */}
+      <Link
+        href={profileHref}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="mt-0.5 shrink-0 self-start rounded-full"
+      >
+        <UserAvatar
+          profile={comment.author}
+          className={cn(resolved && "grayscale")}
+        />
+      </Link>
       <div className="min-w-0 flex-1">
-        <div className="flex items-start gap-2">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="truncate text-sm font-semibold">{name}</span>
-            <ReputationBadge helpful={comment.author.reputation} />
-            <RelativeTime
-              date={comment.created_at}
-              className="text-xs text-muted-foreground"
-            />
-          </div>
-          {viewer !== "signed_out" ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`More actions for the comment by ${name}`}
-                  className="-mt-1 -mr-1.5 shrink-0 text-muted-foreground"
-                >
-                  <EllipsisIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => onReport?.(comment)}>
-                  <FlagIcon /> Report comment
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-        </div>
+        <CommentHeader
+          comment={comment}
+          viewer={viewer}
+          onReport={onReport}
+          muted={resolved}
+          fromOwner={fromOwner}
+        />
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {comment.time_ms !== null ? (
             <button
@@ -303,24 +389,214 @@ function CommentItem({
               <CheckIcon /> Helpful
             </Badge>
           ) : null}
+          {resolved ? (
+            <Badge variant="secondary" className="h-6 px-2">
+              <CircleCheckIcon /> Resolved
+            </Badge>
+          ) : null}
         </div>
-        <p className="mt-2 text-sm leading-relaxed break-words whitespace-pre-line">
+        <p
+          className={cn(
+            "mt-2 text-sm leading-relaxed break-words whitespace-pre-line",
+            resolved && "text-muted-foreground",
+          )}
+        >
           {comment.body}
         </p>
-        {viewer === "owner" ? (
-          <div className="mt-2">
+
+        {viewer === "owner" || onReply ? (
+          <div className="mt-2 -ml-2 flex flex-wrap items-center gap-1">
+            {onReply && !replying ? (
+              <Button
+                ref={replyButton}
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() =>
+                  viewer === "signed_out" ? onSignIn?.() : setReplying(true)
+                }
+                className="text-muted-foreground"
+              >
+                <ReplyIcon />
+                {viewer === "signed_out" ? "Sign in to reply" : "Reply"}
+              </Button>
+            ) : null}
+            {viewer === "owner" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => onToggleHelpful?.(comment, !comment.is_helpful)}
+                className="text-muted-foreground"
+              >
+                {comment.is_helpful ? <UndoIcon /> : <ThumbsUpIcon />}
+                {comment.is_helpful ? "Remove Helpful" : "Mark as Helpful"}
+              </Button>
+            ) : null}
+            {canResolve ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => onToggleResolved(comment, !resolved)}
+                className="text-muted-foreground"
+              >
+                {resolved ? <RotateCcwIcon /> : <CircleCheckIcon />}
+                {resolved ? "Reopen" : "Mark as resolved"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {replies.length > 0 || replying ? (
+          <div className="mt-3 grid gap-3 border-l-2 pl-3 @sm:pl-4">
+            {replies.length > 0 ? (
+              <ol aria-label={`Replies to ${name}`} className="grid gap-3">
+                {replies.map((reply) => (
+                  <ReplyItem
+                    key={reply.id}
+                    reply={reply}
+                    viewer={viewer}
+                    fromOwner={!!ownerId && reply.author_id === ownerId}
+                    onReport={onReport}
+                    muted={resolved}
+                  />
+                ))}
+              </ol>
+            ) : null}
+            {replying && onReply ? (
+              <ReplyComposer
+                parentName={name}
+                onSubmit={(body) => onReply(comment, body)}
+                onClose={() => {
+                  setReplying(false);
+                  // Back to where the person was, so the list does not lose focus.
+                  requestAnimationFrame(() => replyButton.current?.focus());
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function CommentHeader({
+  comment,
+  viewer,
+  onReport,
+  muted,
+  fromOwner,
+}: {
+  comment: Comment;
+  viewer: Viewer;
+  onReport?: (comment: Comment) => void;
+  muted?: boolean;
+  fromOwner?: boolean;
+}) {
+  const name = displayNameOf(comment.author);
+  const profileHref = `/u/${comment.author.handle}`;
+  return (
+    <div className="flex items-start gap-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        {/* Display names are not unique, so the handle and the Uploader
+            badge show who is really speaking. */}
+        <Link
+          href={profileHref}
+          className="flex min-w-0 items-baseline gap-1.5 rounded-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span
+            className={cn(
+              "truncate text-sm font-semibold",
+              muted && "text-muted-foreground",
+            )}
+          >
+            {name}
+          </span>
+          <span className="truncate text-xs text-muted-foreground">
+            @{comment.author.handle}
+          </span>
+        </Link>
+        {fromOwner ? (
+          <Badge variant="solid" className="h-5 px-2 text-[11px]">
+            Uploader
+          </Badge>
+        ) : null}
+        <ReputationBadge helpful={comment.author.reputation} />
+        <RelativeTime
+          date={comment.created_at}
+          className="text-xs text-muted-foreground"
+        />
+      </div>
+      {viewer !== "signed_out" ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               type="button"
               variant="ghost"
-              size="xs"
-              onClick={() => onToggleHelpful?.(comment, !comment.is_helpful)}
-              className="-ml-2 text-muted-foreground"
+              size="icon-xs"
+              aria-label={`More actions for the comment by ${name}`}
+              className="-mt-1 -mr-1.5 shrink-0 text-muted-foreground"
             >
-              {comment.is_helpful ? <UndoIcon /> : <ThumbsUpIcon />}
-              {comment.is_helpful ? "Remove Helpful" : "Mark as Helpful"}
+              <EllipsisIcon />
             </Button>
-          </div>
-        ) : null}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => onReport?.(comment)}>
+              <FlagIcon /> Report comment
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </div>
+  );
+}
+
+/** A reply: no time, category or Helpful, just who said what. */
+function ReplyItem({
+  reply,
+  viewer,
+  fromOwner,
+  onReport,
+  muted,
+}: {
+  reply: ThreadComment;
+  viewer: Viewer;
+  fromOwner: boolean;
+  onReport?: (comment: Comment) => void;
+  muted?: boolean;
+}) {
+  return (
+    <li className="flex gap-2.5">
+      <Link
+        href={`/u/${reply.author.handle}`}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="mt-0.5 shrink-0 self-start rounded-full"
+      >
+        <UserAvatar
+          profile={reply.author}
+          size="sm"
+          className={cn(muted && "grayscale")}
+        />
+      </Link>
+      <div className="min-w-0 flex-1">
+        <CommentHeader
+          comment={reply}
+          viewer={viewer}
+          fromOwner={fromOwner}
+          onReport={onReport}
+          muted={muted}
+        />
+        <p
+          className={cn(
+            "mt-1 text-sm leading-relaxed break-words whitespace-pre-line",
+            muted && "text-muted-foreground",
+          )}
+        >
+          {reply.body}
+        </p>
       </div>
     </li>
   );
