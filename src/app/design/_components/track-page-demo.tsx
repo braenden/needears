@@ -135,6 +135,7 @@ export function TrackPageDemo() {
       <CommentList
         comments={comments}
         viewer={viewer}
+        ownerId={nightBus.owner_id}
         activeCommentId={activeId}
         onJump={(c) => {
           if (c.time_ms !== null) player.current?.seekTo(c.time_ms);

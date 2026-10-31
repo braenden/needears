@@ -7,7 +7,11 @@ import { signInWithMagicLink, testWav } from "./helpers";
 // comments as Helpful, so the comment has to come from someone else.
 const handle = `e2e_${Date.now().toString(36)}`;
 const ownerEmail = `${handle}@example.com`;
-const jonas = { email: "jonas@example.com", name: "Jonas Berg" };
+const jonas = {
+  email: "jonas@example.com",
+  name: "Jonas Berg",
+  handle: "jonas",
+};
 const title = `E2E rough mix ${handle}`;
 const commentText = "The kick gets lost here, try a little more around 60 Hz.";
 
@@ -63,11 +67,28 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
       .getByRole("button", { name: "Comment", exact: true })
       .click();
     await expect(listener.getByText(commentText)).toBeVisible();
+    // The comment says who wrote it: a link to the profile, with the handle.
+    await expect(
+      listener.getByRole("link", { name: `${jonas.name} @${jonas.handle}` }),
+    ).toHaveAttribute("href", `/u/${jonas.handle}`);
     await expect(
       listener.getByRole("button", {
         name: `Comment by ${jonas.name} at 0:05`,
       }),
     ).toBeVisible();
+  });
+
+  await test.step("listening to the whole short track counts one play", async () => {
+    const counted = listener.waitForResponse(
+      (r) => r.url().endsWith("/play") && r.request().method() === "POST",
+      { timeout: 20_000 },
+    );
+    await listener.getByRole("button", { name: "Play", exact: true }).click();
+    // The player sends it with keepalive, so the body cannot be read here;
+    // the count on the page after a reload is the real check.
+    expect((await counted).ok()).toBe(true);
+    await listener.reload();
+    await expect(listener.getByText("1 play", { exact: true })).toBeVisible();
   });
 
   await test.step("the producer marks it Helpful and reports it", async () => {
@@ -97,6 +118,22 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
     await dialog.getByRole("button", { name: "Send report" }).click();
     await expect(dialog.getByText("Report sent")).toBeVisible();
     await dialog.getByRole("button", { name: "Close" }).first().click();
+  });
+
+  await test.step("the producer edits the details after publishing", async () => {
+    await owner.getByRole("button", { name: "Edit details" }).click();
+    const dialog = owner.getByRole("dialog");
+    await dialog.getByLabel("Title").fill(`${title} v2`);
+    await dialog.getByLabel(/Description/).fill("Second pass on the drums.");
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog).toBeHidden();
+
+    // Stored, and the link stays the same.
+    await owner.goto(trackPath);
+    await expect(
+      owner.getByRole("heading", { name: `${title} v2` }),
+    ).toBeVisible();
+    await expect(owner.getByText("Second pass on the drums.")).toBeVisible();
   });
 
   await test.step("the producer deletes the account", async () => {
