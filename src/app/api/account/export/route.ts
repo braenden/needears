@@ -63,6 +63,17 @@ export async function GET(request: Request) {
   if (uploadIps.error)
     return jsonError(500, "export_failed", "Could not export your data.");
 
+  const versions =
+    trackIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from("track_versions")
+          .select("*")
+          .in("track_id", trackIds)
+          .order("version_no");
+  if (versions.error)
+    return jsonError(500, "export_failed", "Could not export your data.");
+
   const exportedAt = new Date().toISOString();
   const data = {
     exportedAt,
@@ -75,6 +86,7 @@ export async function GET(request: Request) {
     },
     profile: profile.data,
     tracks: tracks.data,
+    trackVersions: versions.data,
     uploadIps: uploadIps.data,
     comments: comments.data,
     reactions: reactions.data,

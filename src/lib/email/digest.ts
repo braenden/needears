@@ -24,7 +24,10 @@ function escapeHtml(value: string): string {
 // direction marks could make them pose as something else.
 function clean(value: string, max = 60): string {
   const plain = value
-    .replace(/[\u0000-\u001f\u007f‎‏‪-‮⁦-⁩﻿]/g, " ")
+    .replace(
+      /[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g,
+      " ",
+    )
     .replace(/\s+/g, " ")
     .trim();
   return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;

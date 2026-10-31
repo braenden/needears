@@ -9,6 +9,32 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      badges: {
+        Row: {
+          awarded_at: string;
+          badge: Database["public"]["Enums"]["badge_kind"];
+          user_id: string;
+        };
+        Insert: {
+          awarded_at?: string;
+          badge: Database["public"]["Enums"]["badge_kind"];
+          user_id: string;
+        };
+        Update: {
+          awarded_at?: string;
+          badge?: Database["public"]["Enums"]["badge_kind"];
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "badges_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       comments: {
         Row: {
           author_id: string;
@@ -16,6 +42,8 @@ export type Database = {
           category: Database["public"]["Enums"]["feedback_category"];
           created_at: string;
           edited_at: string | null;
+          end_ms: number | null;
+          first_helpful_at: string | null;
           helpful_at: string | null;
           id: string;
           is_helpful: boolean;
@@ -24,6 +52,7 @@ export type Database = {
           status: Database["public"]["Enums"]["comment_status"];
           time_ms: number | null;
           track_id: string;
+          version_id: string | null;
         };
         Insert: {
           author_id?: string;
@@ -31,6 +60,8 @@ export type Database = {
           category?: Database["public"]["Enums"]["feedback_category"];
           created_at?: string;
           edited_at?: string | null;
+          end_ms?: number | null;
+          first_helpful_at?: string | null;
           helpful_at?: string | null;
           id?: string;
           is_helpful?: boolean;
@@ -39,6 +70,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["comment_status"];
           time_ms?: number | null;
           track_id: string;
+          version_id?: string | null;
         };
         Update: {
           author_id?: string;
@@ -46,6 +78,8 @@ export type Database = {
           category?: Database["public"]["Enums"]["feedback_category"];
           created_at?: string;
           edited_at?: string | null;
+          end_ms?: number | null;
+          first_helpful_at?: string | null;
           helpful_at?: string | null;
           id?: string;
           is_helpful?: boolean;
@@ -54,6 +88,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["comment_status"];
           time_ms?: number | null;
           track_id?: string;
+          version_id?: string | null;
         };
         Relationships: [
           {
@@ -75,6 +110,13 @@ export type Database = {
             columns: ["track_id"];
             isOneToOne: false;
             referencedRelation: "tracks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "comments_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "track_versions";
             referencedColumns: ["id"];
           },
         ];
@@ -326,6 +368,7 @@ export type Database = {
           status: Database["public"]["Enums"]["report_status"];
           target_type: Database["public"]["Enums"]["report_target"];
           track_id: string | null;
+          version_id: string | null;
         };
         Insert: {
           comment_id?: string | null;
@@ -340,6 +383,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["report_status"];
           target_type: Database["public"]["Enums"]["report_target"];
           track_id?: string | null;
+          version_id?: string | null;
         };
         Update: {
           comment_id?: string | null;
@@ -354,6 +398,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["report_status"];
           target_type?: Database["public"]["Enums"]["report_target"];
           track_id?: string | null;
+          version_id?: string | null;
         };
         Relationships: [
           {
@@ -382,6 +427,13 @@ export type Database = {
             columns: ["track_id"];
             isOneToOne: false;
             referencedRelation: "tracks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reports_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "track_versions";
             referencedColumns: ["id"];
           },
         ];
@@ -457,6 +509,50 @@ export type Database = {
           },
         ];
       };
+      track_versions: {
+        Row: {
+          audio_key: string;
+          created_at: string;
+          duration_ms: number;
+          id: string;
+          loudness: number | null;
+          note: string;
+          peaks_key: string;
+          track_id: string;
+          version_no: number;
+        };
+        Insert: {
+          audio_key: string;
+          created_at?: string;
+          duration_ms: number;
+          id?: string;
+          loudness?: number | null;
+          note?: string;
+          peaks_key: string;
+          track_id: string;
+          version_no: number;
+        };
+        Update: {
+          audio_key?: string;
+          created_at?: string;
+          duration_ms?: number;
+          id?: string;
+          loudness?: number | null;
+          note?: string;
+          peaks_key?: string;
+          track_id?: string;
+          version_no?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "track_versions_track_id_fkey";
+            columns: ["track_id"];
+            isOneToOne: false;
+            referencedRelation: "tracks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tracks: {
         Row: {
           audio_key: string;
@@ -473,6 +569,7 @@ export type Database = {
           play_count: number;
           published_at: string;
           reaction_counts: Json;
+          reference_url: string | null;
           slug: string;
           status: Database["public"]["Enums"]["track_status"];
           tags: string[];
@@ -494,6 +591,7 @@ export type Database = {
           play_count?: number;
           published_at?: string;
           reaction_counts?: Json;
+          reference_url?: string | null;
           slug?: string;
           status?: Database["public"]["Enums"]["track_status"];
           tags?: string[];
@@ -515,6 +613,7 @@ export type Database = {
           play_count?: number;
           published_at?: string;
           reaction_counts?: Json;
+          reference_url?: string | null;
           slug?: string;
           status?: Database["public"]["Enums"]["track_status"];
           tags?: string[];
@@ -649,6 +748,7 @@ export type Database = {
           play_count: number;
           published_at: string;
           reaction_counts: Json;
+          reference_url: string | null;
           slug: string;
           status: Database["public"]["Enums"]["track_status"];
           tags: string[];
@@ -679,6 +779,7 @@ export type Database = {
           play_count: number;
           published_at: string;
           reaction_counts: Json;
+          reference_url: string | null;
           slug: string;
           status: Database["public"]["Enums"]["track_status"];
           tags: string[];
@@ -709,6 +810,7 @@ export type Database = {
           play_count: number;
           published_at: string;
           reaction_counts: Json;
+          reference_url: string | null;
           slug: string;
           status: Database["public"]["Enums"]["track_status"];
           tags: string[];
@@ -731,6 +833,16 @@ export type Database = {
         Returns: {
           bucket_id: string;
           name: string;
+        }[];
+      };
+      profile_stats: {
+        Args: { p_user: string };
+        Returns: {
+          badges: Database["public"]["Enums"]["badge_kind"][];
+          comments_given: number;
+          helpful_received: number;
+          helpful_share: number;
+          week_streak: number;
         }[];
       };
       record_play: {
@@ -756,11 +868,38 @@ export type Database = {
           isSetofReturn: false;
         };
       };
-      reserve_upload: { Args: never; Returns: string };
+      reserve_upload: { Args: { p_track?: string }; Returns: string };
+      search: {
+        Args: { p_limit?: number; p_query: string };
+        Returns: {
+          display_name: string;
+          handle: string;
+          id: string;
+          kind: string;
+          rank: number;
+          slug: string;
+          title: string;
+        }[];
+      };
+      tags_text: { Args: { p_tags: string[] }; Returns: string };
       track_under_review: { Args: { p_track: string }; Returns: boolean };
       track_upload_allowance: { Args: never; Returns: number };
+      weekly_helpful_leaders: {
+        Args: { p_week_start?: string };
+        Returns: {
+          avatar_key: string;
+          avatar_url: string;
+          display_name: string;
+          handle: string;
+          helpful: number;
+          reputation: number;
+          user_id: string;
+        }[];
+      };
     };
     Enums: {
+      badge_kind:
+        "first_ears" | "finisher" | "ten_tracks_helped" | "golden_ear";
       comment_status: "live" | "hidden" | "deleted";
       feedback_category:
         "mix" | "arrangement" | "vocals" | "sound_design" | "vibe";
@@ -900,6 +1039,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      badge_kind: ["first_ears", "finisher", "ten_tracks_helped", "golden_ear"],
       comment_status: ["live", "hidden", "deleted"],
       feedback_category: [
         "mix",

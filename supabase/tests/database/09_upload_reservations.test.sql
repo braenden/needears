@@ -62,7 +62,7 @@ select lives_ok(
 select throws_ok('select public.reserve_upload()', 'PT429', 'rate_limited', 'the seventh reservation is rate limited');
 reset role;
 
-select ok(not has_function_privilege('anon', 'public.reserve_upload()', 'execute'), 'anon cannot reserve uploads');
+select ok(not has_function_privilege('anon', 'public.reserve_upload(uuid)', 'execute'), 'anon cannot reserve uploads');
 
 -- Creating the track uses up the reservation.
 insert into storage.objects (bucket_id, name, owner_id)
