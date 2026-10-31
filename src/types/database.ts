@@ -733,6 +733,10 @@ export type Database = {
           name: string;
         }[];
       };
+      record_play: {
+        Args: { p_listener: string; p_track: string; p_user?: string };
+        Returns: boolean;
+      };
       reputation_level: {
         Args: { p_helpful: number };
         Returns: {
