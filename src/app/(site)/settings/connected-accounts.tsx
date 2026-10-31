@@ -56,23 +56,34 @@ export function linkErrorText(code: string | undefined): string {
 const DAY = 24 * 60 * 60 * 1000;
 
 /**
- * What to say when disconnecting did not work. For a day after a new way to
- * sign in is connected, the database keeps the account's address from
- * being taken away; the refusal cannot be told apart from other errors, so
- * a recent connection is what points to it.
+ * What to say when disconnecting did not work. The way to sign in that uses
+ * the account's own address cannot be removed for a day after another one
+ * was added. The refusal cannot be told apart from other errors, so that
+ * situation is what points to it.
  */
 export function unlinkErrorText(
   identities: UserIdentity[],
+  removing: UserIdentity,
+  accountEmail: string | null,
   now: number = Date.now(),
 ): string {
-  const newest = Math.max(
+  const carriesAccount =
+    !!accountEmail &&
+    emailOf(removing)?.toLowerCase() === accountEmail.toLowerCase();
+  const newestOther = Math.max(
     0,
-    ...identities.map((i) => (i.created_at ? Date.parse(i.created_at) : 0)),
+    ...identities
+      .filter((i) => i.id !== removing.id)
+      .map((i) => (i.created_at ? Date.parse(i.created_at) : 0)),
   );
-  if (now - newest < DAY)
-    return "For your safety, a way to sign in can't be removed for a day after a new one was connected. Try again tomorrow.";
+  if (carriesAccount && now - newestOther < DAY)
+    return "For your safety, this way to sign in can't be removed for a day after another one was added. Try again tomorrow.";
   return "Couldn't disconnect Google. Try again, or come back in a minute.";
 }
+
+/** Said next to the buttons, before anyone presses them. */
+export const SIGNS_OUT_ELSEWHERE =
+  "Connecting or disconnecting Google signs you out on your other devices.";
 
 /** What disconnecting Google means for this person. */
 export function disconnectText(
@@ -159,7 +170,11 @@ export function ConnectedAccounts({
     setDisconnecting(false);
     setConfirming(false);
     if (error) {
-      toast.error(unlinkErrorText(identities));
+      toast.error(
+        error.code === "manual_linking_disabled"
+          ? "Disconnecting Google isn't available right now."
+          : unlinkErrorText(identities, google, accountEmail),
+      );
       return;
     }
     toast.success("Google disconnected.");
@@ -224,6 +239,11 @@ export function ConnectedAccounts({
               here.
             </p>
           ) : null}
+          {(!google && googleClientId) || (google && email) ? (
+            <p className="text-sm text-muted-foreground">
+              {SIGNS_OUT_ELSEWHERE}
+            </p>
+          ) : null}
           {google && !email ? (
             <p id="google-only-note" className="text-sm text-muted-foreground">
               Add a way to sign in with email first. Sign in once with an email
@@ -240,6 +260,9 @@ export function ConnectedAccounts({
             <DialogDescription>
               {disconnectText(emailOf(google), accountEmail ?? emailOf(email))}
             </DialogDescription>
+            <p className="text-sm text-muted-foreground">
+              You&apos;ll also be signed out on your other devices.
+            </p>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>

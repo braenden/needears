@@ -42,6 +42,7 @@ const {
   disconnectText,
   linkErrorText,
   REAUTH_TO_CONNECT,
+  SIGNS_OUT_ELSEWHERE,
   unlinkErrorText,
 } = await import("./connected-accounts");
 
@@ -185,15 +186,18 @@ describe("disconnecting Google", () => {
       error: { code: "unexpected_failure" },
     });
     const user = userEvent.setup();
-    const justNow = { ...google, created_at: new Date().toISOString() };
-    render(card([email, justNow]));
+    // Google uses the account's own address, and the email link was added
+    // a moment ago.
+    const sameAddress = identity("google", "nora@example.com");
+    const newEmail = { ...email, created_at: new Date().toISOString() };
+    render(card([newEmail, sameAddress]));
     await user.click(screen.getByRole("button", { name: "Disconnect" }));
     await user.click(
       screen.getAllByRole("button", { name: "Disconnect" }).at(-1)!,
     );
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
-        expect.stringMatching(/for a day after a new one was connected/),
+        expect.stringMatching(/for a day after another one was added/),
       ),
     );
   });
@@ -234,18 +238,54 @@ describe("texts", () => {
 });
 
 describe("unlinkErrorText", () => {
-  const at = (iso: string) => ({ ...google, created_at: iso });
   const now = Date.parse("2026-11-02T12:00:00Z");
+  const sameAddress = identity("google", "nora@example.com");
+  const emailAt = (iso: string) => ({ ...email, created_at: iso });
 
-  it("explains the day's wait after a new connection", () => {
-    expect(unlinkErrorText([email, at("2026-11-02T08:00:00Z")], now)).toMatch(
-      /Try again tomorrow/,
-    );
+  it("explains the day's wait for the account's own address", () => {
+    expect(
+      unlinkErrorText(
+        [emailAt("2026-11-02T08:00:00Z"), sameAddress],
+        sameAddress,
+        "nora@example.com",
+        now,
+      ),
+    ).toMatch(/Try again tomorrow/);
   });
 
-  it("is general otherwise", () => {
-    expect(unlinkErrorText([email, at("2026-10-20T08:00:00Z")], now)).toBe(
-      "Couldn't disconnect Google. Try again, or come back in a minute.",
+  it("is general for another address, or after the day", () => {
+    const general =
+      "Couldn't disconnect Google. Try again, or come back in a minute.";
+    expect(
+      unlinkErrorText(
+        [emailAt("2026-11-02T08:00:00Z"), google],
+        google,
+        "nora@example.com",
+        now,
+      ),
+    ).toBe(general);
+    expect(
+      unlinkErrorText(
+        [emailAt("2026-10-20T08:00:00Z"), sameAddress],
+        sameAddress,
+        "nora@example.com",
+        now,
+      ),
+    ).toBe(general);
+  });
+});
+
+describe("signing out elsewhere", () => {
+  it("is said before connecting or disconnecting", async () => {
+    const { unmount } = render(card([email]));
+    expect(screen.getByText(SIGNS_OUT_ELSEWHERE)).toBeInTheDocument();
+    unmount();
+    const user = userEvent.setup();
+    render(card([email, google]));
+    expect(screen.getByText(SIGNS_OUT_ELSEWHERE)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "signed out on your other devices",
     );
   });
 });
