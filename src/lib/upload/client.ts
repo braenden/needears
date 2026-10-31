@@ -19,6 +19,7 @@ export type TrackInput = {
   feedbackWants: string[];
   level: string | null;
   durationMs: number;
+  loudness: number | null;
 };
 
 export class UploadError extends Error {
@@ -57,11 +58,13 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   throw new UploadError("unknown");
 }
 
-export function signUpload(size: number, durationMs: number) {
+/** With trackId, the upload is a new version of that track. */
+export function signUpload(size: number, durationMs: number, trackId?: string) {
   return postJson<SignResponse>("/api/upload/sign", {
     size,
     type: AUDIO_MIME,
     durationMs,
+    ...(trackId ? { trackId } : {}),
   });
 }
 
@@ -71,6 +74,21 @@ export function createTrack(objectId: string, input: TrackInput) {
     ...input,
     ownWork: true,
   });
+}
+
+export function createVersion(
+  trackId: string,
+  input: {
+    objectId: string;
+    durationMs: number;
+    loudness: number | null;
+    note: string;
+  },
+) {
+  return postJson<{ id: string; versionNo: number }>(
+    `/api/tracks/${trackId}/versions`,
+    input,
+  );
 }
 
 // PUT to a signed upload URL with progress. Storage checks the declared
