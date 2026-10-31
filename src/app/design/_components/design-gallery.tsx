@@ -15,6 +15,7 @@ import { PrimitivesSection } from "./primitives-section";
 import { ShellSection } from "./shell-section";
 import { TokensSection } from "./tokens-section";
 import { UploadSection } from "./upload-section";
+import { WeeklySection } from "./weekly-section";
 
 const CONTENTS = [
   ["brand", "Brand"],
@@ -25,6 +26,7 @@ const CONTENTS = [
   ["composer", "CommentComposer"],
   ["comment-list", "CommentList"],
   ["track-card", "TrackCard"],
+  ["weekly", "Weekly list"],
   ["upload", "UploadWizard"],
   ["profile", "ProfileHeader"],
   ["reputation", "ReputationBadge"],
@@ -88,6 +90,7 @@ export function DesignGallery() {
           <PrimitivesSection />
           <PlayerSection />
           <FeedSection />
+          <WeeklySection />
           <UploadSection />
           <PeopleSection />
           <ShellSection />
