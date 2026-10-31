@@ -62,7 +62,7 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seeds/reputation.sql", "./seed.sql"]
+sql_paths = ["./seeds/reputation.sql", "./seeds/profile.sql", "./seed.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -125,6 +125,11 @@ public = false
 file_size_limit = "256KiB"
 allowed_mime_types = ["application/json"]
 objects_path = "./seed-storage/peaks"
+
+[storage.buckets.avatars]
+public = false
+file_size_limit = "512KiB"
+allowed_mime_types = ["image/jpeg", "image/webp"]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]

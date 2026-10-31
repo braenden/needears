@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FEEDBACK_WANT_LABELS } from "@/config/labels";
+import { formatPlays } from "@/lib/plays";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import type { TrackSummary as Track } from "@/types/view";
@@ -106,6 +107,9 @@ export function TrackCard({
           <span data-numeric>
             {reactions} {reactions === 1 ? "reaction" : "reactions"}
           </span>
+        ) : null}
+        {track.play_count > 0 ? (
+          <span data-numeric>{formatPlays(track.play_count)}</span>
         ) : null}
         <time data-numeric>{formatTime(track.duration_ms)}</time>
         <RelativeTime date={track.published_at} />

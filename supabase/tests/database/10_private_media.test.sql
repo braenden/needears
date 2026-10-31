@@ -92,11 +92,13 @@ select is(
 );
 reset role;
 
--- Users still cannot change or remove files (no update or delete policy).
+-- Users still cannot change or remove audio or peaks (no update or delete
+-- policy outside the avatars bucket, where only unused files can go).
 select ok(
   not exists (
     select 1 from pg_policies
     where schemaname = 'storage' and tablename = 'objects' and cmd in ('UPDATE', 'DELETE', 'ALL')
+      and policyname <> 'Users delete their unused avatar files'
   ),
   'users cannot change or delete stored files'
 );

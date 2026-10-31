@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { LISTED_NOTIFICATION_KINDS } from "@/lib/data/notification-kinds";
 import { browserClient } from "@/lib/supabase/lazy";
 
 // Seeing the list marks everything as read. RLS limits the update to the
@@ -14,6 +15,7 @@ export function MarkRead() {
         supabase
           .from("notifications")
           .update({ read_at: new Date().toISOString() })
+          .in("kind", [...LISTED_NOTIFICATION_KINDS])
           .is("read_at", null),
       )
       .then(({ error }) => {

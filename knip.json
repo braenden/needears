@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreBinaries": ["supabase", "ffmpeg"],
-  "entry": ["src/lib/supabase/client.ts"],
+  "entry": ["src/lib/supabase/client.ts", "src/config/*.ts"],
   "ignore": ["src/types/database.ts"],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {

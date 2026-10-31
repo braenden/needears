@@ -19,7 +19,7 @@ const FEED_FUNCTIONS = {
 
 const OWNER =
   "owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, reputation)";
-const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, published_at, feedback_wants, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), ${OWNER}`;
+const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, play_count, published_at, feedback_wants, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), ${OWNER}`;
 const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, description, tags, level, status, owner_id`;
 
 // Bars in the card waveform (MiniWaveform's default).
@@ -33,6 +33,7 @@ type SummaryRow = {
   title: string;
   duration_ms: number;
   comment_count: number;
+  play_count: number;
   published_at: string;
   feedback_wants: TrackSummary["feedback_wants"];
   reaction_counts: Json;
@@ -65,6 +66,7 @@ async function toCards(
     title: row.title,
     duration_ms: row.duration_ms,
     comment_count: row.comment_count,
+    play_count: row.play_count,
     published_at: row.published_at,
     feedback_wants: row.feedback_wants,
     reaction_counts: reactionCounts(row.reaction_counts),
@@ -160,6 +162,7 @@ export async function getTrackPage(
       title: row.title,
       duration_ms: row.duration_ms,
       comment_count: row.comment_count,
+      play_count: row.play_count,
       published_at: row.published_at,
       feedback_wants: row.feedback_wants,
       reaction_counts: reactionCounts(row.reaction_counts),
