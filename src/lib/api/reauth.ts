@@ -3,16 +3,11 @@
 // whose intent the database requires for the change).
 export const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 
-// The `amr` methods that are a sign in. Others (totp, phone, webauthn) can
-// be added to an existing session by whoever holds it, so they do not make
-// a session fresh.
-export const SIGN_IN_METHODS = [
-  "otp",
-  "magiclink",
-  "oauth",
-  "password",
-  "email/signup",
-];
+// The `amr` methods that are a sign in: email links and codes, Google. We
+// keep no passwords, and other methods (totp, phone, webauthn) can be added
+// to an existing session by whoever holds it, so they do not make a session
+// fresh.
+export const SIGN_IN_METHODS = ["otp", "magiclink", "oauth", "email/signup"];
 
 // When the session presenting a request last signed in, from the `amr`
 // claim of its access token: one entry per method (password, otp, oauth,

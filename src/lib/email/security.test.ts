@@ -30,6 +30,17 @@ describe("renderSecurityEmail", () => {
     expect(email.text).toContain("can no longer be used");
   });
 
+  it("tells the person the account email was changed", () => {
+    const email = renderSecurityEmail(
+      "email_changed",
+      { email: "new@example.com" },
+      "https://needears.com",
+      "contact@needears.com",
+    );
+    expect(email.subject).toBe("The email address on your account was changed");
+    expect(email.text).toContain("is now new@example.com");
+  });
+
   it("keeps provider data out of the HTML", () => {
     const email = renderSecurityEmail(
       "identity_linked",

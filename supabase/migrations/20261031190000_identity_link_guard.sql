@@ -19,16 +19,18 @@
 -- email sign up), Supabase cleaning up an unconfirmed account, and the
 -- cascade when an account is deleted. Never allowed: removing the last
 -- identity, or removing the one that carries the account's email within 24
--- hours of linking a new one. Supabase confirming an email change may add
--- an email identity for the new address.
+-- hours of linking a new one. Making an intent ends linking flows started
+-- earlier, so a flow from a session that has since been signed out cannot
+-- use it.
 --
 -- We sign in with email links and Google only, so passwords are not kept:
 -- existing ones are cleared, a new account gets none, and one cannot be set
 -- later (a session could otherwise set a password and come back with it).
 --
--- The account owner is emailed when a way to sign in is added or removed.
--- The address is the account email at the time of the change, so a change
--- that also moves the account email still reaches the owner.
+-- The account owner is emailed when a way to sign in is added or removed,
+-- and when the account email changes (old and new address). The address is
+-- the account email at the time of the change, so a change that also moves
+-- the account email still reaches the owner.
 --
 -- Triggers on the auth schema are not an officially supported extension
 -- point. The functions live in private, run as their owner with an empty
@@ -74,6 +76,12 @@ begin
 
   delete from private.identity_intents
   where user_id = p_user and created_at < now() - interval '1 day';
+
+  -- A linking flow started earlier (OAuth authorize, valid for minutes and
+  -- tied to no session) could otherwise finish with this intent after the
+  -- session that started it was signed out. Only the fresh session can
+  -- start a new one.
+  delete from auth.flow_state where linking_target_id = p_user;
 
   insert into private.identity_intents (user_id, action, provider)
   values (p_user, p_action, p_provider);
@@ -134,15 +142,22 @@ begin
     return new;
   end if;
 
-  -- Supabase confirming an email change: the new address gets an email
-  -- identity. The change itself was confirmed through email.
-  if new.provider = 'email' and exists (
-    select 1 from auth.users u
-    where u.id = new.user_id
-      and coalesce(u.email_change, '') <> ''
-      and lower(btrim(u.email_change)) = lower(btrim(new.identity_data ->> 'email'))
+  -- A linking flow that was started before the intent was made belongs to
+  -- an older session; it cannot use the intent.
+  if exists (
+    select 1 from auth.flow_state f
+    where f.linking_target_id = new.user_id
+      and f.created_at < (
+        select min(i.created_at) from private.identity_intents i
+        where i.user_id = new.user_id
+          and i.action = 'link'
+          and i.provider = new.provider
+          and i.used_at is null
+          and i.expires_at > now()
+      )
   ) then
-    return new;
+    raise exception 'identity_link_requires_recent_sign_in' using errcode = '42501',
+      detail = 'Sign in again to add a way to sign in.';
   end if;
 
   if not private.use_identity_intent(new.user_id, 'link', new.provider) then
@@ -261,10 +276,12 @@ update auth.users set encrypted_password = null where coalesce(encrypted_passwor
 
 alter table public.email_queue alter column notification_id drop not null;
 alter table public.email_queue
-  add column kind text check (kind in ('identity_linked', 'identity_unlinked')),
+  add column kind text check (kind in ('identity_linked', 'identity_unlinked', 'email_changed')),
   add column payload jsonb,
   -- For security emails: the account email when the change happened.
-  add column recipient text check (char_length(recipient) <= 320);
+  add column recipient text check (char_length(recipient) <= 320),
+  -- How many addresses the email went to, for the daily budget.
+  add column sends integer not null default 1 check (sends between 1 and 5);
 alter table public.email_queue add constraint email_queue_one_source check (
   (notification_id is not null and kind is null and payload is null and recipient is null)
   or (notification_id is null and kind is not null and payload is not null and recipient is not null)
@@ -316,8 +333,12 @@ begin
   end if;
 
   -- At most three security emails per person a day, so linking and
-  -- unlinking in a loop cannot use up the email quota.
-  if (
+  -- unlinking in a loop cannot use up the email quota. Removing the way to
+  -- sign in that carries the account email is always emailed.
+  if not (
+    tg_op = 'DELETE'
+    and lower(btrim(coalesce(address, ''))) = lower(btrim(account_email))
+  ) and (
     select count(*) from public.email_queue
     where user_id = uid and kind is not null and created_at > now() - interval '1 day'
   ) >= 3 then
@@ -338,6 +359,38 @@ $$;
 create trigger identities_notify
   after insert or delete on auth.identities
   for each row execute function private.identities_notify();
+
+-- A changed account email is emailed to the old and the new address,
+-- always.
+create function private.users_notify_email_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if coalesce(old.email, '') = ''
+    or old.email_confirmed_at is null
+    or lower(btrim(old.email)) = lower(btrim(coalesce(new.email, '')))
+    or not exists (select 1 from public.profiles where id = new.id)
+  then
+    return null;
+  end if;
+
+  insert into public.email_queue (user_id, kind, payload, recipient)
+  values (
+    new.id,
+    'email_changed',
+    jsonb_build_object('email', left(coalesce(new.email, ''), 320), 'at', now()),
+    left(old.email, 320)
+  );
+  return null;
+end;
+$$;
+
+create trigger users_notify_email_change
+  after update of email on auth.users
+  for each row execute function private.users_notify_email_change();
 
 -- The digest only takes notification rows; security emails go one by one.
 create or replace function public.email_batch(p_limit integer default 20, p_daily_budget integer default 60)
@@ -368,9 +421,14 @@ begin
         and not exists (select 1 from public.comments c where c.id = n.comment_id and c.status = 'live'))
     );
 
-  -- Each email marks its rows in one call, so one sent_at per email.
-  select count(distinct q.sent_at) into sent_today
-  from public.email_queue q where q.sent_at > now() - interval '1 day';
+  -- One email per sent_at (each send marks its rows in one call), counted
+  -- by the addresses it went to.
+  select coalesce(sum(per_email.sends), 0) into sent_today
+  from (
+    select max(q.sends) as sends from public.email_queue q
+    where q.sent_at > now() - interval '1 day'
+    group by q.sent_at
+  ) per_email;
   room := least(greatest(p_limit, 0), greatest(p_daily_budget - sent_today, 0), 80);
 
   return query
@@ -434,8 +492,14 @@ declare
   room integer;
 begin
   -- Security emails share the daily budget with the digest.
-  select count(distinct q.sent_at) into sent_today
-  from public.email_queue q where q.sent_at > now() - interval '1 day';
+  -- One email per sent_at (each send marks its rows in one call), counted
+  -- by the addresses it went to.
+  select coalesce(sum(per_email.sends), 0) into sent_today
+  from (
+    select max(q.sends) as sends from public.email_queue q
+    where q.sent_at > now() - interval '1 day'
+    group by q.sent_at
+  ) per_email;
   room := least(greatest(p_limit, 0), greatest(p_daily_budget - sent_today, 0), 50);
 
   return query
@@ -470,7 +534,23 @@ begin
 end;
 $$;
 
+-- Marking sent records how many addresses the email went to.
+drop function public.mark_emails_sent(bigint[]);
+create function public.mark_emails_sent(p_ids bigint[], p_sends integer default 1)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.email_queue
+  set sent_at = now(), sends = least(greatest(p_sends, 1), 5)
+  where id = any (p_ids) and sent_at is null;
+$$;
+
 revoke all on private.identity_intents from public, anon, authenticated;
+revoke execute on function public.mark_emails_sent(bigint[], integer) from public, anon, authenticated;
+grant execute on function public.mark_emails_sent(bigint[], integer) to service_role;
+revoke execute on function private.users_notify_email_change() from public, anon, authenticated;
 revoke execute on function public.create_identity_intent(uuid, text, text) from public, anon, authenticated;
 revoke execute on function private.use_identity_intent(uuid, text, text) from public, anon, authenticated;
 revoke execute on function private.identities_before_insert() from public, anon, authenticated;

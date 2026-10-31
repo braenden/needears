@@ -4,7 +4,7 @@
 -- owner is emailed at the address from before the change.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(31);
 \ir _helpers.psql
 
 -- alice and carol have confirmed emails; bob's is not confirmed yet.
@@ -65,6 +65,27 @@ select throws_ok(
   '42501', 'identity_link_requires_recent_sign_in',
   'a fresh sign in on another session does not open linking'
 );
+
+-- A linking flow the attacker started before the owner made an intent is
+-- cleared by the intent, and an older one cannot use it either.
+insert into auth.flow_state (id, provider_type, authentication_method, created_at, updated_at, linking_target_id)
+values (gen_random_uuid(), 'google', 'oauth', now() - interval '2 minutes', now(), '11111111-1111-4111-8111-111111111111');
+select pg_temp.intent('11111111-1111-4111-8111-111111111111', 'link', 'google');
+select is(
+  (select count(*)::int from auth.flow_state where linking_target_id = '11111111-1111-4111-8111-111111111111'),
+  0,
+  'making an intent ends linking flows started earlier'
+);
+insert into auth.flow_state (id, provider_type, authentication_method, created_at, updated_at, linking_target_id)
+values (gen_random_uuid(), 'google', 'oauth', now() - interval '1 minute', now(), '11111111-1111-4111-8111-111111111111');
+update private.identity_intents set created_at = now() where user_id = '11111111-1111-4111-8111-111111111111';
+select throws_ok(
+  $$ select pg_temp.add_identity('11111111-1111-4111-8111-111111111111', 'google', 'attacker@evil.example') $$,
+  '42501', 'identity_link_requires_recent_sign_in',
+  'a linking flow older than the intent cannot use it'
+);
+delete from auth.flow_state where linking_target_id = '11111111-1111-4111-8111-111111111111';
+update private.identity_intents set used_at = now() where user_id = '11111111-1111-4111-8111-111111111111';
 
 select pg_temp.intent('11111111-1111-4111-8111-111111111111', 'unlink', 'google');
 select pg_temp.intent('11111111-1111-4111-8111-111111111111', 'link', 'github');
@@ -152,28 +173,19 @@ delete from public.email_queue where user_id = '33333333-3333-4333-8333-33333333
 delete from auth.identities where user_id = '33333333-3333-4333-8333-333333333333' and provider = 'email';
 update auth.users set email = 'attacker@evil.example' where id = '33333333-3333-4333-8333-333333333333';
 select results_eq(
-  $$ select kind, recipient from public.email_queue where user_id = '33333333-3333-4333-8333-333333333333' $$,
-  $$ values ('identity_unlinked', 'carol@test.local') $$,
-  'the email is addressed to the account email from before the change'
+  $$ select kind, recipient from public.email_queue where user_id = '33333333-3333-4333-8333-333333333333' order by id $$,
+  $$ values ('identity_unlinked', 'carol@test.local'), ('email_changed', 'carol@test.local') $$,
+  'the emails go to the account email from before the change, and an email change is announced'
 );
 set local role service_role;
 select is(
   (select array(select unnest(recipients) order by 1)
-   from public.security_email_batch(20, 60) where user_id = '33333333-3333-4333-8333-333333333333'),
+   from public.security_email_batch(20, 60)
+   where user_id = '33333333-3333-4333-8333-333333333333' and kind = 'identity_unlinked'),
   array['attacker@evil.example', 'carol@test.local'],
   'and also to the current address when it has moved'
 );
 reset role;
-
--- Supabase confirming an email change adds an email identity for the new
--- address; that needs no intent.
-select pg_temp.add_identity('44444444-4444-4444-8444-444444444444', 'google', 'dave@test.local');
-update auth.users set email_change = 'dave.new@test.local', email_confirmed_at = now() - interval '30 days'
-where id = '44444444-4444-4444-8444-444444444444';
-select lives_ok(
-  $$ select pg_temp.add_identity('44444444-4444-4444-8444-444444444444', 'email', 'dave.new@test.local') $$,
-  'confirming an email change can add the new email identity'
-);
 
 -- Passwords ------------------------------------------------------------------
 select throws_ok(
@@ -193,6 +205,38 @@ select is(
   null,
   'a new account keeps no password'
 );
+
+-- Removing the identity that carries the account email is always emailed,
+-- even past the daily cap.
+insert into public.email_queue (user_id, kind, payload, recipient)
+select '22222222-2222-4222-8222-222222222222', 'identity_linked', '{}', 'bob@test.local'
+from generate_series(1, 3);
+select pg_temp.intent('22222222-2222-4222-8222-222222222222', 'link', 'github');
+select pg_temp.add_identity('22222222-2222-4222-8222-222222222222', 'github', 'bob.gh@example.com');
+update auth.identities set created_at = now() - interval '2 days' where user_id = '22222222-2222-4222-8222-222222222222';
+update auth.users set email = 'bob@test.local' where id = '22222222-2222-4222-8222-222222222222';
+update auth.identities set identity_data = identity_data || '{"email": "bob@test.local"}'
+where user_id = '22222222-2222-4222-8222-222222222222' and provider = 'google';
+select pg_temp.intent('22222222-2222-4222-8222-222222222222', 'unlink', 'google');
+delete from auth.identities where user_id = '22222222-2222-4222-8222-222222222222' and provider = 'google';
+select is(
+  (select count(*)::int from public.email_queue
+   where user_id = '22222222-2222-4222-8222-222222222222' and kind = 'identity_unlinked'),
+  1,
+  'removing the identity with the account email is emailed past the cap'
+);
+
+-- An email sent to two addresses counts twice in the daily budget.
+update public.email_queue set sent_at = now() - interval '1 minute', sends = 2
+where id = (select min(id) from public.email_queue where kind is not null);
+set local role service_role;
+select is(
+  (select count(*)::int from public.security_email_batch(20, 2)),
+  0,
+  'the daily budget counts addresses, not emails'
+);
+reset role;
+update public.email_queue set sent_at = null, sends = 1, claimed_at = null where kind is not null;
 
 -- Limits and the rest --------------------------------------------------------
 select throws_ok(
@@ -231,7 +275,8 @@ select ok(
   exists (select 1 from pg_trigger where tgname = 'identities_require_recent_sign_in' and tgrelid = 'auth.identities'::regclass)
     and exists (select 1 from pg_trigger where tgname = 'identities_require_recent_sign_in_delete' and tgrelid = 'auth.identities'::regclass)
     and exists (select 1 from pg_trigger where tgname = 'identities_notify' and tgrelid = 'auth.identities'::regclass)
-    and exists (select 1 from pg_trigger where tgname = 'users_no_password' and tgrelid = 'auth.users'::regclass),
+    and exists (select 1 from pg_trigger where tgname = 'users_no_password' and tgrelid = 'auth.users'::regclass)
+    and exists (select 1 from pg_trigger where tgname = 'users_notify_email_change' and tgrelid = 'auth.users'::regclass),
   'the guards are in place on the auth tables'
 );
 

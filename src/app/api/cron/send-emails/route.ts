@@ -81,7 +81,10 @@ export async function GET(request: Request) {
       console.info(`[email] ${email.subject}\n${email.text}`);
     }
 
-    const marked = await admin.rpc("mark_emails_sent", { p_ids: ids });
+    const marked = await admin.rpc("mark_emails_sent", {
+      p_ids: ids,
+      p_sends: recipients.length,
+    });
     if (marked.error)
       console.error("Could not mark emails sent", marked.error.code);
     sent += 1;
