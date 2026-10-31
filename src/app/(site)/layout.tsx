@@ -1,3 +1,4 @@
+import { RememberLogin } from "@/components/common/remember-login";
 import { AppShell } from "@/components/shell/app-shell";
 import { getViewer } from "@/lib/data/viewer";
 
@@ -13,6 +14,7 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
       showSearch
     >
       {children}
+      <RememberLogin />
     </AppShell>
   );
 }

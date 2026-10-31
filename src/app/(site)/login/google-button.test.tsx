@@ -138,6 +138,42 @@ describe("LoginForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("marks the method used last, only when there is a choice", async () => {
+    localStorage.setItem("needears:last-login", "email");
+    const { unmount } = render(<LoginForm next="/" googleClientId="id.apps" />);
+    expect(screen.getByText("Last used")).toBeInTheDocument();
+    await waitFor(() => expect(renderButton).toHaveBeenCalled());
+    unmount();
+
+    render(<LoginForm next="/" googleClientId={null} />);
+    expect(screen.queryByText("Last used")).toBeNull();
+    localStorage.clear();
+  });
+
+  it("marks Google on the edge of its button", async () => {
+    localStorage.setItem("needears:last-login", "google");
+    render(<LoginForm next="/" googleClientId="id.apps" />);
+    const badge = screen.getByText("Last used");
+    expect(
+      badge.parentElement?.querySelector('[data-testid="google-button"]'),
+    ).not.toBeNull();
+    await waitFor(() => expect(renderButton).toHaveBeenCalled());
+    localStorage.clear();
+  });
+
+  it("remembers Google once the token is accepted", async () => {
+    localStorage.clear();
+    signInWithIdToken.mockResolvedValue({
+      data: { user: { user_metadata: { onboarded: true } } },
+      error: null,
+    });
+    render(<GoogleButton clientId="id.apps" next="/" onError={() => {}} />);
+    await waitFor(() => expect(configs).toHaveLength(1));
+    configs[0]!.callback({ credential: "id-token" });
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(localStorage.getItem("needears:last-login")).toBe("google");
+  });
+
   it("offers Google first when a client ID is set", async () => {
     render(<LoginForm next="/" googleClientId="id.apps" />);
     expect(screen.getByTestId("google-button")).toBeInTheDocument();

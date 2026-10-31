@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { saveLastLogin } from "@/lib/auth/last-login";
 import {
   completeGoogleSignIn,
   createRawNonce,
@@ -81,12 +83,15 @@ export function GoogleButton({
   next,
   scriptNonce,
   disabled = false,
+  lastUsed = false,
   onError,
 }: {
   clientId: string;
   next: string;
   scriptNonce?: string;
   disabled?: boolean;
+  /** Show "Last used" on the edge: we cannot draw inside Google's button. */
+  lastUsed?: boolean;
   onError: (message: string | null) => void;
 }) {
   const mount = useRef<HTMLDivElement>(null);
@@ -151,6 +156,7 @@ export function GoogleButton({
         supabase.auth.signInWithIdToken(credentials),
     }).catch(() => null);
     if (destination) {
+      saveLastLogin("google");
       // A full load, so the server sees the new session cookie.
       window.location.assign(destination);
       return;
@@ -161,50 +167,68 @@ export function GoogleButton({
   }
 
   return (
-    // 40 pixels, the height of Google's large button and of our email button.
-    <div className="relative h-10" aria-busy={signingIn || undefined}>
-      <Script
-        src={GSI_SCRIPT}
-        nonce={scriptNonce}
-        strategy="afterInteractive"
-        onReady={() => void draw()}
-        onError={() =>
-          onError(
-            "Google sign-in isn't available right now. Try the email link.",
-          )
-        }
-      />
-      {!drawn ? (
-        // Where Google's button will be, until its script has drawn it.
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 rounded-[4px] border bg-card"
-        />
-      ) : null}
-      {signingIn ? (
-        <Button
-          type="button"
-          size="lg"
-          variant="outline"
-          disabled
-          className="absolute inset-0 z-10 h-10 w-full"
+    <div className="relative">
+      {lastUsed ? (
+        <Badge
+          variant="secondary"
+          className="absolute -top-2.5 right-3 z-20 h-5 px-2 text-[11px] shadow-pop"
         >
-          <GoogleGlyph />
-          Signing in…
-        </Button>
-      ) : disabled && drawn ? (
-        // Busy with the email link: Google's button cannot be disabled, so
-        // a cover keeps it from being clicked.
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 z-10 cursor-not-allowed rounded-[4px] bg-background/50"
-        />
+          Last used
+        </Badge>
       ) : null}
+      {/* 40 pixels, the height of Google's large button and of our email
+          button. Google's frame is a little bigger than the button inside
+          it, so the overhang is clipped. */}
       <div
-        ref={mount}
-        data-testid="google-button"
-        className="flex h-10 w-full items-center"
-      />
+        className="relative h-10 overflow-hidden rounded-[4px]"
+        aria-busy={signingIn || undefined}
+      >
+        <Script
+          src={GSI_SCRIPT}
+          nonce={scriptNonce}
+          strategy="afterInteractive"
+          onReady={() => void draw()}
+          onError={() =>
+            onError(
+              "Google sign-in isn't available right now. Try the email link.",
+            )
+          }
+        />
+        {!drawn ? (
+          // Where Google's button will be, until its script has drawn it.
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 rounded-[4px] border bg-card"
+          />
+        ) : null}
+        {signingIn ? (
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            disabled
+            className="absolute inset-0 z-10 h-10 w-full"
+          >
+            <GoogleGlyph />
+            Signing in…
+          </Button>
+        ) : disabled && drawn ? (
+          // Busy with the email link: Google's button cannot be disabled, so
+          // a cover keeps it from being clicked.
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 z-10 cursor-not-allowed rounded-[4px] bg-background/50"
+          />
+        ) : null}
+        {/* Chrome paints a frame white when its color scheme differs from
+          the page's. Google's button frame is light, so this one is too,
+          which keeps it see-through on our dark theme. */}
+        <div
+          ref={mount}
+          data-testid="google-button"
+          className="flex h-10 w-full items-center [color-scheme:light]"
+        />
+      </div>
     </div>
   );
 }
