@@ -7,7 +7,7 @@ select plan(20);
 select tables_are(
   'public',
   array[
-    'comments', 'email_queue', 'genres', 'link_hosts', 'notifications', 'profiles', 'reactions', 'reports',
+    'badges', 'comments', 'email_queue', 'genres', 'link_hosts', 'notifications', 'profiles', 'reactions', 'reports',
     'reputation_levels', 'reserved_handles', 'track_upload_ips', 'track_versions', 'tracks',
     'trust_rules'
   ],

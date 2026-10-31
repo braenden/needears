@@ -9,6 +9,32 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      badges: {
+        Row: {
+          awarded_at: string;
+          badge: Database["public"]["Enums"]["badge_kind"];
+          user_id: string;
+        };
+        Insert: {
+          awarded_at?: string;
+          badge: Database["public"]["Enums"]["badge_kind"];
+          user_id: string;
+        };
+        Update: {
+          awarded_at?: string;
+          badge?: Database["public"]["Enums"]["badge_kind"];
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "badges_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       comments: {
         Row: {
           author_id: string;
@@ -797,6 +823,16 @@ export type Database = {
           name: string;
         }[];
       };
+      profile_stats: {
+        Args: { p_user: string };
+        Returns: {
+          badges: Database["public"]["Enums"]["badge_kind"][];
+          comments_given: number;
+          helpful_received: number;
+          helpful_share: number;
+          week_streak: number;
+        }[];
+      };
       reputation_level: {
         Args: { p_helpful: number };
         Returns: {
@@ -819,8 +855,22 @@ export type Database = {
       reserve_upload: { Args: { p_track?: string }; Returns: string };
       track_under_review: { Args: { p_track: string }; Returns: boolean };
       track_upload_allowance: { Args: never; Returns: number };
+      weekly_helpful_leaders: {
+        Args: { p_week_start?: string };
+        Returns: {
+          avatar_key: string;
+          avatar_url: string;
+          display_name: string;
+          handle: string;
+          helpful: number;
+          reputation: number;
+          user_id: string;
+        }[];
+      };
     };
     Enums: {
+      badge_kind:
+        "first_ears" | "finisher" | "ten_tracks_helped" | "golden_ear";
       comment_status: "live" | "hidden" | "deleted";
       feedback_category:
         "mix" | "arrangement" | "vocals" | "sound_design" | "vibe";
@@ -960,6 +1010,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      badge_kind: ["first_ears", "finisher", "ten_tracks_helped", "golden_ear"],
       comment_status: ["live", "hidden", "deleted"],
       feedback_category: [
         "mix",
