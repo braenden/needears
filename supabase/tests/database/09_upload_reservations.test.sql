@@ -54,12 +54,12 @@ select ok(
   not public.can_upload_object('11111111-1111-4111-8111-111111111111/' || (select object_id from reserved) || '.mp3', '.mp3'),
   'reservations are per user'
 );
--- Three reservations per allowed upload a day: 2 * 3 = 6 for a new account.
+-- Three reservations per allowed upload a day: 3 * 3 = 9.
 select lives_ok(
-  $$ select public.reserve_upload() from generate_series(1, 6) $$,
-  'a new account can reserve six uploads a day'
+  $$ select public.reserve_upload() from generate_series(1, 9) $$,
+  'a user can reserve nine uploads a day'
 );
-select throws_ok('select public.reserve_upload()', 'PT429', 'rate_limited', 'the seventh reservation is rate limited');
+select throws_ok('select public.reserve_upload()', 'PT429', 'rate_limited', 'the tenth reservation is rate limited');
 reset role;
 
 select ok(not has_function_privilege('anon', 'public.reserve_upload(uuid)', 'execute'), 'anon cannot reserve uploads');

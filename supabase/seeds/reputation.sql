@@ -4,10 +4,10 @@ where id not in ('new_ear', 'listener', 'trusted_ear', 'golden_ear');
 insert into public.reputation_levels
   (id, name, min_helpful, tracks_per_day, tracks_per_week, comments_per_hour, reports_per_day, reactions_per_hour)
 values
-  ('new_ear', 'New ear', 0, 2, 6, 60, 20, 120),
-  ('listener', 'Listener', 3, 2, 6, 60, 20, 120),
-  ('trusted_ear', 'Trusted ear', 15, 4, 12, 120, 40, 240),
-  ('golden_ear', 'Golden ear', 60, 6, 20, 180, 60, 360)
+  ('new_ear', 'New ear', 0, 3, 10, 60, 20, 120),
+  ('listener', 'Listener', 3, 3, 10, 60, 20, 120),
+  ('trusted_ear', 'Trusted ear', 15, 3, 10, 120, 40, 240),
+  ('golden_ear', 'Golden ear', 60, 3, 10, 180, 60, 360)
 on conflict (id) do update set
   name = excluded.name,
   min_helpful = excluded.min_helpful,

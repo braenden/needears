@@ -119,7 +119,7 @@ export function putSigned(
   });
 }
 
-// "You can upload 2 tracks per day." from the rate limit trigger.
+// "You can upload 3 tracks per day." from the rate limit trigger.
 export function parseRateLimit(message: string | undefined): {
   limit: number;
   retry: string;
