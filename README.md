@@ -93,7 +93,7 @@ Sign in with a magic link: the email lands in Mailpit at http://127.0.0.1:54424.
 pnpm lint && pnpm typecheck && pnpm knip   # static checks
 pnpm test                                   # Vitest unit and component tests
 pnpm test:db                                # pgTAP: row level security, triggers, rate limits
-pnpm build && pnpm test:e2e                 # Playwright: sign up, upload, comment at 0:05, Helpful, report, delete
+pnpm build && pnpm test:e2e                 # Playwright: the main flow, security headers, and axe-core on six pages
 pnpm test:lighthouse                        # Lighthouse budgets on the feed, a track and a profile
 ```
 

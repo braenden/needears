@@ -40,6 +40,8 @@ export type Details = {
   level: TrackLevel | null;
 };
 
+export type DetailErrors = Partial<Record<"title" | "genre", string>>;
+
 export type UploadState = {
   step: "file" | "details" | "publish" | "done";
   file: { name: string; size: number; isMp3: boolean } | null;
@@ -53,7 +55,7 @@ export type UploadState = {
   peaks: number[] | null;
   durationMs: number | null;
   details: Details;
-  detailErrors: Partial<Record<"title" | "genre", string>>;
+  detailErrors: DetailErrors;
   ownWork: boolean;
   ownWorkError: boolean;
   publishing: boolean;
@@ -106,8 +108,8 @@ export function validateFile(
   return null;
 }
 
-function validateDetails(details: Details) {
-  const errors: UploadState["detailErrors"] = {};
+export function validateDetails(details: Details) {
+  const errors: DetailErrors = {};
   if (!details.title.trim()) errors.title = "Give your track a title.";
   else if (details.title.length > UPLOAD_LIMITS.titleMax)
     errors.title = `Titles can be up to ${UPLOAD_LIMITS.titleMax} characters.`;

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { comments } from "@/mocks/comments";
+import { jonas } from "@/mocks/profiles";
 
 import {
   activeCommentAt,
@@ -104,5 +105,37 @@ describe("CommentList filter", () => {
     );
     await user.click(screen.getByRole("button", { name: "Jump to 1:42" }));
     expect(onJump).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }));
+  });
+});
+
+describe("CommentList authors", () => {
+  it("links each name and handle to the profile", () => {
+    renderWithTooltips(<CommentList comments={comments} viewer="visitor" />);
+    const link = screen.getAllByRole("link", { name: /@jonas_abl/ })[0]!;
+    expect(link).toHaveAttribute("href", "/u/jonas_abl");
+  });
+
+  it("marks only the owner's own comments as Uploader", () => {
+    const own = comments.find((c) => c.author_id === jonas.id)!;
+    // Same name and picture as the owner, different account.
+    const impostor = {
+      ...own,
+      id: "impostor",
+      author_id: "someone-else",
+      author: { ...jonas, id: "someone-else", handle: "jonas_abl_official" },
+    };
+    renderWithTooltips(
+      <CommentList
+        comments={[own, impostor]}
+        viewer="visitor"
+        ownerId={jonas.id}
+      />,
+    );
+    const [first, second] = items();
+    expect(within(first!).getByText("Uploader")).toBeInTheDocument();
+    expect(within(second!).queryByText("Uploader")).not.toBeInTheDocument();
+    expect(
+      within(second!).getByText("@jonas_abl_official"),
+    ).toBeInTheDocument();
   });
 });
