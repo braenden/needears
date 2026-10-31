@@ -70,7 +70,7 @@ const STEPS = [
   { key: "publish", label: "Publish" },
 ] as const;
 
-const STAGE_LABELS: Record<ProcessingStage, string> = {
+export const STAGE_LABELS: Record<ProcessingStage, string> = {
   decoding: "Reading your file…",
   waveform: "Drawing the waveform…",
   encoding: "Getting it ready to stream…",
@@ -104,7 +104,7 @@ function fileErrorText(error: FileError, durationMs: number | null) {
   }
 }
 
-function publishErrorText(
+export function publishErrorText(
   error: PublishError,
   rateLimit: UploadState["rateLimit"],
   contactEmail?: string,
@@ -329,7 +329,13 @@ export function UploadWizard({
   );
 }
 
-function ProgressBar({ value, label }: { value: number; label: string }) {
+export function ProgressBar({
+  value,
+  label,
+}: {
+  value: number;
+  label: string;
+}) {
   return (
     <div
       role="progressbar"
@@ -347,7 +353,7 @@ function ProgressBar({ value, label }: { value: number; label: string }) {
   );
 }
 
-function FileStep({
+export function FileStep({
   state,
   onFile,
   onReset,

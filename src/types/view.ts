@@ -66,3 +66,17 @@ export type Comment = Pick<
   | "status"
   | "created_at"
 > & { author: ProfileSummary };
+
+// One uploaded version of a track (track_versions). Version 1 is the first
+// upload; the track's own audio, peaks and duration mirror the latest one.
+export type TrackVersion = {
+  id: string;
+  version_no: number;
+  /** "What changed", written by the owner. */
+  note: string | null;
+  duration_ms: number;
+  created_at: string;
+};
+
+// A comment that knows which version it was left on (comments.version_id).
+export type VersionedComment = Comment & { version_id?: string };
