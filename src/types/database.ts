@@ -42,6 +42,7 @@ export type Database = {
           category: Database["public"]["Enums"]["feedback_category"];
           created_at: string;
           edited_at: string | null;
+          first_helpful_at: string | null;
           helpful_at: string | null;
           id: string;
           is_helpful: boolean;
@@ -58,6 +59,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["feedback_category"];
           created_at?: string;
           edited_at?: string | null;
+          first_helpful_at?: string | null;
           helpful_at?: string | null;
           id?: string;
           is_helpful?: boolean;
@@ -74,6 +76,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["feedback_category"];
           created_at?: string;
           edited_at?: string | null;
+          first_helpful_at?: string | null;
           helpful_at?: string | null;
           id?: string;
           is_helpful?: boolean;

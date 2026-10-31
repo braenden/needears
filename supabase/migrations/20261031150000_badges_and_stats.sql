@@ -12,10 +12,41 @@
 --   golden_ear          reached the Golden ear level
 --
 -- weekly_helpful_leaders(week) lists the ten people who received the most
--- Helpful that week (Monday to Sunday, Oslo time), counting only marks that
--- count. profile_stats(user) gives the numbers on a profile. Both are
+-- Helpful that week (Monday to Sunday, Oslo time), by the same trust rules
+-- as reputation: only owners whose marks count, at most helpful_per_giver
+-- from each owner. A mark belongs to the week it was first given
+-- (comments.first_helpful_at), so turning it off and on again does not
+-- move it. profile_stats(user) gives the numbers on a profile, with Helpful
+-- counted the same way as reputation. Both are
 -- readable by anyone and only count live comments on tracks that were not
 -- removed. The numbers mirror src/config/badges.ts.
+
+-- When a comment was first marked Helpful. Never cleared or moved.
+alter table public.comments add column first_helpful_at timestamptz;
+update public.comments set first_helpful_at = helpful_at where is_helpful;
+create index comments_first_helpful_idx on public.comments (first_helpful_at)
+  where is_helpful and status = 'live';
+
+create function private.comments_first_helpful()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  -- Users have no grant on the column, so only this sets it.
+  if new.is_helpful and new.first_helpful_at is null then
+    new.first_helpful_at := coalesce(new.helpful_at, now());
+  end if;
+  return new;
+end;
+$$;
+
+-- Named to run after comments_before_insert and comments_before_update,
+-- which set helpful_at.
+create trigger comments_first_helpful
+  before insert or update on public.comments
+  for each row execute function private.comments_first_helpful();
 
 create type public.badge_kind as enum ('first_ears', 'finisher', 'ten_tracks_helped', 'golden_ear');
 
@@ -146,6 +177,9 @@ create trigger track_versions_award_finisher
   for each row execute function private.track_versions_award_finisher();
 
 -- golden_ear, when reputation reaches the level.
+-- golden_ear, and a second look at ten_tracks_helped (owners whose marks
+-- start counting when their account turns old enough), when reputation
+-- goes up. The daily reputation job triggers this too.
 create function private.profiles_award_golden_ear()
 returns trigger
 language plpgsql
@@ -155,6 +189,11 @@ as $$
 begin
   if (public.reputation_level(new.reputation)).id = 'golden_ear' then
     perform private.award_badge(new.id, 'golden_ear');
+  end if;
+  if not exists (
+    select 1 from public.badges where user_id = new.id and badge = 'ten_tracks_helped'
+  ) and private.helpful_owner_count(new.id) >= 10 then
+    perform private.award_badge(new.id, 'ten_tracks_helped');
   end if;
   return null;
 end;
@@ -207,34 +246,45 @@ returns table (
   reputation integer,
   helpful integer
 )
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  with week as (
-    select
-      (date_trunc('week', coalesce(p_week_start, private.oslo_week_start(now()))::timestamp)
-        at time zone 'Europe/Oslo') as starts
+declare
+  week date := date_trunc('week', coalesce(p_week_start, private.oslo_week_start(now()))::timestamp)::date;
+  starts timestamptz := week::timestamp at time zone 'Europe/Oslo';
+  ends timestamptz := (week + 7)::timestamp at time zone 'Europe/Oslo';
+  rules public.trust_rules := private.trust_rules();
+begin
+  -- Only this week and the two years before it.
+  if week > private.oslo_week_start(now()) or week < private.oslo_week_start(now()) - 728 then
+    return;
+  end if;
+
+  return query
+  with marks as (
+    select c.author_id, t.owner_id, count(*) as n, max(c.first_helpful_at) as last_at
+    from public.comments c
+    join public.tracks t on t.id = c.track_id
+    join public.profiles g on g.id = t.owner_id
+    where c.is_helpful
+      and c.status = 'live'
+      and c.first_helpful_at >= starts
+      and c.first_helpful_at < ends
+      and t.status <> 'deleted'
+      and private.helpful_giver_counts(g, rules)
+    group by c.author_id, t.owner_id
   )
   select p.id, p.handle, p.display_name, p.avatar_url, p.avatar_key, p.reputation,
-    count(*)::integer as helpful
-  from public.comments c
-  join public.tracks t on t.id = c.track_id
-  join public.profiles g on g.id = t.owner_id
-  join public.profiles p on p.id = c.author_id
-  cross join week
-  cross join private.trust_rules() r
-  where c.is_helpful
-    and c.status = 'live'
-    and t.status <> 'deleted'
-    and p.banned_at is null
-    and c.helpful_at >= week.starts
-    and c.helpful_at < week.starts + interval '7 days'
-    and private.helpful_giver_counts(g, r)
+    sum(least(m.n, rules.helpful_per_giver))::integer as helpful
+  from marks m
+  join public.profiles p on p.id = m.author_id
+  where p.banned_at is null
   group by p.id
-  order by helpful desc, max(c.helpful_at) asc, p.handle
+  order by helpful desc, max(m.last_at) asc, p.handle
   limit 10;
+end;
 $$;
 
 -- Profile stats ----------------------------------------------------------------
@@ -262,40 +312,45 @@ begin
     return;
   end if;
 
-  select count(*)::integer, count(*) filter (where c.is_helpful)::integer
-  into given, helpful
+  -- Comments on other people's tracks, the kind that can be Helpful.
+  select count(*)::integer into given
   from public.comments c
   join public.tracks t on t.id = c.track_id
   where c.author_id = p_user and c.status = 'live' and t.status <> 'deleted' and t.owner_id <> p_user;
 
-  -- Weeks in a row with a comment, counting back from this week, or from
-  -- last week while this one has none yet.
+  -- Helpful that counts, the same number as reputation.
+  helpful := private.compute_reputation(p_user);
+
+  -- Weeks in a row with such a comment, counting back from this week, or
+  -- from last week while this one has none yet.
   week := private.oslo_week_start(now());
-  if not exists (
-    select 1 from public.comments c
-    where c.author_id = p_user and c.status = 'live'
-      and private.oslo_week_start(c.created_at) = week
-  ) then
-    week := week - 7;
-  end if;
-  while exists (
-    select 1 from public.comments c
-    where c.author_id = p_user and c.status = 'live'
-      and c.created_at >= (week::timestamp at time zone 'Europe/Oslo')
-      and c.created_at < ((week + 7)::timestamp at time zone 'Europe/Oslo')
-  ) and streak < 520 loop
-    streak := streak + 1;
+  for i in 0..520 loop
+    if exists (
+      select 1 from public.comments c
+      join public.tracks t on t.id = c.track_id
+      where c.author_id = p_user
+        and c.status = 'live'
+        and t.status <> 'deleted'
+        and t.owner_id <> p_user
+        and c.created_at >= (week::timestamp at time zone 'Europe/Oslo')
+        and c.created_at < ((week + 7)::timestamp at time zone 'Europe/Oslo')
+    ) then
+      streak := streak + 1;
+    elsif i > 0 then
+      exit;
+    end if;
     week := week - 7;
   end loop;
 
   return query
   select given, helpful,
-    case when given = 0 then 0 else round(helpful::numeric / given, 3) end,
+    case when given = 0 then 0 else round(least(helpful, given)::numeric / given, 3) end,
     streak,
     coalesce((select array_agg(b.badge order by b.awarded_at) from public.badges b where b.user_id = p_user), '{}');
 end;
 $$;
 
+revoke execute on function private.comments_first_helpful() from public, anon, authenticated;
 revoke execute on function private.award_badge(uuid, public.badge_kind) from public, anon, authenticated;
 revoke execute on function private.helpful_owner_count(uuid) from public, anon, authenticated;
 revoke execute on function private.comments_award_first_ears() from public, anon, authenticated;

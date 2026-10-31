@@ -1,7 +1,7 @@
 -- Badges, the weekly list and profile stats.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(20);
 \ir _helpers.psql
 
 create temp table ids (track uuid, second uuid);
@@ -104,6 +104,7 @@ select throws_ok(
   '42501', null, 'nobody can award themselves a badge'
 );
 reset role;
+select set_config('request.jwt.claims', '', true);
 
 -- Weekly list -----------------------------------------------------------------
 set local role anon;
@@ -132,10 +133,48 @@ set local role anon;
 select results_eq(
   $$ select comments_given, helpful_received, helpful_share, week_streak
      from public.profile_stats('22222222-2222-4222-8222-222222222222') $$,
-  $$ values (11, 11, 1.000::numeric, 1) $$,
-  'stats count comments, Helpful, the share and the week streak'
+  $$ values (11, 10, 0.909::numeric, 1) $$,
+  'stats count comments, Helpful that counts (not from the new owner), the share and the week streak'
 );
 reset role;
+
+-- One owner marking many comments counts at most three times, and turning
+-- Helpful off and on again keeps the week it was first given.
+insert into public.comments (track_id, author_id, body)
+select (select track from owner_tracks where g = 1), '33333333-3333-4333-8333-333333333333', 'Farm ' || i
+from generate_series(1, 8) i;
+update public.comments set is_helpful = true where body like 'Farm %';
+set local role anon;
+select is(
+  (select helpful from public.weekly_helpful_leaders() where handle = 'carol'),
+  3,
+  'one owner gives at most three on the weekly list'
+);
+reset role;
+update public.comments set first_helpful_at = now() - interval '30 days' where body like 'Farm %';
+update public.comments set is_helpful = false where body like 'Farm %';
+update public.comments set is_helpful = true where body like 'Farm %';
+set local role anon;
+select is(
+  (select count(*)::int from public.weekly_helpful_leaders() where handle = 'carol'),
+  0,
+  'turning Helpful off and on does not move a mark into this week'
+);
+select is(
+  (select count(*)::int from public.weekly_helpful_leaders((current_date + 14)::date)),
+  0,
+  'future weeks are empty'
+);
+reset role;
+
+-- Comments on your own track do not keep a streak going.
+insert into public.comments (track_id, author_id, body, created_at)
+select pg_temp.make_track('44444444-4444-4444-8444-444444444444'), '44444444-4444-4444-8444-444444444444', 'Mine', now();
+select is(
+  (select week_streak from public.profile_stats('44444444-4444-4444-8444-444444444444')),
+  0,
+  'comments on your own tracks do not count toward the streak'
+);
 
 -- A comment last week and the week before makes a three week streak.
 insert into public.comments (track_id, author_id, body, created_at)
