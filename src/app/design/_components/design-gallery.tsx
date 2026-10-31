@@ -17,6 +17,7 @@ import { ShellSection } from "./shell-section";
 import { TokensSection } from "./tokens-section";
 import { UploadSection } from "./upload-section";
 import { VersionsSection } from "./versions-section";
+import { WeeklySection } from "./weekly-section";
 
 const CONTENTS = [
   ["brand", "Brand"],
@@ -28,6 +29,7 @@ const CONTENTS = [
   ["comment-list", "CommentList"],
   ["versions", "Versions and A/B"],
   ["track-card", "TrackCard"],
+  ["weekly", "Weekly list"],
   ["upload", "UploadWizard"],
   ["profile", "ProfileHeader"],
   ["reputation", "ReputationBadge"],
@@ -93,6 +95,7 @@ export function DesignGallery() {
           <PlayerSection />
           <VersionsSection />
           <FeedSection />
+          <WeeklySection />
           <UploadSection />
           <PeopleSection />
           <ProfileV11Section />
