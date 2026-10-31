@@ -2,9 +2,13 @@ import "server-only";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cacheLife } from "next/cache";
 import { connection } from "next/server";
+import type { EarnedBadge } from "@/components/profile/badges";
+import type { ProfileLink } from "@/components/profile/link-hosts";
+import type { ProfileStatsV2 } from "@/components/profile/profile-stats";
+import { withAvatar } from "@/lib/data/avatars";
 import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 import type { Genre, Profile, ProfileStats } from "@/types/view";
 
 function anonClient() {
@@ -37,11 +41,35 @@ async function cachedGenres(): Promise<Genre[]> {
 }
 
 const PROFILE_COLUMNS =
-  "id, handle, display_name, avatar_url, reputation, bio, created_at";
+  "id, handle, display_name, avatar_url, avatar_key, reputation, bio, created_at, working_on, daw, links";
+
+export type FullProfile = Profile & {
+  workingOn: string | null;
+  daw: string | null;
+  links: ProfileLink[];
+};
+
+// profiles.links is jsonb; the database checks the shape on write.
+export function parseLinks(value: Json): ProfileLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) =>
+    item &&
+    typeof item === "object" &&
+    !Array.isArray(item) &&
+    typeof item.url === "string"
+      ? [
+          {
+            label: typeof item.label === "string" ? item.label : "",
+            url: item.url,
+          },
+        ]
+      : [],
+  );
+}
 
 export async function getProfileByHandle(
   handle: string,
-): Promise<Profile | null> {
+): Promise<FullProfile | null> {
   if (!/^[a-z0-9_]{3,20}$/.test(handle)) return null;
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -50,7 +78,17 @@ export async function getProfileByHandle(
     .eq("handle", handle)
     .maybeSingle();
   if (error) throw new Error(`Profile failed: ${error.code}`);
-  return data;
+  if (!data) return null;
+  const { working_on, daw, links, ...profile } = await withAvatar(
+    supabase,
+    data,
+  );
+  return {
+    ...profile,
+    workingOn: working_on,
+    daw,
+    links: parseLinks(links),
+  };
 }
 
 // Counts for the profile header. Helpful received is the reputation, which
@@ -104,4 +142,36 @@ export async function getCommentsBy(
     .limit(limit);
   if (error) throw new Error(`Comments failed: ${error.code}`);
   return data.filter((c) => c.track);
+}
+
+export type FeedbackRecord = {
+  stats: ProfileStatsV2;
+  badges: EarnedBadge[];
+};
+
+// How someone gives feedback (profile_stats) and the badges they have.
+export async function getFeedbackRecord(
+  userId: string,
+): Promise<FeedbackRecord> {
+  const supabase = await createClient();
+  const [stats, badges] = await Promise.all([
+    supabase.rpc("profile_stats", { p_user: userId }),
+    supabase
+      .from("badges")
+      .select("badge, awarded_at")
+      .eq("user_id", userId)
+      .order("awarded_at"),
+  ]);
+  if (stats.error) throw new Error(`Stats failed: ${stats.error.code}`);
+  if (badges.error) throw new Error(`Badges failed: ${badges.error.code}`);
+  const row = stats.data[0];
+  return {
+    stats: {
+      commentsGiven: row?.comments_given ?? 0,
+      helpfulReceived: row?.helpful_received ?? 0,
+      helpfulShare: row?.helpful_share ?? 0,
+      weekStreak: row?.week_streak ?? 0,
+    },
+    badges: badges.data,
+  };
 }

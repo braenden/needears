@@ -115,6 +115,19 @@ export function TrackView({
   const owner = displayNameOf(track.owner);
   const shareUrl = `${siteUrl()}/t/${track.slug}`;
 
+  // A new comment comes back without a signed picture; it is the viewer's,
+  // and theirs is already signed.
+  function withOwnAvatar(row: unknown): ThreadComment {
+    const comment = row as ThreadComment;
+    return {
+      ...comment,
+      author: {
+        ...comment.author,
+        avatar_url: viewer?.profile.avatar_url ?? comment.author.avatar_url,
+      },
+    };
+  }
+
   // Back to this second after signing in.
   function signIn() {
     const back = `${pathname}${timeMs > 0 ? `?t=${Math.floor(timeMs / 1000)}` : ""}`;
@@ -141,7 +154,7 @@ export function TrackView({
       if (error.code === "42501") return { ok: false, error: "unavailable" };
       return { ok: false, error: "failed" };
     }
-    setComments((list) => [...list, data as unknown as ThreadComment]);
+    setComments((list) => [...list, withOwnAvatar(data)]);
     return { ok: true };
   }
 
@@ -169,7 +182,7 @@ export function TrackView({
         return { ok: false, error: "unavailable" };
       return { ok: false, error: "failed" };
     }
-    setComments((list) => [...list, data as unknown as ThreadComment]);
+    setComments((list) => [...list, withOwnAvatar(data)]);
     return { ok: true };
   }
 

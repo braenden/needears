@@ -4,6 +4,7 @@ import { reactionCounts } from "./parse";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 import type { Genre, ThreadComment, Track, TrackSummary } from "@/types/view";
+import { withAvatars } from "./avatars";
 import { loadPeaks, signAudio } from "./media";
 
 type UserClient = Awaited<ReturnType<typeof createClient>>;
@@ -18,7 +19,7 @@ const FEED_FUNCTIONS = {
 } as const;
 
 const OWNER =
-  "owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, reputation)";
+  "owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
 const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, play_count, published_at, feedback_wants, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), ${OWNER}`;
 const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, description, tags, level, status, owner_id`;
 
@@ -40,7 +41,7 @@ type SummaryRow = {
   audio_key: string;
   peaks_key: string;
   genre: Genre | null;
-  owner: TrackSummary["owner"] | null;
+  owner: (TrackSummary["owner"] & { avatar_key: string | null }) | null;
 };
 
 // Rows to cards: one signing request and cached peaks for the whole list.
@@ -49,7 +50,7 @@ async function toCards(
   rows: SummaryRow[],
 ): Promise<CardTrack[]> {
   const visible = rows.filter((row) => row.owner && row.genre);
-  const [urls, peaks] = await Promise.all([
+  const [urls, peaks, owners] = await Promise.all([
     signAudio(
       supabase,
       visible.map((row) => row.audio_key),
@@ -59,8 +60,12 @@ async function toCards(
       visible.map((row) => row.peaks_key),
       CARD_BARS,
     ),
+    withAvatars(
+      supabase,
+      visible.map((row) => row.owner!),
+    ),
   ]);
-  return visible.map((row) => ({
+  return visible.map((row, i) => ({
     id: row.id,
     slug: row.slug,
     title: row.title,
@@ -71,7 +76,7 @@ async function toCards(
     feedback_wants: row.feedback_wants,
     reaction_counts: reactionCounts(row.reaction_counts),
     genre: row.genre!,
-    owner: row.owner!,
+    owner: owners[i]!,
     peaks: peaks.get(row.peaks_key) ?? [],
     audioUrl: urls.get(row.audio_key) ?? null,
   }));
@@ -123,7 +128,7 @@ export type TrackPageData = {
 };
 
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, parent_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+  "id, track_id, author_id, parent_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
 
 // Everything the track page needs, read as the visitor, so RLS decides what
 // they see. Null when the track does not exist or is not visible to them.
@@ -154,6 +159,15 @@ export async function getTrackPage(
   ]);
   if (comments.error)
     throw new Error(`Comments failed: ${comments.error.code}`);
+  const rows = (
+    comments.data as unknown as (ThreadComment & {
+      author: ThreadComment["author"] & { avatar_key: string | null };
+    })[]
+  ).filter((c) => c.author);
+  const [owner, ...authors] = await withAvatars(supabase, [
+    row.owner,
+    ...rows.map((c) => c.author),
+  ]);
 
   return {
     track: {
@@ -167,7 +181,7 @@ export async function getTrackPage(
       feedback_wants: row.feedback_wants,
       reaction_counts: reactionCounts(row.reaction_counts),
       genre: row.genre,
-      owner: row.owner,
+      owner: owner!,
       peaks: peaks.get(row.peaks_key) ?? [],
       description: row.description,
       tags: row.tags,
@@ -176,8 +190,6 @@ export async function getTrackPage(
       owner_id: row.owner_id,
     },
     audioUrl: urls.get(row.audio_key) ?? null,
-    comments: (comments.data as unknown as ThreadComment[]).filter(
-      (c) => c.author,
-    ),
+    comments: rows.map((c, i) => ({ ...c, author: authors[i]! })),
   };
 }

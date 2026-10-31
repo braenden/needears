@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
+import { withAvatars } from "@/lib/data/avatars";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { formatTime } from "@/lib/time";
@@ -29,6 +30,7 @@ type Row = {
   read_at: string | null;
   created_at: string;
   actor: {
+    id: string;
     handle: string;
     display_name: string;
     avatar_url: string | null;
@@ -50,13 +52,24 @@ export default async function NotificationsPage() {
   const { data } = await supabase
     .from("notifications")
     .select(
-      "id, kind, action, target, reason, read_at, created_at, actor:profiles!notifications_actor_id_fkey(handle, display_name, avatar_url), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms)",
+      "id, kind, action, target, reason, read_at, created_at, actor:profiles!notifications_actor_id_fkey(id, handle, display_name, avatar_url, avatar_key), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms)",
     )
     .eq("user_id", viewer.userId)
     .in("kind", [...LISTED_NOTIFICATION_KINDS])
     .order("created_at", { ascending: false })
     .limit(50);
-  const rows = (data ?? []) as unknown as Row[];
+  const raw = (data ?? []) as unknown as (Omit<Row, "actor"> & {
+    actor: (NonNullable<Row["actor"]> & { avatar_key: string | null }) | null;
+  })[];
+  const actors = await withAvatars(
+    supabase,
+    raw.flatMap((n) => (n.actor ? [n.actor] : [])),
+  );
+  const byId = new Map(actors.map((a) => [a.id, a]));
+  const rows: Row[] = raw.map((n) => ({
+    ...n,
+    actor: n.actor ? (byId.get(n.actor.id) ?? null) : null,
+  }));
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
