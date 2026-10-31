@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteAccount } from "./delete-account";
+import { EmailSettings } from "./email-settings";
 import { ProfileForm } from "./profile-form";
 import { TrackManager } from "./track-manager";
 
@@ -35,11 +36,18 @@ export default async function SettingsPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/login?next=/settings");
   const supabase = await createClient();
-  const { data: tracks } = await supabase
-    .from("tracks")
-    .select("id, slug, title, status, published_at")
-    .eq("owner_id", viewer.userId)
-    .order("published_at", { ascending: false });
+  const [{ data: tracks }, { data: prefs }] = await Promise.all([
+    supabase
+      .from("tracks")
+      .select("id, slug, title, status, published_at")
+      .eq("owner_id", viewer.userId)
+      .order("published_at", { ascending: false }),
+    supabase
+      .from("profiles")
+      .select("email_notifications")
+      .eq("id", viewer.userId)
+      .single(),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
@@ -50,6 +58,13 @@ export default async function SettingsPage() {
       <div className="mt-6">
         <Section id="profile-heading" title="Profile">
           <ProfileForm userId={viewer.userId} profile={viewer.profile} />
+        </Section>
+
+        <Section id="email-heading" title="Email">
+          <EmailSettings
+            userId={viewer.userId}
+            initial={prefs?.email_notifications ?? true}
+          />
         </Section>
 
         <Section id="tracks-heading" title="Your tracks">

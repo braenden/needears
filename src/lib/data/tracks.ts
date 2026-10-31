@@ -3,7 +3,7 @@ import { FEED_MAX_PAGE, FEED_PAGE_SIZE } from "@/config/limits";
 import { reactionCounts } from "./parse";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
-import type { Comment, Genre, Track, TrackSummary } from "@/types/view";
+import type { Genre, ThreadComment, Track, TrackSummary } from "@/types/view";
 import { loadPeaks, signAudio } from "./media";
 
 type UserClient = Awaited<ReturnType<typeof createClient>>;
@@ -118,11 +118,12 @@ export async function getTracksByOwner(
 export type TrackPageData = {
   track: Track;
   audioUrl: string | null;
-  comments: Comment[];
+  // Top-level comments and their replies.
+  comments: ThreadComment[];
 };
 
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, time_ms, category, body, is_helpful, status, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+  "id, track_id, author_id, parent_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
 
 // Everything the track page needs, read as the visitor, so RLS decides what
 // they see. Null when the track does not exist or is not visible to them.
@@ -148,7 +149,6 @@ export async function getTrackPage(
       .from("comments")
       .select(COMMENT_COLUMNS)
       .eq("track_id", row.id)
-      .is("parent_id", null)
       .order("created_at")
       .limit(500),
   ]);
@@ -176,6 +176,8 @@ export async function getTrackPage(
       owner_id: row.owner_id,
     },
     audioUrl: urls.get(row.audio_key) ?? null,
-    comments: (comments.data as unknown as Comment[]).filter((c) => c.author),
+    comments: (comments.data as unknown as ThreadComment[]).filter(
+      (c) => c.author,
+    ),
   };
 }

@@ -44,11 +44,12 @@ import type {
   Profile,
   ReactionKind,
   ReportReason,
+  ThreadComment,
   Track,
 } from "@/types/view";
 
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, time_ms, category, body, is_helpful, status, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+  "id, track_id, author_id, parent_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
 
 // Only the owner needs it, so everyone else never downloads it.
 const EditTrackDialog = dynamic(
@@ -73,15 +74,17 @@ export function TrackView({
   viewer,
   startSeconds,
   initialFilter,
+  initialShowResolved,
   genres,
 }: {
   track: Track;
   audioUrl: string | null;
-  initialComments: Comment[];
+  initialComments: ThreadComment[];
   initialReactions: ReactionKind[];
   viewer: TrackViewer | null;
   startSeconds: number;
   initialFilter: CommentFilter;
+  initialShowResolved: boolean;
   /** Only passed to the owner, for editing the details. */
   genres: Genre[] | null;
 }) {
@@ -96,6 +99,7 @@ export function TrackView({
   const [mine, setMine] = useState(initialReactions);
   const [counts, setCounts] = useState(track.reaction_counts);
   const [filter, setFilter] = useState<CommentFilter>(initialFilter);
+  const [showResolved, setShowResolved] = useState(initialShowResolved);
   const [editing, setEditing] = useState(false);
   const countPlay = usePlayCounter(track.id, track.duration_ms);
   const [reporting, setReporting] = useState<
@@ -104,7 +108,10 @@ export function TrackView({
 
   const isOwner = viewer?.userId === track.owner_id;
   const viewerKind = !viewer ? "signed_out" : isOwner ? "owner" : "visitor";
-  const activeId = selectedId ?? activeCommentAt(comments, timeMs)?.id ?? null;
+  // Replies sit at their parent's time, so only top-level comments get a
+  // marker on the waveform.
+  const topLevel = comments.filter((c) => !c.parent_id);
+  const activeId = selectedId ?? activeCommentAt(topLevel, timeMs)?.id ?? null;
   const owner = displayNameOf(track.owner);
   const shareUrl = `${siteUrl()}/t/${track.slug}`;
 
@@ -134,8 +141,66 @@ export function TrackView({
       if (error.code === "42501") return { ok: false, error: "unavailable" };
       return { ok: false, error: "failed" };
     }
-    setComments((list) => [...list, data as unknown as Comment]);
+    setComments((list) => [...list, data as unknown as ThreadComment]);
     return { ok: true };
+  }
+
+  async function reply(
+    parent: ThreadComment,
+    body: string,
+  ): Promise<SubmitResult> {
+    if (!viewer) return { ok: false, error: "failed" };
+    const { data, error } = await (
+      await browserClient()
+    )
+      .from("comments")
+      .insert({
+        // The database puts a reply at its parent's time.
+        track_id: track.id,
+        parent_id: parent.id,
+        body,
+        category: parent.category,
+      })
+      .select(COMMENT_COLUMNS)
+      .single();
+    if (error) {
+      if (error.code === "PT429") return { ok: false, error: "rate_limited" };
+      if (error.code === "42501" || error.code === "22023")
+        return { ok: false, error: "unavailable" };
+      return { ok: false, error: "failed" };
+    }
+    setComments((list) => [...list, data as unknown as ThreadComment]);
+    return { ok: true };
+  }
+
+  async function toggleResolved(comment: ThreadComment, resolved: boolean) {
+    const before = comment.resolved_at ?? null;
+    const setResolvedAt = (value: string | null) =>
+      setComments((list) =>
+        list.map((c) =>
+          c.id === comment.id ? { ...c, resolved_at: value } : c,
+        ),
+      );
+    setResolvedAt(resolved ? new Date().toISOString() : null);
+    const { data, error } = await (
+      await browserClient()
+    )
+      .from("comments")
+      // The server sets the time; any value marks it resolved.
+      .update({ resolved_at: resolved ? new Date().toISOString() : null })
+      .eq("id", comment.id)
+      .select("resolved_at")
+      .single();
+    if (error) {
+      setResolvedAt(before);
+      toast.error(
+        resolved
+          ? "Couldn't mark that as resolved. Try again."
+          : "Couldn't reopen that comment. Try again.",
+      );
+      return;
+    }
+    setResolvedAt(data.resolved_at);
   }
 
   async function toggleHelpful(comment: Comment, helpful: boolean) {
@@ -248,6 +313,14 @@ export function TrackView({
     return { ok: true };
   }
 
+  function changeShowResolved(next: boolean) {
+    setShowResolved(next);
+    const url = new URL(window.location.href);
+    if (next) url.searchParams.delete("resolved");
+    else url.searchParams.set("resolved", "hide");
+    window.history.replaceState(window.history.state, "", url);
+  }
+
   function changeFilter(next: CommentFilter) {
     setFilter(next);
     const url = new URL(window.location.href);
@@ -303,7 +376,7 @@ export function TrackView({
           peaks={track.peaks}
           audioUrl={audioUrl}
           initialTimeMs={startSeconds * 1000}
-          comments={comments}
+          comments={topLevel}
           activeCommentId={activeId}
           keyboardScope="global"
           onTimeChange={(ms) => {
@@ -420,6 +493,10 @@ export function TrackView({
           activeCommentId={activeId}
           filter={filter}
           onFilterChange={changeFilter}
+          showResolved={showResolved}
+          onShowResolvedChange={changeShowResolved}
+          onReply={reply}
+          onToggleResolved={(c, resolved) => void toggleResolved(c, resolved)}
           onJump={(c) => {
             if (c.time_ms !== null) player.current?.seekTo(c.time_ms);
             setSelectedId(c.id);
