@@ -1,0 +1,27 @@
+name: Send emails
+
+# Calls /api/cron/send-emails every hour. Vercel Cron on the Hobby plan only
+# runs once a day, so the daily Vercel run is the fallback. Skipped until the
+# repository variable PRODUCTION_URL and the secret CRON_SECRET are set.
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  send:
+    name: Send waiting emails
+    if: ${{ vars.PRODUCTION_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET is not set"; exit 0; fi
+          curl --fail --silent --show-error --retry 2 --retry-delay 10 \
+            -H "Authorization: Bearer $CRON_SECRET" "$PRODUCTION_URL/api/cron/send-emails"
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
