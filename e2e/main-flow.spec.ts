@@ -76,8 +76,9 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
       { timeout: 20_000 },
     );
     await listener.getByRole("button", { name: "Play", exact: true }).click();
-    const response = await counted;
-    expect(await response.json()).toEqual({ counted: true });
+    // The player sends it with keepalive, so the body cannot be read here;
+    // the count on the page after a reload is the real check.
+    expect((await counted).ok()).toBe(true);
     await listener.reload();
     await expect(listener.getByText("1 play", { exact: true })).toBeVisible();
   });
