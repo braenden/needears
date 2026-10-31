@@ -8,7 +8,13 @@ export const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 // The `amr` methods that are a sign in. Others (totp, phone, webauthn) can
 // be added to an existing session by whoever holds it, so they do not make
 // a session fresh. Kept equal to private.sign_in_methods() in the database.
-export const SIGN_IN_METHODS = ["otp", "magiclink", "oauth", "password"];
+export const SIGN_IN_METHODS = [
+  "otp",
+  "magiclink",
+  "oauth",
+  "password",
+  "email/signup",
+];
 
 // When the session presenting a request last signed in, from the `amr`
 // claim of its access token: one entry per method (password, otp, oauth,

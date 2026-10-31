@@ -44,7 +44,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select array['otp', 'magiclink', 'oauth', 'password'];
+  select array['otp', 'magiclink', 'oauth', 'password', 'email/signup'];
 $$;
 
 -- True when the user has a live session whose sign in proof (an AMR claim,
@@ -131,9 +131,9 @@ begin
   end if;
 
   -- Supabase removing the identities of an unconfirmed account when a
-  -- verified sign in for the same email takes it over (it confirms the
-  -- account in the same request, just before).
-  if confirmed is null or confirmed > now() - interval '2 minutes' then
+  -- verified sign in for the same email takes it over (before it confirms
+  -- the account).
+  if confirmed is null then
     return old;
   end if;
 
@@ -216,14 +216,9 @@ begin
 
   select count(*) into remaining from auth.identities where user_id = uid;
 
-  -- Not for an account that is unconfirmed or was confirmed by this very
-  -- sign in: that is Supabase taking over an unconfirmed sign up, not a
-  -- change to an account someone already uses.
-  if exists (
-    select 1 from auth.users
-    where id = uid
-      and (email_confirmed_at is null or email_confirmed_at > now() - interval '2 minutes')
-  ) then
+  -- Not for an unconfirmed account: that is Supabase taking over an
+  -- unconfirmed sign up, not a change to an account someone already uses.
+  if exists (select 1 from auth.users where id = uid and email_confirmed_at is null) then
     return null;
   end if;
 
