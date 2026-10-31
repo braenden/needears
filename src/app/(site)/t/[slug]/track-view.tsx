@@ -409,6 +409,7 @@ export function TrackView({
           className="mt-6"
           comments={comments}
           viewer={viewerKind}
+          ownerId={track.owner_id}
           activeCommentId={activeId}
           filter={filter}
           onFilterChange={changeFilter}
