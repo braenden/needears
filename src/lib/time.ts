@@ -29,3 +29,10 @@ export function formatTimeSpoken(ms: number) {
   parts.push(`${s} ${s === 1 ? "second" : "seconds"}`);
   return parts.join(" ");
 }
+
+/** "1:42" for a point, "1:42 to 1:58" for a range. */
+export function formatSpan(startMs: number, endMs?: number | null) {
+  return endMs != null && endMs > startMs
+    ? `${formatTime(startMs)} to ${formatTime(endMs)}`
+    : formatTime(startMs);
+}

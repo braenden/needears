@@ -66,3 +66,6 @@ export type Comment = Pick<
   | "status"
   | "created_at"
 > & { author: ProfileSummary };
+
+// A comment on a stretch of the track (comments.end_ms), 1:42 to 1:58.
+export type RangeComment = Comment & { end_ms?: number | null };

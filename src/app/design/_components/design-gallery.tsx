@@ -13,6 +13,7 @@ import { PeopleSection } from "./people-section";
 import { PlayerSection } from "./player-section";
 import { PrimitivesSection } from "./primitives-section";
 import { ProfileV11Section } from "./profile-v11-section";
+import { RangeSection } from "./range-section";
 import { ShellSection } from "./shell-section";
 import { TokensSection } from "./tokens-section";
 import { UploadSection } from "./upload-section";
@@ -25,6 +26,7 @@ const CONTENTS = [
   ["player", "WaveformPlayer"],
   ["composer", "CommentComposer"],
   ["comment-list", "CommentList"],
+  ["range", "Ranges and export"],
   ["track-card", "TrackCard"],
   ["upload", "UploadWizard"],
   ["profile", "ProfileHeader"],
@@ -89,6 +91,7 @@ export function DesignGallery() {
           <TokensSection />
           <PrimitivesSection />
           <PlayerSection />
+          <RangeSection />
           <FeedSection />
           <UploadSection />
           <PeopleSection />

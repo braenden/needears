@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CATEGORY_LABELS } from "@/config/labels";
 import { COMMENT_MAX } from "@/config/limits";
-import { formatTime, parseTime } from "@/lib/time";
+import { formatSpan, formatTime, parseTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import type { CommentCategory } from "@/types/view";
 
@@ -17,6 +17,8 @@ export type CommentDraft = {
   category: CommentCategory;
   /** Null when the comment is about the whole track. */
   timeMs: number | null;
+  /** Set when the comment is about a range picked in the waveform. */
+  endMs?: number | null;
 };
 
 export type SubmitResult =
@@ -49,6 +51,8 @@ export function CommentComposer({
   commentsPerHour = 20,
   initialBody = "",
   initialError,
+  range = null,
+  onClearRange,
   ref,
   className,
 }: {
@@ -63,6 +67,9 @@ export function CommentComposer({
   commentsPerHour?: number;
   initialBody?: string;
   initialError?: ComposerError;
+  /** A range picked in the waveform. Replaces the single time while set. */
+  range?: { startMs: number; endMs: number } | null;
+  onClearRange?: () => void;
   ref?: React.Ref<CommentComposerHandle>;
   className?: string;
 }) {
@@ -136,12 +143,14 @@ export function CommentComposer({
       const result = await onSubmit({
         body: trimmed,
         category,
-        timeMs: wholeTrack ? null : timeMs,
+        timeMs: wholeTrack ? null : range ? range.startMs : timeMs,
+        ...(range && !wholeTrack ? { endMs: range.endMs } : {}),
       });
       if (result.ok) {
         setBody("");
         setPinnedMs(null);
         setCategory("vibe");
+        if (range) onClearRange?.();
       } else {
         setError(result.error);
       }
@@ -181,7 +190,24 @@ export function CommentComposer({
       )}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        {!wholeTrack ? (
+        {!wholeTrack && range ? (
+          <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary-soft pr-1 pl-3 text-sm font-medium text-primary-text">
+            <span>
+              <span className="sr-only">Comment on </span>
+              <span data-numeric>{formatSpan(range.startMs, range.endMs)}</span>
+            </span>
+            {onClearRange ? (
+              <button
+                type="button"
+                onClick={onClearRange}
+                aria-label="Clear range"
+                className="rounded-full px-2 py-0.5 text-xs font-normal underline decoration-1 underline-offset-2 outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)] focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                clear
+              </button>
+            ) : null}
+          </span>
+        ) : !wholeTrack ? (
           editingTime ? (
             <div className="flex items-center gap-2">
               <label
@@ -292,7 +318,9 @@ export function CommentComposer({
         placeholder={
           wholeTrack
             ? "What do you hear in this track?"
-            : `What do you hear at ${time}?`
+            : range
+              ? `What do you hear from ${formatSpan(range.startMs, range.endMs)}?`
+              : `What do you hear at ${time}?`
         }
         aria-invalid={
           error === "empty" || error === "too_long" ? true : undefined
