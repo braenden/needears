@@ -1,9 +1,12 @@
 -- Search over track titles, tags, handles and display names.
 --
 -- search(p_query, p_limit) returns live tracks and profiles of people who
--- are not banned, best match first. The query is trimmed, must be 2 to 100
+-- are not banned, best match first. The query is trimmed, must be 3 to 100
 -- characters, and at most 50 results come back (SEARCH_* in
--- src/config/limits.ts). Matching uses trigram word similarity, so a typo
+-- src/config/limits.ts). Shorter queries match nearly everything and cost
+-- too much, so they return nothing, and a search gets at most half a second.
+-- It runs with the caller's rights, so RLS on tracks and profiles applies
+-- on top of the filters here. Matching uses trigram word similarity, so a typo
 -- or part of a word still finds something, with GIN indexes so it stays
 -- fast as the feed grows.
 
@@ -12,14 +15,14 @@ create extension if not exists pg_trgm with schema extensions;
 -- Tags as one string, for the index and the query (array_to_string is not
 -- immutable, so it cannot be indexed directly). In public, because an index
 -- expression runs as whoever writes the row.
+-- Fully qualified instead of a search_path setting, so it can be inlined.
 create function public.tags_text(p_tags text[])
 returns text
 language sql
 immutable
 parallel safe
-set search_path = ''
 as $$
-  select coalesce(array_to_string(p_tags, ' '), '');
+  select coalesce(pg_catalog.array_to_string(p_tags, ' '), '');
 $$;
 
 create index tracks_title_trgm_idx on public.tracks
@@ -43,16 +46,22 @@ returns table (
 )
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 set pg_trgm.word_similarity_threshold = 0.3
+set statement_timeout = '500ms'
 as $$
 #variable_conflict use_column
 declare
-  q text := lower(btrim(coalesce(p_query, '')));
+  q text;
   n integer := least(greatest(coalesce(p_limit, 20), 1), 50);
 begin
-  if char_length(q) < 2 or char_length(q) > 100 then
+  -- Refuse huge input before doing any work on it.
+  if p_query is null or octet_length(p_query) > 400 then
+    return;
+  end if;
+  q := lower(btrim(p_query));
+  if char_length(q) < 3 or char_length(q) > 100 then
     return;
   end if;
 

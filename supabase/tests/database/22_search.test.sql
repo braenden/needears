@@ -1,4 +1,4 @@
--- Search: live tracks and profiles of people who are not banned, 2 to 100
+-- Search: live tracks and profiles of people who are not banned, 3 to 100
 -- characters, at most 50 results.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -47,7 +47,7 @@ select ok(
   exists (select 1 from public.search('caro') where kind = 'profile' and handle = 'carol'),
   'profiles are found by handle'
 );
-select is((select count(*)::int from public.search('z')), 0, 'one character finds nothing');
+select is((select count(*)::int from public.search('ze')), 0, 'two characters find nothing');
 select is((select count(*)::int from public.search(repeat('zebra ', 20))), 0, 'over 100 characters finds nothing');
 reset role;
 
