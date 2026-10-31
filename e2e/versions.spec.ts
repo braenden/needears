@@ -65,6 +65,8 @@ test("new version, picker, A/B and comments per version", async ({ page }) => {
     await page.getByLabel("Comment", { exact: true }).fill(onFirst);
     await page.getByRole("button", { name: "Comment", exact: true }).click();
     await expect(page.getByText(onFirst)).toBeVisible();
+    await page.getByRole("radio", { name: /v2/ }).click();
+    await expect(page.getByText(onFirst)).toBeHidden();
 
     // The latest version is picked after a reload, and the list follows it.
     await page.reload();
