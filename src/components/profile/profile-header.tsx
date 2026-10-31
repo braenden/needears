@@ -1,4 +1,4 @@
-import { PencilIcon } from "lucide-react";
+import { AudioLinesIcon, PencilIcon } from "lucide-react";
 
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { ReputationBadge } from "@/components/reputation-badge";
@@ -7,6 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { reputationFor } from "@/config/reputation";
 import { cn } from "@/lib/utils";
 import type { Profile, ProfileStats } from "@/types/view";
+
+import type { ProfileLink } from "./link-hosts";
+import { ProfileLinks } from "./profile-links";
 
 const memberSince = new Intl.DateTimeFormat("en", {
   month: "long",
@@ -20,6 +23,10 @@ export function ProfileHeader({
   isOwn = false,
   onEdit,
   headingLevel = 1,
+  workingOn,
+  daw,
+  links = [],
+  showStats = true,
   className,
 }: {
   profile: Profile;
@@ -28,6 +35,12 @@ export function ProfileHeader({
   onEdit?: () => void;
   /** 1 on the profile page. Lower when shown inside another page. */
   headingLevel?: 1 | 2 | 3;
+  /** One line about what they are making now. */
+  workingOn?: string | null;
+  daw?: string | null;
+  links?: ProfileLink[];
+  /** Turn off when ProfileStatsBlock is shown under the header instead. */
+  showStats?: boolean;
   className?: string;
 }) {
   const Heading = `h${headingLevel}` as const;
@@ -75,27 +88,45 @@ export function ProfileHeader({
         </p>
       ) : null}
 
-      <dl className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-xl border bg-border">
-        {(
-          [
-            ["Tracks", stats.tracks],
-            ["Comments given", stats.commentsGiven],
-            ["Helpful received", stats.helpfulReceived],
-          ] as const
-        ).map(([label, value]) => (
-          <div
-            key={label}
-            className="flex flex-col-reverse gap-0.5 bg-card px-3 py-3 @sm:px-4"
-          >
-            <dt className="text-xs leading-tight text-muted-foreground">
-              {label}
-            </dt>
-            <dd data-numeric className="text-xl font-semibold @sm:text-2xl">
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {workingOn ? (
+        <p className="mt-3 max-w-prose text-sm text-pretty break-words">
+          <span className="text-muted-foreground">Working on </span>
+          {workingOn}
+        </p>
+      ) : null}
+      {daw ? (
+        <p className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <AudioLinesIcon className="size-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 break-words">Makes music in {daw}</span>
+        </p>
+      ) : null}
+      {links.length > 0 ? (
+        <ProfileLinks links={links} className="mt-3" />
+      ) : null}
+
+      {showStats ? (
+        <dl className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-xl border bg-border">
+          {(
+            [
+              ["Tracks", stats.tracks],
+              ["Comments given", stats.commentsGiven],
+              ["Helpful received", stats.helpfulReceived],
+            ] as const
+          ).map(([label, value]) => (
+            <div
+              key={label}
+              className="flex flex-col-reverse gap-0.5 bg-card px-3 py-3 @sm:px-4"
+            >
+              <dt className="text-xs leading-tight text-muted-foreground">
+                {label}
+              </dt>
+              <dd data-numeric className="text-xl font-semibold @sm:text-2xl">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
 
       {isOwn ? (
         <p className="mt-3 text-sm text-muted-foreground">
