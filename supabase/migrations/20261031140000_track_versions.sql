@@ -13,8 +13,11 @@
 -- Comments belong to the version they were given on (comments.version_id).
 -- Existing comments move to version 1. Replies take their parent's version.
 --
--- Quota: a new version within 24 hours of the previous one is the same work
--- and does not count against the upload limit; later ones do. Uploading a
+-- Quota: a new version within 24 hours of the track's first version is the
+-- same work and does not count against the upload limit; later ones do.
+-- (Counting from the previous version would let the window be chained.)
+-- No new version while the track has open reports, and a report remembers
+-- which version it was about. Uploading a
 -- version uses the same reservation and /api/upload/sign (with trackId).
 --
 -- Old versions stay readable to whoever can see the track, and their files
@@ -69,9 +72,9 @@ create trigger tracks_create_first_version
   for each row execute function private.tracks_create_first_version();
 
 -- Later versions: numbered by the database, at most 10, only on live
--- tracks of owners who are not banned, with uploaded files in the owner's
--- folder and a valid reservation, and the upload limit unless the previous
--- version is less than 24 hours old.
+-- tracks without open reports, of owners who are not banned, with uploaded
+-- files in the owner's folder and a valid reservation, and the upload limit
+-- unless the track is less than 24 hours old.
 create function private.track_versions_before_insert()
 returns trigger
 language plpgsql
@@ -107,8 +110,10 @@ begin
       detail = 'A track can have at most 10 versions.';
   end if;
 
+  -- Not while reported: the admin must hear what was reported.
   if track.status <> 'live'
     or exists (select 1 from public.profiles where id = track.owner_id and banned_at is not null)
+    or public.track_under_review(track.id)
   then
     raise exception 'not_allowed' using errcode = '42501';
   end if;
@@ -144,7 +149,9 @@ begin
       detail = 'Upload the file again.';
   end if;
 
-  if previous.created_at < now() - interval '24 hours' then
+  -- Free only within 24 hours of the track's first version, so the window
+  -- cannot be chained from version to version.
+  if track.created_at < now() - interval '24 hours' then
     perform private.consume_rate_limit(track.owner_id, 'track');
   end if;
 
@@ -217,6 +224,14 @@ begin
     -- A reply belongs to its parent's moment in the track, and version.
     new.time_ms := parent.time_ms;
     new.version_id := parent.version_id;
+  end if;
+
+  -- Comments go on live tracks only (RLS says the same). Checked here first,
+  -- so a hidden track answers like a missing one.
+  if coalesce((select auth.jwt()) ->> 'role', '') = 'authenticated'
+    and not exists (select 1 from public.tracks where id = new.track_id and status = 'live')
+  then
+    raise exception 'not_allowed' using errcode = '42501';
   end if;
 
   -- A comment is about the version it was given on: the one sent, or the
@@ -338,11 +353,52 @@ begin
 end;
 $$;
 
+-- Reports remember the version --------------------------------------------
+
+alter table public.reports
+  add column version_id uuid references public.track_versions (id) on delete set null;
+
+create or replace function private.reports_before_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if private.is_seeding() then
+    return new;
+  end if;
+
+  new.status := 'open';
+  new.resolved_by := null;
+  new.resolved_at := null;
+  new.created_at := now();
+  new.details := btrim(new.details);
+
+  if new.target_type = 'comment' then
+    select c.body, c.version_id into new.reported_text, new.version_id
+    from public.comments c where c.id = new.comment_id;
+  else
+    select v.id into new.version_id from public.track_versions v
+    where v.track_id = new.track_id order by v.version_no desc limit 1;
+    select concat_ws(E'\n\n', t.title, nullif(t.description, ''))
+    into new.reported_text
+    from public.tracks t where t.id = new.track_id;
+  end if;
+  new.reported_text := coalesce(left(new.reported_text, 2200), '');
+
+  perform private.consume_rate_limit(new.reporter_id, 'report');
+  return new;
+end;
+$$;
+
+revoke execute on function private.reports_before_insert() from public, anon, authenticated;
+
 -- Reservations for a version ---------------------------------------------
 
 -- reserve_upload(p_track) reserves an upload for a new version of the
--- caller's live track. Within 24 hours of the previous version the upload
--- limit does not apply; the attempts limit (three per allowed upload a day)
+-- caller's live track. Within 24 hours of the track's first version the
+-- upload limit does not apply; the attempts limit (three per allowed upload a day)
 -- always does.
 drop function public.reserve_upload();
 
@@ -381,9 +437,8 @@ begin
       raise exception 'version_limit' using errcode = '22023',
         detail = 'A track can have at most 10 versions.';
     end if;
-    free_version := (
-      select max(created_at) from public.track_versions where track_id = p_track
-    ) > now() - interval '24 hours';
+    free_version := (select created_at from public.tracks where id = p_track)
+      > now() - interval '24 hours';
   end if;
 
   if not free_version and public.track_upload_allowance() < 1 then

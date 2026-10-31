@@ -146,8 +146,9 @@ async function removeUnusedObjects(
   admin: ReturnType<typeof createAdminClient>,
   keys: { audioKey: string; peaksKey: string },
 ) {
+  // Version 1 and every later version are in track_versions.
   const used = await admin
-    .from("tracks")
+    .from("track_versions")
     .select("id", { count: "exact", head: true })
     .eq("audio_key", keys.audioKey);
   if (used.error || (used.count ?? 0) > 0) return;

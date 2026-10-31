@@ -336,6 +336,7 @@ export type Database = {
           status: Database["public"]["Enums"]["report_status"];
           target_type: Database["public"]["Enums"]["report_target"];
           track_id: string | null;
+          version_id: string | null;
         };
         Insert: {
           comment_id?: string | null;
@@ -350,6 +351,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["report_status"];
           target_type: Database["public"]["Enums"]["report_target"];
           track_id?: string | null;
+          version_id?: string | null;
         };
         Update: {
           comment_id?: string | null;
@@ -364,6 +366,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["report_status"];
           target_type?: Database["public"]["Enums"]["report_target"];
           track_id?: string | null;
+          version_id?: string | null;
         };
         Relationships: [
           {
@@ -392,6 +395,13 @@ export type Database = {
             columns: ["track_id"];
             isOneToOne: false;
             referencedRelation: "tracks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reports_version_id_fkey";
+            columns: ["version_id"];
+            isOneToOne: false;
+            referencedRelation: "track_versions";
             referencedColumns: ["id"];
           },
         ];

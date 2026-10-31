@@ -4,7 +4,7 @@
 -- does not count against the upload limit.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(24);
 \ir _helpers.psql
 
 create temp table ids (track uuid, other_track uuid, hidden_track uuid, v1 uuid);
@@ -75,8 +75,9 @@ select is(
   'a version within 24 hours does not count against the upload limit'
 );
 
--- Version 3 more than a day later counts.
-update public.track_versions set created_at = now() - interval '25 hours' where track_id = (select track from ids);
+-- Version 3, more than a day after the track was published, counts. The
+-- window runs from the track, not from the previous version.
+update public.tracks set created_at = now() - interval '25 hours' where id = (select track from ids);
 select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'e0000000-0000-4000-8000-000000000003');
 set local role service_role;
 select pg_temp.add_version('e0000000-0000-4000-8000-000000000003');
@@ -85,7 +86,7 @@ select is(
   (select count(*) from private.rate_limit_events
    where user_id = '33333333-3333-4333-8333-333333333333' and action = 'track'),
   (select n + 1 from events_before),
-  'a version after 24 hours counts against the upload limit'
+  'a version more than 24 hours after the track counts against the upload limit'
 );
 
 -- Refusals.
@@ -113,6 +114,24 @@ select throws_ok(
   '42501', 'not_allowed', 'hidden tracks get no new versions'
 );
 reset role;
+
+-- Not while the track has open reports; the report remembers the version.
+insert into public.reports (reporter_id, target_type, track_id, reason)
+select '11111111-1111-4111-8111-111111111111', 'track', track, 'copyright' from ids;
+select is(
+  (select v.version_no from public.reports r join public.track_versions v on v.id = r.version_id
+   where r.track_id = (select track from ids)),
+  3,
+  'a report remembers the version it was about'
+);
+select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'e0000000-0000-4000-8000-000000000004');
+set local role service_role;
+select throws_ok(
+  $$ select pg_temp.add_version('e0000000-0000-4000-8000-000000000004') $$,
+  '42501', 'not_allowed', 'no new version while the track is reported'
+);
+reset role;
+delete from public.reports where track_id = (select track from ids);
 
 select set_config('needears.seeding', 'on', true);
 insert into public.track_versions (track_id, version_no, audio_key, peaks_key, duration_ms)
