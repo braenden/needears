@@ -55,19 +55,24 @@ const widthFor = (parent: HTMLElement) =>
  * be in the document before it is shown, at zero width). Google keeps the
  * width it is given the first time, so it must not measure too early.
  */
-async function laidOut(parent: HTMLElement) {
+async function laidOut(parent: HTMLElement, signal: AbortSignal) {
   await document.fonts?.ready;
   await new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   );
   if (parent.clientWidth > 0 || typeof ResizeObserver === "undefined") return;
+  if (signal.aborted) return;
   await new Promise<void>((resolve) => {
-    const wait = new ResizeObserver(() => {
-      if (parent.clientWidth === 0) return;
+    const done = () => {
       wait.disconnect();
       resolve();
+    };
+    const wait = new ResizeObserver(() => {
+      if (parent.clientWidth > 0) done();
     });
     wait.observe(parent);
+    // Unmounted while still hidden: stop watching.
+    signal.addEventListener("abort", done, { once: true });
   });
 }
 
@@ -128,20 +133,46 @@ export function GoogleButton({
   const nonce = useRef<string | null>(null);
   const [drawn, setDrawn] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
+  // Aborted when the button leaves the page.
+  const life = useRef<AbortController | null>(null);
+  // Set once the pointer or focus has been on Google's button. Redrawing
+  // removes Google's frame, and with its popup open that would drop the
+  // token on the floor, so after that nothing is redrawn on its own.
+  const touched = useRef(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    life.current = controller;
+    const parent = mount.current;
+    const touch = () => {
+      touched.current = true;
+    };
+    // Events inside Google's frame stay there, but moving onto the frame,
+    // pressing it and tabbing into it all reach its element here.
+    const events = ["pointerover", "pointerdown", "focusin"] as const;
+    for (const type of events) parent?.addEventListener(type, touch);
+    return () => {
+      controller.abort();
+      for (const type of events) parent?.removeEventListener(type, touch);
+    };
+  }, []);
 
   useEffect(() => {
     const parent = mount.current;
-    if (!drawn || !parent) return;
+    if (!drawn || signingIn || !parent) return;
+    const redraw = () => {
+      if (!touched.current) paintButton(parent);
+    };
     const painted = () => Number(parent.dataset.width);
     const resize =
       typeof ResizeObserver === "undefined"
         ? null
         : new ResizeObserver(() => {
             if (parent.clientWidth === 0) return;
-            if (widthFor(parent) !== painted()) paintButton(parent);
+            if (widthFor(parent) !== painted()) redraw();
           });
     resize?.observe(parent);
-    const theme = new MutationObserver(() => paintButton(parent));
+    const theme = new MutationObserver(redraw);
     theme.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
@@ -154,15 +185,16 @@ export function GoogleButton({
       const width = drawnWidth(parent);
       if (width === null || width >= painted() - 4 || retries === 0) return;
       retries--;
-      paintButton(parent);
+      redraw();
     };
     const timers = [400, 1500, 3000].map((ms) => setTimeout(check, ms));
+    // Also cleared as soon as a sign-in starts.
     return () => {
       resize?.disconnect();
       theme.disconnect();
       timers.forEach(clearTimeout);
     };
-  }, [drawn]);
+  }, [drawn, signingIn]);
 
   async function draw() {
     const id = window.google?.accounts.id;
@@ -180,7 +212,13 @@ export function GoogleButton({
         if (response.credential) void finish(response.credential);
       },
     });
-    await laidOut(parent);
+    const signal = life.current?.signal;
+    if (!signal) return;
+    await laidOut(parent, signal);
+    if (signal.aborted || !parent.isConnected) return;
+    // Drawn on purpose (first time, or again after a failed sign-in, when
+    // Google's popup has closed), so the automatic redraws may run again.
+    touched.current = false;
     if (paintButton(parent)) setDrawn(true);
   }
 

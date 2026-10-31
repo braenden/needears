@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { useEffect, useRef } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -178,6 +178,42 @@ describe("LoginForm", () => {
       timeout: 2000,
     });
     renderButton.mockReset();
+  });
+
+  it("leaves the button alone once someone is on it", async () => {
+    // Narrow every time, so the checks would redraw it if they could.
+    renderButton.mockImplementation((parent: HTMLElement) => {
+      const button = document.createElement("div");
+      button.getBoundingClientRect = () => ({ width: 120 }) as DOMRect;
+      parent.appendChild(button);
+    });
+    render(<GoogleButton clientId="id.apps" next="/" onError={() => {}} />);
+    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    // The pointer moves onto Google's button (its popup may open now).
+    fireEvent.pointerOver(screen.getByTestId("google-button").firstChild!);
+    await new Promise((resolve) => setTimeout(resolve, 1700));
+    expect(renderButton).toHaveBeenCalledTimes(1);
+    renderButton.mockReset();
+  });
+
+  it("stops waiting for a width when it leaves the page", async () => {
+    const disconnect = vi.fn();
+    const observe = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe = observe;
+        disconnect = disconnect;
+      },
+    );
+    // jsdom has no layout, so the container is 0 wide and draw waits.
+    const { unmount } = render(
+      <GoogleButton clientId="id.apps" next="/" onError={() => {}} />,
+    );
+    await waitFor(() => expect(observe).toHaveBeenCalled());
+    unmount();
+    expect(disconnect).toHaveBeenCalled();
+    expect(renderButton).not.toHaveBeenCalled();
   });
 
   it("remembers Google once the token is accepted", async () => {
