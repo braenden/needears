@@ -10,6 +10,7 @@ import type {
   TrackSummary,
   TrackVersion,
 } from "@/types/view";
+import type { BadgeKind } from "@/components/profile/badges";
 import { withAvatars } from "./avatars";
 import { loadPeaks, signAudio } from "./media";
 
@@ -133,6 +134,8 @@ export type TrackPageData = {
   comments: ThreadComment[];
   // Oldest first. The last one is what the track plays by default.
   versions: PlayableVersion[];
+  // Badges of everyone in the comments, by author id.
+  authorBadges: Record<string, BadgeKind[]>;
 };
 
 export type PlayableVersion = TrackVersion & {
@@ -194,11 +197,23 @@ export async function getTrackPage(
       author: ThreadComment["author"] & { avatar_key: string | null };
     })[]
   ).filter((c) => c.author);
-  const [urls, peaks, [owner, ...authors]] = await Promise.all([
+  const authorIds = [...new Set(rows.map((c) => c.author_id))];
+  const [urls, peaks, [owner, ...authors], badgeRows] = await Promise.all([
     signAudio(supabase, audioKeys),
     loadPeaks(supabase, peaksKeys),
     withAvatars(supabase, [row.owner, ...rows.map((c) => c.author)]),
+    authorIds.length > 0
+      ? supabase
+          .from("badges")
+          .select("user_id, badge")
+          .in("user_id", authorIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
+  // Badges are a nice to have here; the page works without them.
+  if (badgeRows.error) console.error("Badges failed", badgeRows.error.code);
+  const authorBadges: Record<string, BadgeKind[]> = {};
+  for (const b of badgeRows.data ?? [])
+    (authorBadges[b.user_id] ??= []).push(b.badge);
 
   return {
     track: {
@@ -222,6 +237,7 @@ export async function getTrackPage(
     },
     audioUrl: urls.get(row.audio_key) ?? null,
     comments: rows.map((c, i) => ({ ...c, author: authors[i]! })),
+    authorBadges,
     versions: versions.map(({ audio_key, peaks_key, ...version }) => ({
       ...version,
       audioUrl: urls.get(audio_key) ?? null,

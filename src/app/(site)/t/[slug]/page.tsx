@@ -58,7 +58,7 @@ export default async function TrackPage({
   const [{ slug }, query] = await Promise.all([params, searchParams]);
   const [data, viewer] = await Promise.all([loadTrack(slug), getViewer()]);
   if (!data) notFound();
-  const { track, audioUrl, comments, versions } = data;
+  const { track, audioUrl, comments, versions, authorBadges } = data;
 
   let mine: ReactionKind[] = [];
   if (viewer) {
@@ -101,6 +101,7 @@ export default async function TrackPage({
       initialShowResolved={query.resolved !== "hide"}
       genres={genres}
       versions={versions}
+      authorBadges={authorBadges}
     />
   );
 }
