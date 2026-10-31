@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   ArrowDownUpIcon,
   CheckIcon,
@@ -72,6 +73,7 @@ type Viewer = "owner" | "visitor" | "signed_out";
 export function CommentList({
   comments,
   viewer,
+  ownerId,
   activeCommentId,
   defaultFilter = "all",
   defaultSort = "time",
@@ -89,6 +91,8 @@ export function CommentList({
 }: {
   comments: Comment[];
   viewer: Viewer;
+  /** The track owner. Their comments get an Uploader badge. */
+  ownerId?: string;
   activeCommentId?: string | null;
   defaultFilter?: CommentFilter;
   defaultSort?: CommentSort;
@@ -206,6 +210,7 @@ export function CommentList({
                     key={comment.id}
                     comment={comment}
                     viewer={viewer}
+                    fromOwner={!!ownerId && comment.author_id === ownerId}
                     active={comment.id === activeCommentId}
                     onJump={onJump}
                     onToggleHelpful={onToggleHelpful}
@@ -224,6 +229,7 @@ export function CommentList({
 function CommentItem({
   comment,
   viewer,
+  fromOwner,
   active,
   onJump,
   onToggleHelpful,
@@ -231,12 +237,14 @@ function CommentItem({
 }: {
   comment: Comment;
   viewer: Viewer;
+  fromOwner: boolean;
   active: boolean;
   onJump?: (comment: Comment) => void;
   onToggleHelpful?: (comment: Comment, helpful: boolean) => void;
   onReport?: (comment: Comment) => void;
 }) {
   const name = displayNameOf(comment.author);
+  const profileHref = `/u/${comment.author.handle}`;
   return (
     <li
       aria-current={active ? "true" : undefined}
@@ -246,11 +254,34 @@ function CommentItem({
           "before:absolute before:inset-y-2 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary",
       )}
     >
-      <UserAvatar profile={comment.author} className="mt-0.5" />
+      {/* The name next to it is the link for keyboard and screen readers. */}
+      <Link
+        href={profileHref}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="mt-0.5 shrink-0 self-start rounded-full"
+      >
+        <UserAvatar profile={comment.author} />
+      </Link>
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="truncate text-sm font-semibold">{name}</span>
+            {/* Display names are not unique, so the handle and the Uploader
+                badge show who is really speaking. */}
+            <Link
+              href={profileHref}
+              className="flex min-w-0 items-baseline gap-1.5 rounded-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="truncate text-sm font-semibold">{name}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                @{comment.author.handle}
+              </span>
+            </Link>
+            {fromOwner ? (
+              <Badge variant="solid" className="h-5 px-2 text-[11px]">
+                Uploader
+              </Badge>
+            ) : null}
             <ReputationBadge helpful={comment.author.reputation} />
             <RelativeTime
               date={comment.created_at}
