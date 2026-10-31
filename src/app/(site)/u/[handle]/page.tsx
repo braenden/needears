@@ -6,8 +6,11 @@ import { displayNameOf } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { TrackList } from "@/components/track/track-list";
 import { Button } from "@/components/ui/button";
+import { BadgeList } from "@/components/profile/badges";
+import { ProfileStatsBlock } from "@/components/profile/profile-stats";
 import {
   getCommentsBy,
+  getFeedbackRecord,
   getProfileByHandle,
   getProfileStats,
 } from "@/lib/data/profiles";
@@ -57,8 +60,9 @@ export default async function ProfilePage({
   if (!profile) notFound();
   const tab = query.tab === "comments" ? "comments" : "tracks";
   const isOwn = viewer?.userId === profile.id;
-  const [stats, tracks, comments] = await Promise.all([
+  const [stats, record, tracks, comments] = await Promise.all([
     getProfileStats(profile),
+    getFeedbackRecord(profile.id),
     tab === "tracks" ? getTracksByOwner(profile.id) : Promise.resolve([]),
     tab === "comments" ? getCommentsBy(profile.id) : Promise.resolve([]),
   ]);
@@ -67,6 +71,8 @@ export default async function ProfilePage({
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
       <OwnProfileHeader profile={profile} stats={stats} isOwn={isOwn} />
+      <ProfileStatsBlock stats={record.stats} className="mt-6" />
+      <BadgeList badges={record.badges} showLocked={isOwn} className="mt-4" />
 
       <nav aria-label="Profile sections" className="mt-10 border-b">
         <ul className="-mb-px flex gap-1">

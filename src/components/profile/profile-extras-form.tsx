@@ -48,10 +48,13 @@ export type ProfileExtrasResult = { ok: true } | { ok: false; error: string };
 export function ProfileExtrasForm({
   initial,
   onSave,
+  submitLabel = "Save profile",
   className,
 }: {
   initial: ProfileExtras;
   onSave: (extras: ProfileExtras) => Promise<ProfileExtrasResult>;
+  /** The button text, when the page has other forms that save a profile. */
+  submitLabel?: string;
   className?: string;
 }) {
   const id = useId();
@@ -246,7 +249,7 @@ export function ProfileExtrasForm({
       <div>
         <Button type="submit" disabled={saving}>
           {saving ? <Loader2Icon className="motion-safe:animate-spin" /> : null}
-          Save profile
+          {submitLabel}
         </Button>
       </div>
     </form>

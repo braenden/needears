@@ -4,7 +4,6 @@ import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
-import { UserAvatar } from "@/components/common/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +24,6 @@ export function ProfileForm({
   const [handle, setHandle] = useState(profile.handle);
   const [displayName, setDisplayName] = useState(profile.display_name);
   const [bio, setBio] = useState(profile.bio);
-  const [avatar, setAvatar] = useState(profile.avatar_url);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -46,7 +44,6 @@ export function ProfileForm({
         handle: clean,
         display_name: displayName.trim() || clean,
         bio: bio.trim(),
-        avatar_url: avatar,
       })
       .eq("id", userId);
     setSaving(false);
@@ -60,26 +57,6 @@ export function ProfileForm({
 
   return (
     <form noValidate onSubmit={save} className="grid gap-5">
-      <div className="flex items-center gap-4">
-        <UserAvatar
-          profile={{ handle, display_name: displayName, avatar_url: avatar }}
-          size="lg"
-        />
-        {avatar ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setAvatar(null)}
-          >
-            Remove picture
-          </Button>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            We show your initials as your picture.
-          </p>
-        )}
-      </div>
       <div className="grid gap-2">
         <label htmlFor={`${id}-handle`} className="text-sm font-medium">
           Username

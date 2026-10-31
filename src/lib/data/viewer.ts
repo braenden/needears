@@ -1,6 +1,7 @@
 import "server-only";
 import { connection } from "next/server";
 import { cache } from "react";
+import { withAvatar } from "@/lib/data/avatars";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/types/view";
 import { LISTED_NOTIFICATION_KINDS } from "@/lib/data/notification-kinds";
@@ -13,7 +14,7 @@ export type Viewer = {
 };
 
 const PROFILE_COLUMNS =
-  "id, handle, display_name, avatar_url, reputation, bio, created_at, role";
+  "id, handle, display_name, avatar_url, avatar_key, reputation, bio, created_at, role";
 
 // The signed in person for this request, or null. Deduplicated per request
 // with React.cache, so the layout and the page share one lookup. The JWT is
@@ -40,7 +41,7 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
       .is("read_at", null),
   ]);
   if (!profile.data) return null;
-  const { role, ...rest } = profile.data;
+  const { role, ...rest } = await withAvatar(supabase, profile.data);
   return {
     userId,
     profile: rest,

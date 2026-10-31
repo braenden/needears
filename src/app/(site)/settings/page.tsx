@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { parseLinks } from "@/lib/data/profiles";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteAccount } from "./delete-account";
 import { EmailSettings } from "./email-settings";
+import { ExtrasSettings, PhotoSettings } from "./profile-extras";
 import { ProfileForm } from "./profile-form";
 import { TrackManager } from "./track-manager";
 
@@ -44,7 +46,9 @@ export default async function SettingsPage() {
       .order("published_at", { ascending: false }),
     supabase
       .from("profiles")
-      .select("email_notifications")
+      .select(
+        "email_notifications, avatar_key, avatar_url, working_on, daw, links",
+      )
       .eq("id", viewer.userId)
       .single(),
   ]);
@@ -57,7 +61,26 @@ export default async function SettingsPage() {
 
       <div className="mt-6">
         <Section id="profile-heading" title="Profile">
-          <ProfileForm userId={viewer.userId} profile={viewer.profile} />
+          <div className="grid gap-8">
+            <PhotoSettings
+              userId={viewer.userId}
+              profile={viewer.profile}
+              avatarKey={prefs?.avatar_key ?? null}
+              googleAvatar={prefs?.avatar_url ?? null}
+            />
+            <ProfileForm userId={viewer.userId} profile={viewer.profile} />
+          </div>
+        </Section>
+
+        <Section id="music-heading" title="Your music">
+          <ExtrasSettings
+            userId={viewer.userId}
+            initial={{
+              workingOn: prefs?.working_on ?? "",
+              daw: prefs?.daw ?? "",
+              links: parseLinks(prefs?.links ?? []),
+            }}
+          />
         </Section>
 
         <Section id="email-heading" title="Email">

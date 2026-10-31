@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { ProfileHeader } from "@/components/profile/profile-header";
-import type { Profile, ProfileStats } from "@/types/view";
+import type { FullProfile } from "@/lib/data/profiles";
+import type { ProfileStats } from "@/types/view";
 
 // ProfileHeader with "Edit profile" going to the settings page.
 export function OwnProfileHeader({
@@ -10,7 +11,7 @@ export function OwnProfileHeader({
   stats,
   isOwn,
 }: {
-  profile: Profile;
+  profile: FullProfile;
   stats: ProfileStats;
   isOwn: boolean;
 }) {
@@ -21,6 +22,10 @@ export function OwnProfileHeader({
       stats={stats}
       isOwn={isOwn}
       onEdit={() => router.push("/settings")}
+      workingOn={profile.workingOn}
+      daw={profile.daw}
+      links={profile.links}
+      showStats={false}
     />
   );
 }
