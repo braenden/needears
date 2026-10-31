@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { signInWithMagicLink, testWav } from "./helpers";
 
-// The main flow from plan part 10, with two people:
+// The main flow, with two people:
 // a new producer who signs up, uploads and later deletes the account, and the
 // seed user Jonas, who leaves the comment. Owners cannot mark their own
 // comments as Helpful, so the comment has to come from someone else.
@@ -21,7 +21,7 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
   await test.step("a new producer signs up with a magic link", async () => {
     await signInWithMagicLink(owner, ownerEmail, "/upload");
     await expect(owner).toHaveURL(/\/welcome/);
-    await owner.getByLabel("Handle").fill(handle);
+    await owner.getByLabel("Username").fill(handle);
     await owner.getByRole("button", { name: "Continue" }).click();
     await expect(owner).toHaveURL(/\/upload$/);
   });

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-// The north star target from plan part 12.
+// The north star target.
 const TARGET = 0.7;
 
 function share(hits: number, tracks: number): number | null {

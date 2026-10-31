@@ -1,7 +1,7 @@
 import type * as Sentry from "@sentry/nextjs";
 import type { ErrorEvent } from "@sentry/nextjs";
 
-// Error monitoring with Sentry (plan part 10). It is off unless SENTRY_DSN
+// Error monitoring with Sentry. It is off unless SENTRY_DSN
 // is set at build time; next.config.ts passes the same value to the browser
 // as NEXT_PUBLIC_SENTRY_DSN. Without a DSN the SDK is never loaded.
 //
