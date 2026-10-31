@@ -161,6 +161,25 @@ describe("LoginForm", () => {
     localStorage.clear();
   });
 
+  it("draws the button again when Google draws it too narrow", async () => {
+    // Google's first drawing comes out narrower than asked for, like the
+    // personalized button after a client-side navigation.
+    renderButton.mockImplementation((parent: HTMLElement) => {
+      const button = document.createElement("div");
+      button.getBoundingClientRect = () =>
+        ({
+          width: renderButton.mock.calls.length === 1 ? 120 : 200,
+        }) as DOMRect;
+      parent.appendChild(button);
+    });
+    render(<GoogleButton clientId="id.apps" next="/" onError={() => {}} />);
+    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2), {
+      timeout: 2000,
+    });
+    renderButton.mockReset();
+  });
+
   it("remembers Google once the token is accepted", async () => {
     localStorage.clear();
     signInWithIdToken.mockResolvedValue({

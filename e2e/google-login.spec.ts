@@ -9,11 +9,14 @@ const GSI = "https://accounts.google.com/gsi/client";
 
 const fakeGsi = `
   window.__gsi = [];
+  window.__widths = [];
   window.google = { accounts: { id: {
     initialize: (config) => window.__gsi.push(config),
-    renderButton: (parent) => {
+    renderButton: (parent, options) => {
+      window.__widths.push(options.width);
       const button = document.createElement("button");
       button.textContent = "Sign in with Google";
+      button.style.width = options.width + "px";
       parent.appendChild(button);
     },
   } } };
@@ -98,4 +101,46 @@ test("after a magic link, the login page marks email as last used", async ({
     .filter({ hasText: "Email me a sign-in link" });
   await expect(form.getByText("Last used")).toBeVisible();
   await expect(page.getByText("Last used")).toHaveCount(1);
+});
+
+test("Google gets the full width after a client-side navigation", async ({
+  page,
+}) => {
+  await page.route(`${GSI}**`, (route) =>
+    route.fulfill({ contentType: "text/javascript", body: fakeGsi }),
+  );
+  await page.goto(`${GOOGLE_URL}/feed`);
+  // Wait for the page to hydrate, then go to /login without a full load.
+  await expect(async () => {
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(`${GOOGLE_URL}/login`, { timeout: 2000 });
+  }).toPass();
+  const button = page
+    .getByTestId("google-button")
+    .getByRole("button", { name: "Sign in with Google" });
+  await expect(button).toBeVisible();
+  const container = await page.getByTestId("google-button").boundingBox();
+  const widths = await page.evaluate(
+    () => (window as unknown as { __widths: number[] }).__widths,
+  );
+  // As wide as the column, not Google's 200 pixel minimum.
+  expect(widths.at(-1)).toBe(Math.round(container!.width));
+});
+
+test("Google's popup keeps its opener, so it can hand back the token", async ({
+  page,
+  context,
+}) => {
+  await context.route("https://accounts.google.com/**", (route) =>
+    route.fulfill({ contentType: "text/html", body: "<p>popup</p>" }),
+  );
+  await page.goto(`${GOOGLE_URL}/login`);
+  const [popup] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.evaluate(() => {
+      window.open("https://accounts.google.com/gsi/select", "g", "popup");
+    }),
+  ]);
+  await popup.waitForLoadState();
+  expect(await popup.evaluate(() => window.opener !== null)).toBe(true);
 });
