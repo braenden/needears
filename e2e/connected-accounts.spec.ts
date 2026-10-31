@@ -62,7 +62,9 @@ test("signing in again to connect Google offers only the email link", async ({
     route.fulfill({ contentType: "text/javascript", body: fakeGsi }),
   );
   await page.goto(`${GOOGLE_URL}/login?reauth=connect&next=%2Fsettings`);
-  await expect(page.getByText(/Sign in again to connect Google/)).toBeVisible();
+  await expect(
+    page.getByText(/Sign in again to change how you sign in/),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Email me a sign-in link" }),
   ).toBeVisible();
