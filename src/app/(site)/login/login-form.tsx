@@ -106,7 +106,13 @@ export function LoginForm({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
         />
-        <Button type="submit" size="lg" disabled={state !== "idle"}>
+        {/* As tall as Google's button above it. */}
+        <Button
+          type="submit"
+          size="lg"
+          disabled={state !== "idle"}
+          className="h-10"
+        >
           {state === "sending" ? (
             <Loader2Icon className="motion-safe:animate-spin" />
           ) : null}

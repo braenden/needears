@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ type GoogleId = {
       size: "large";
       text: "continue_with";
       shape: "rectangular";
-      logo_alignment: "center";
+      logo_alignment: "left";
       width: number;
       locale: string;
     },
@@ -43,10 +43,38 @@ declare global {
   }
 }
 
+// Google draws its button between 200 and 400 pixels wide.
+const widthFor = (parent: HTMLElement) =>
+  Math.round(Math.min(400, Math.max(200, parent.clientWidth)));
+
+/**
+ * Draws (or redraws) Google's button to fit our page: dark or light like the
+ * site, as wide as the email button, square corners like ours.
+ */
+function paintButton(parent: HTMLElement) {
+  const id = window.google?.accounts.id;
+  if (!id) return false;
+  const light = document.documentElement.classList.contains("light");
+  parent.replaceChildren();
+  id.renderButton(parent, {
+    type: "standard",
+    theme: light ? "outline" : "filled_black",
+    size: "large",
+    text: "continue_with",
+    shape: "rectangular",
+    logo_alignment: "left",
+    width: widthFor(parent),
+    // The site is in English; Google would follow the browser's language.
+    locale: "en",
+  });
+  return true;
+}
+
 /**
  * Google's own "Continue with Google" button. The script loads with the
- * page's CSP nonce; until it has drawn the button, a look-alike of the same
- * size holds the place so nothing moves.
+ * page's CSP nonce; until it has drawn the button, a neutral box of the same
+ * size holds the place so nothing moves. It is redrawn when the column
+ * changes width or the theme changes.
  */
 export function GoogleButton({
   clientId,
@@ -66,6 +94,30 @@ export function GoogleButton({
   const [drawn, setDrawn] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
 
+  useEffect(() => {
+    const parent = mount.current;
+    if (!drawn || !parent) return;
+    let width = widthFor(parent);
+    const resize =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            if (widthFor(parent) === width) return;
+            width = widthFor(parent);
+            paintButton(parent);
+          });
+    resize?.observe(parent);
+    const theme = new MutationObserver(() => paintButton(parent));
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => {
+      resize?.disconnect();
+      theme.disconnect();
+    };
+  }, [drawn]);
+
   async function draw() {
     const id = window.google?.accounts.id;
     const parent = mount.current;
@@ -82,19 +134,7 @@ export function GoogleButton({
         if (response.credential) void finish(response.credential);
       },
     });
-    const light = document.documentElement.classList.contains("light");
-    id.renderButton(parent, {
-      type: "standard",
-      theme: light ? "outline" : "filled_black",
-      size: "large",
-      text: "continue_with",
-      shape: "rectangular",
-      logo_alignment: "center",
-      width: Math.round(Math.min(400, Math.max(200, parent.offsetWidth))),
-      // The site is in English; Google would follow the browser's language.
-      locale: "en",
-    });
-    setDrawn(true);
+    if (paintButton(parent)) setDrawn(true);
   }
 
   async function finish(credential: string) {
@@ -121,7 +161,8 @@ export function GoogleButton({
   }
 
   return (
-    <div className="relative h-11" aria-busy={signingIn || undefined}>
+    // 40 pixels, the height of Google's large button and of our email button.
+    <div className="relative h-10" aria-busy={signingIn || undefined}>
       <Script
         src={GSI_SCRIPT}
         nonce={scriptNonce}
@@ -133,22 +174,36 @@ export function GoogleButton({
           )
         }
       />
-      {!drawn || signingIn || disabled ? (
+      {!drawn ? (
+        // Where Google's button will be, until its script has drawn it.
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 rounded-[4px] border bg-card"
+        />
+      ) : null}
+      {signingIn ? (
         <Button
           type="button"
           size="lg"
           variant="outline"
           disabled
-          className="absolute inset-0 z-10 h-11 w-full"
+          className="absolute inset-0 z-10 h-10 w-full"
         >
           <GoogleGlyph />
-          {signingIn ? "Signing in…" : "Continue with Google"}
+          Signing in…
         </Button>
+      ) : disabled && drawn ? (
+        // Busy with the email link: Google's button cannot be disabled, so
+        // a cover keeps it from being clicked.
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-10 cursor-not-allowed rounded-[4px] bg-background/50"
+        />
       ) : null}
       <div
         ref={mount}
         data-testid="google-button"
-        className="flex h-11 w-full items-center justify-center"
+        className="flex h-10 w-full items-center"
       />
     </div>
   );
