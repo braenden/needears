@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       return jsonError(500, "cleanup_failed", "Could not list files.");
     if (orphans.data.length === 0) break;
 
-    for (const bucket of ["audio", "peaks"] as const) {
+    for (const bucket of ["audio", "peaks", "avatars"] as const) {
       const names = orphans.data
         .filter((o) => o.bucket_id === bucket)
         .map((o) => o.name);
