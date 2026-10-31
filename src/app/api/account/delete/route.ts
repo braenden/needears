@@ -1,16 +1,14 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/api/auth";
 import { BodyError, jsonError, readJson } from "@/lib/api/http";
-import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
+import { isFreshSession } from "@/lib/api/reauth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-// Deleting an account needs a fresh login in this session
-// (REAUTH_WINDOW_MS), even when the owner has just signed in somewhere
-// else. On its own this route cannot stop a stolen session from first
-// connecting the thief's Google account and signing in fresh with it; the
-// database refuses that connection without a fresh sign-in
-// (private.reauth_window()).
+// How recent the session's own sign in must be. Deleting an account needs a
+// fresh login in this session, so a stolen or forgotten session cannot do
+// it, even when the owner has just signed in somewhere else.
+const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 
 const bodySchema = z.object({ confirm: z.string() }).strict();
 
