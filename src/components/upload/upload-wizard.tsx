@@ -11,7 +11,8 @@ import {
 
 import { MiniWaveform } from "@/components/track/mini-waveform";
 import { Button } from "@/components/ui/button";
-import { fieldClasses, Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { FEEDBACK_WANT_LABELS, LEVEL_LABELS } from "@/config/labels";
 import { DESCRIPTION_MAX } from "@/config/limits";
@@ -613,13 +614,13 @@ function DetailsStep({
           hint="Pick one main genre."
           error={detailErrors.genre}
         >
-          <select
+          <NativeSelect
             id={`${id}-genre`}
             value={details.genre}
             onChange={(e) => onEdit({ genre: e.target.value })}
             aria-invalid={detailErrors.genre ? true : undefined}
             aria-describedby={describe("genre", !!detailErrors.genre, true)}
-            className={cn(fieldClasses, "h-10 appearance-auto")}
+            className="h-10"
           >
             <option value="">Choose a genre</option>
             {genres.map((g) => (
@@ -627,7 +628,7 @@ function DetailsStep({
                 {g.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
         <Field
           id={`${id}-tags`}
