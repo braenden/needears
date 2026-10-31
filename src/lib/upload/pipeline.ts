@@ -167,6 +167,7 @@ export function createUploadPipeline(): UploadPipeline {
           level: details.level,
           durationMs: uploaded.durationMs,
           loudness: uploaded.loudness,
+          referenceUrl: details.reference.trim() || null,
         });
         onProgress(1);
         return { ok: true, slug: track.slug };

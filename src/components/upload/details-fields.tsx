@@ -121,6 +121,30 @@ export function DetailsFields({
         />
       </Field>
 
+      <Field
+        id={`${id}-reference`}
+        label={
+          <>
+            Reference track
+            <Optional />
+          </>
+        }
+        hint="A track you want yours to sound like, on SoundCloud, YouTube, Spotify or Bandcamp."
+        error={errors.reference}
+      >
+        <Input
+          id={`${id}-reference`}
+          type="url"
+          inputMode="url"
+          value={details.reference}
+          placeholder="https://soundcloud.com/..."
+          onChange={(e) => onEdit({ reference: e.target.value })}
+          aria-invalid={errors.reference ? true : undefined}
+          aria-describedby={describe("reference", !!errors.reference, true)}
+          autoComplete="off"
+        />
+      </Field>
+
       <fieldset className="grid gap-2" aria-describedby={`${id}-wants-hint`}>
         <legend className="mb-2 text-sm font-medium">
           What do you want feedback on?

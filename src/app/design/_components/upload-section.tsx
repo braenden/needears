@@ -18,6 +18,7 @@ const details = {
   description: "",
   feedbackWants: ["mix" as const, "arrangement" as const],
   level: "intermediate" as const,
+  reference: "",
 };
 const analysed: Partial<UploadState> = {
   file: wav,

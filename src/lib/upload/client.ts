@@ -20,6 +20,7 @@ export type TrackInput = {
   level: string | null;
   durationMs: number;
   loudness: number | null;
+  referenceUrl: string | null;
 };
 
 export class UploadError extends Error {

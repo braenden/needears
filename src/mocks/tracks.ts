@@ -22,6 +22,7 @@ export const nightBus: Track = {
   owner: jonas,
   owner_id: jonas.id,
   status: "live",
+  reference_url: null,
 };
 
 export const firstTrack: Track = {
@@ -42,6 +43,7 @@ export const firstTrack: Track = {
   owner: nora,
   owner_id: nora.id,
   status: "live",
+  reference_url: null,
 };
 
 export const longTitle: Track = {
@@ -63,6 +65,7 @@ export const longTitle: Track = {
   owner: longName,
   owner_id: longName.id,
   status: "live",
+  reference_url: null,
 };
 
 const brokenBeat: Track = {
@@ -83,6 +86,7 @@ const brokenBeat: Track = {
   owner: sam,
   owner_id: sam.id,
   status: "live",
+  reference_url: null,
 };
 
 export const vocalDemo: Track = {
@@ -103,6 +107,7 @@ export const vocalDemo: Track = {
   owner: mia,
   owner_id: mia.id,
   status: "live",
+  reference_url: null,
 };
 
 export const tracks = [nightBus, firstTrack, brokenBeat, vocalDemo, longTitle];
