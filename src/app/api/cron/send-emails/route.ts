@@ -1,13 +1,19 @@
 import { createHash } from "node:crypto";
 import { EMAILS_PER_DAY, EMAILS_PER_RUN } from "@/config/email";
-import { siteUrl } from "@/config/site";
+import { site, siteUrl } from "@/config/site";
 import { isCronRequest } from "@/lib/api/cron";
 import { jsonError } from "@/lib/api/http";
 import { renderDigest, type DigestItem } from "@/lib/email/digest";
+import {
+  renderSecurityEmail,
+  type SecurityKind,
+  type SecurityPayload,
+} from "@/lib/email/security";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Sends one email per person with the comments, replies and Helpful marks
-// they have not been emailed about, within the hourly and daily limits in
+// Sends account security emails (a sign in method added or removed), then
+// one email per person with the comments, replies and Helpful marks they
+// have not been emailed about, within the hourly and daily limits in
 // src/config/email.ts. Called every hour with
 // `Authorization: Bearer $CRON_SECRET`.
 export async function GET(request: Request) {
@@ -35,14 +41,15 @@ export async function GET(request: Request) {
   const base = siteUrl();
   let sent = 0;
   let failed = 0;
+  let stopped = false;
 
-  for (const row of batch.data) {
-    const email = renderDigest(
-      row.items as unknown as DigestItem[],
-      row.total,
-      base,
-    );
+  type Email = { subject: string; text: string; html: string };
 
+  // Sends one email and records the outcome. Returns false when the run
+  // should stop (quota or provider trouble; the rest waits for the next
+  // run). An email the provider refuses for good counts an attempt, so one
+  // address cannot block the queue.
+  async function deliver(to: string, ids: number[], email: Email) {
     if (apiKey && from) {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -51,34 +58,58 @@ export async function GET(request: Request) {
           "Content-Type": "application/json",
           // A retried run cannot send the same email twice.
           "Idempotency-Key": createHash("sha256")
-            .update(row.queue_ids.join(","))
+            .update(ids.join(","))
             .digest("hex"),
         },
-        body: JSON.stringify({ from, to: [row.email], ...email }),
+        body: JSON.stringify({ from, to: [to], ...email }),
       });
-      // Quota or provider trouble: stop, the rest waits for the next run.
       if (response.status === 429 || response.status >= 500) {
         console.error("Email provider unavailable", response.status);
-        break;
+        return false;
       }
-      // Refused for good (for example an address it does not accept):
-      // count the attempt and move on, so one email cannot block the queue.
       if (!response.ok) {
         console.error("Email provider refused an email", response.status);
-        await admin.rpc("mark_emails_failed", { p_ids: row.queue_ids });
+        await admin.rpc("mark_emails_failed", { p_ids: ids });
         failed += 1;
-        continue;
+        return true;
       }
     } else {
       console.info(`[email] ${email.subject}\n${email.text}`);
     }
 
-    const marked = await admin.rpc("mark_emails_sent", {
-      p_ids: row.queue_ids,
-    });
+    const marked = await admin.rpc("mark_emails_sent", { p_ids: ids });
     if (marked.error)
       console.error("Could not mark emails sent", marked.error.code);
     sent += 1;
+    return true;
+  }
+
+  // Account security first: a sign in method added or removed.
+  const security = await admin.rpc("security_email_batch", {
+    p_limit: EMAILS_PER_RUN,
+  });
+  if (security.error)
+    return jsonError(500, "email_failed", "Could not read the queue.");
+  for (const row of security.data) {
+    const email = renderSecurityEmail(
+      row.kind as SecurityKind,
+      row.payload as SecurityPayload,
+      base,
+      site.contactEmail,
+    );
+    if (!(await deliver(row.email, [row.queue_id], email))) {
+      stopped = true;
+      break;
+    }
+  }
+
+  for (const row of stopped ? [] : batch.data) {
+    const email = renderDigest(
+      row.items as unknown as DigestItem[],
+      row.total,
+      base,
+    );
+    if (!(await deliver(row.email, row.queue_ids, email))) break;
   }
 
   return Response.json(

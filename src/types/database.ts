@@ -127,7 +127,9 @@ export type Database = {
           claimed_at: string | null;
           created_at: string;
           id: number;
-          notification_id: string;
+          kind: string | null;
+          notification_id: string | null;
+          payload: Json | null;
           sent_at: string | null;
           user_id: string;
         };
@@ -136,7 +138,9 @@ export type Database = {
           claimed_at?: string | null;
           created_at?: string;
           id?: never;
-          notification_id: string;
+          kind?: string | null;
+          notification_id?: string | null;
+          payload?: Json | null;
           sent_at?: string | null;
           user_id: string;
         };
@@ -145,7 +149,9 @@ export type Database = {
           claimed_at?: string | null;
           created_at?: string;
           id?: never;
-          notification_id?: string;
+          kind?: string | null;
+          notification_id?: string | null;
+          payload?: Json | null;
           sent_at?: string | null;
           user_id?: string;
         };
@@ -879,6 +885,16 @@ export type Database = {
           rank: number;
           slug: string;
           title: string;
+        }[];
+      };
+      security_email_batch: {
+        Args: { p_limit?: number };
+        Returns: {
+          email: string;
+          kind: string;
+          payload: Json;
+          queue_id: number;
+          user_id: string;
         }[];
       };
       tags_text: { Args: { p_tags: string[] }; Returns: string };

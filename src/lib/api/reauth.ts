@@ -1,3 +1,10 @@
+// How recent a sign in must be for account deletion and for adding or
+// removing a way to sign in. The database enforces the same window for
+// sign in methods (private.reauth_window() in
+// supabase/migrations/20261031190000_identity_link_guard.sql); keep the two
+// equal.
+export const REAUTH_WINDOW_MS = 10 * 60 * 1000;
+
 // When the session presenting a request last proved who it is, from the
 // `amr` claim of its access token: one entry per method (password, otp,
 // oauth, ...) with a UNIX timestamp in seconds. Refreshing a token keeps
