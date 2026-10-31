@@ -9,11 +9,14 @@ import {
 import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/env";
 import type { Database } from "@/types/database";
 
-const querySchema = z.object({
-  format: z.enum(MARKER_FORMATS).default("csv"),
-  // Version number; the latest when left out.
-  version: z.coerce.number().int().min(1).max(10).optional(),
-});
+const querySchema = z
+  .object({
+    format: z.enum(MARKER_FORMATS).default("csv"),
+    // Version number; the latest when left out.
+    version: z.coerce.number().int().min(1).max(10).optional(),
+  })
+  // Unknown parameters would each make a new cache key.
+  .strict();
 
 const CONTENT_TYPES = {
   csv: "text/csv; charset=utf-8",
@@ -94,8 +97,8 @@ export async function GET(
     headers: {
       "Content-Type": CONTENT_TYPES[format],
       "Content-Disposition": `attachment; filename="${name}"`,
-      "Cache-Control":
-        "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+      // Short, so a hidden comment or track leaves the edge soon.
+      "Cache-Control": "public, max-age=60, s-maxage=60",
       "X-Content-Type-Options": "nosniff",
     },
   });

@@ -15,16 +15,23 @@ export type Marker = {
 // short enough for a DAW marker name.
 function clean(value: string, max = 200): string {
   const plain = value
-    .replace(/[\u0000-\u001f\u007f‎‏‪-‮⁦-⁩﻿]/g, " ")
+    .replace(
+      /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g,
+      " ",
+    )
     .replace(/\s+/g, " ")
     .trim();
   return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;
 }
 
 // A CSV field. Text that starts like a formula gets a leading apostrophe,
-// so a spreadsheet opening the file does not run it.
+// and so does anything after a separator inside the text, since a
+// spreadsheet with a different list separator (; in many locales) may split
+// the field there and run what follows.
 function csvField(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  const safe = value
+    .replace(/^(\s*)([=+\-@])/, "$1'$2")
+    .replace(/([;,|])(\s*)([=+\-@])/g, "$1$2'$3");
   return `"${safe.replaceAll('"', '""')}"`;
 }
 

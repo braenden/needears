@@ -1,7 +1,7 @@
 -- Comments on a range, and reference tracks.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(13);
 \ir _helpers.psql
 
 create temp table ids (track uuid, parent uuid);
@@ -33,7 +33,15 @@ update ids set parent = (select id from public.comments where body = 'This part 
 select set_config('request.jwt.claims', '{"sub": "33333333-3333-4333-8333-333333333333", "role": "authenticated"}', true);
 set local role authenticated;
 insert into public.comments (track_id, parent_id, end_ms, body) values ((select track from ids), (select parent from ids), 59000, 'Agree');
-update public.comments set end_ms = 40000 where id = (select parent from ids);
+reset role;
+
+-- The track owner can update the row (to mark Helpful), but not the range.
+select set_config('request.jwt.claims', '{"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated"}', true);
+set local role authenticated;
+select throws_ok(
+  $$ update public.comments set end_ms = 40000 where id = (select parent from ids) $$,
+  '42501', 'not_allowed', 'the track owner cannot change someone else''s range'
+);
 reset role;
 select results_eq(
   $$ select time_ms, end_ms from public.comments where body = 'Agree' $$,

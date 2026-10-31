@@ -51,13 +51,29 @@ describe("renderMarkers", () => {
           endMs: null,
           author: "=cmd|' /c calc'!A0",
           category: "vibe",
-          text: "@SUM(1)‮",
+          text: "@SUM(1)\u202e",
         },
       ],
       "csv",
     );
     expect(csv).toContain(`"'=cmd|' /c calc'!A0"`);
     expect(csv).toContain(`"'@SUM(1)"`);
-    expect(csv).not.toContain("‮");
+    expect(csv).not.toContain("\u202e");
+  });
+
+  it("defuses formulas after a separator inside the text", () => {
+    const csv = renderMarkers(
+      [
+        {
+          timeMs: 0,
+          endMs: null,
+          author: "x",
+          category: "vibe",
+          text: "fine mix;=cmd|' /c calc'!A0; -2+3",
+        },
+      ],
+      "csv",
+    );
+    expect(csv).toContain(`"fine mix;'=cmd|' /c calc'!A0; '-2+3"`);
   });
 });
