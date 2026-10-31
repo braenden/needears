@@ -97,6 +97,18 @@ export type Database = {
         };
         Relationships: [];
       };
+      link_hosts: {
+        Row: {
+          host: string;
+        };
+        Insert: {
+          host: string;
+        };
+        Update: {
+          host?: string;
+        };
+        Relationships: [];
+      };
       notifications: {
         Row: {
           actor_id: string | null;
@@ -161,37 +173,49 @@ export type Database = {
       };
       profiles: {
         Row: {
+          avatar_key: string | null;
           avatar_url: string | null;
           banned_at: string | null;
           bio: string;
           created_at: string;
+          daw: string;
           display_name: string;
           handle: string;
           id: string;
+          links: Json;
           reputation: number;
           role: Database["public"]["Enums"]["user_role"];
+          working_on: string;
         };
         Insert: {
+          avatar_key?: string | null;
           avatar_url?: string | null;
           banned_at?: string | null;
           bio?: string;
           created_at?: string;
+          daw?: string;
           display_name: string;
           handle: string;
           id: string;
+          links?: Json;
           reputation?: number;
           role?: Database["public"]["Enums"]["user_role"];
+          working_on?: string;
         };
         Update: {
+          avatar_key?: string | null;
           avatar_url?: string | null;
           banned_at?: string | null;
           bio?: string;
           created_at?: string;
+          daw?: string;
           display_name?: string;
           handle?: string;
           id?: string;
+          links?: Json;
           reputation?: number;
           role?: Database["public"]["Enums"]["user_role"];
+          working_on?: string;
         };
         Relationships: [];
       };
@@ -533,6 +557,7 @@ export type Database = {
           waiting_tracks: number;
         }[];
       };
+      can_upload_avatar: { Args: { p_name: string }; Returns: boolean };
       can_upload_object: {
         Args: { p_extension: string; p_name: string };
         Returns: boolean;

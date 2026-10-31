@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  for (const bucket of ["audio", "peaks"] as const) {
+  for (const bucket of ["audio", "peaks", "avatars"] as const) {
     const removed = await removeFolder(admin, bucket, auth.user.id);
     if (!removed)
       return jsonError(
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
 // cap keeps a misbehaving list or remove call from looping until timeout.
 async function removeFolder(
   admin: ReturnType<typeof createAdminClient>,
-  bucket: "audio" | "peaks",
+  bucket: "audio" | "peaks" | "avatars",
   userId: string,
 ): Promise<boolean> {
   for (let round = 0; round < 100; round++) {
