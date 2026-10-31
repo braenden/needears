@@ -19,11 +19,12 @@
 -- email sign up), Supabase cleaning up an unconfirmed account, and the
 -- cascade when an account is deleted. Never allowed: removing the last
 -- identity, or removing the one that carries the account's email within 24
--- hours of linking a new one.
+-- hours of linking a new one. Supabase confirming an email change may add
+-- an email identity for the new address.
 --
 -- We sign in with email links and Google only, so passwords are not kept:
--- a new account gets none, and one cannot be set later (a session could
--- otherwise set a password and come back with it).
+-- existing ones are cleared, a new account gets none, and one cannot be set
+-- later (a session could otherwise set a password and come back with it).
 --
 -- The account owner is emailed when a way to sign in is added or removed.
 -- The address is the account email at the time of the change, so a change
@@ -70,6 +71,9 @@ begin
     raise exception 'rate_limited' using errcode = 'PT429',
       hint = 'Try again in an hour.';
   end if;
+
+  delete from private.identity_intents
+  where user_id = p_user and created_at < now() - interval '1 day';
 
   insert into private.identity_intents (user_id, action, provider)
   values (p_user, p_action, p_provider);
@@ -127,6 +131,17 @@ begin
     and lower(btrim(new.identity_data ->> 'email')) = lower(btrim(account_email))
     and coalesce(new.identity_data ->> 'email_verified', '') = 'true'
   then
+    return new;
+  end if;
+
+  -- Supabase confirming an email change: the new address gets an email
+  -- identity. The change itself was confirmed through email.
+  if new.provider = 'email' and exists (
+    select 1 from auth.users u
+    where u.id = new.user_id
+      and coalesce(u.email_change, '') <> ''
+      and lower(btrim(u.email_change)) = lower(btrim(new.identity_data ->> 'email'))
+  ) then
     return new;
   end if;
 
@@ -237,6 +252,10 @@ $$;
 create trigger users_no_password
   before insert or update of encrypted_password on auth.users
   for each row execute function private.users_no_password();
+
+-- Passwords set before this, for example by a sign up that was never
+-- confirmed, would otherwise stay a way in.
+update auth.users set encrypted_password = null where coalesce(encrypted_password, '') <> '';
 
 -- Security emails -------------------------------------------------------------
 

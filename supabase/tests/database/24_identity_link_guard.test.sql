@@ -4,7 +4,7 @@
 -- owner is emailed at the address from before the change.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(28);
 \ir _helpers.psql
 
 -- alice and carol have confirmed emails; bob's is not confirmed yet.
@@ -164,6 +164,16 @@ select is(
   'and also to the current address when it has moved'
 );
 reset role;
+
+-- Supabase confirming an email change adds an email identity for the new
+-- address; that needs no intent.
+select pg_temp.add_identity('44444444-4444-4444-8444-444444444444', 'google', 'dave@test.local');
+update auth.users set email_change = 'dave.new@test.local', email_confirmed_at = now() - interval '30 days'
+where id = '44444444-4444-4444-8444-444444444444';
+select lives_ok(
+  $$ select pg_temp.add_identity('44444444-4444-4444-8444-444444444444', 'email', 'dave.new@test.local') $$,
+  'confirming an email change can add the new email identity'
+);
 
 -- Passwords ------------------------------------------------------------------
 select throws_ok(

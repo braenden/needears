@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import { EMAILS_PER_DAY, EMAILS_PER_RUN } from "@/config/email";
+import {
+  EMAILS_PER_DAY,
+  EMAILS_PER_RUN,
+  SECURITY_EMAIL_RESERVE,
+} from "@/config/email";
 import { site, siteUrl } from "@/config/site";
 import { isCronRequest } from "@/lib/api/cron";
 import { jsonError } from "@/lib/api/http";
@@ -106,12 +110,12 @@ export async function GET(request: Request) {
   }
 
   // The digest asks for its batch after the security emails, so they count
-  // toward the same daily budget.
+  // toward the same daily budget, and it leaves a reserve for them.
   try {
     if (!providerDown) {
       const batch = await admin.rpc("email_batch", {
         p_limit: EMAILS_PER_RUN,
-        p_daily_budget: EMAILS_PER_DAY,
+        p_daily_budget: EMAILS_PER_DAY - SECURITY_EMAIL_RESERVE,
       });
       if (batch.error) throw new Error(batch.error.code);
       for (const row of batch.data) {
