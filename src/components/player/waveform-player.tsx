@@ -32,6 +32,11 @@ import type { Comment, VersionedComment } from "@/types/view";
 
 import { CommentMarkers } from "./comment-markers";
 
+export type TimeRange = { startMs: number; endMs: number };
+
+/** Shortest range worth commenting on. */
+const RANGE_MIN_MS = 1000;
+
 export type WaveformPlayerHandle = {
   seekTo: (ms: number) => void;
   play: () => void;
@@ -51,6 +56,14 @@ export type WaveformPlayerProps = {
   initialTimeMs?: number;
   comments?: VersionedComment[];
   activeCommentId?: string | null;
+  /**
+   * Drag across the waveform, or shift + click, to pick a range to comment
+   * on. I and O set its start and end at the playhead, Escape clears it.
+   * A plain click still seeks.
+   */
+  rangeSelect?: boolean;
+  range?: TimeRange | null;
+  onRangeChange?: (range: TimeRange | null) => void;
   /**
    * Keep the second and keep playing when audioUrl and peaks change, for
    * switching versions (A/B). Off by default so a new track starts fresh.
@@ -73,6 +86,12 @@ export type WaveformPlayerProps = {
   ref?: React.Ref<WaveformPlayerHandle>;
   className?: string;
 };
+
+const RANGE_SHORTCUTS: [string, string][] = [
+  ["I and O", "Set the start and end of a range"],
+  ["Shift plus click", "Pick a range from the playhead"],
+  ["Escape", "Clear the range"],
+];
 
 const SHORTCUTS: [string, string][] = [
   ["Space", "Play or pause"],
@@ -112,6 +131,9 @@ export function WaveformPlayer({
   initialTimeMs = 0,
   comments = [],
   activeCommentId,
+  rangeSelect = false,
+  range = null,
+  onRangeChange,
   keepPosition = false,
   currentVersionId,
   versionNumbers,
@@ -177,7 +199,8 @@ export function WaveformPlayer({
         barGap: 1,
         barRadius: 1,
         cursorWidth: 2,
-        dragToSeek: true,
+        dragToSeek: !rangeSelect,
+        interact: !rangeSelect,
         hideScrollbar: true,
         normalize: false,
         ...readColors(root),
@@ -227,7 +250,7 @@ export function WaveformPlayer({
       ws?.destroy();
       wsRef.current = null;
     };
-  }, [peaks, durationMs, audioUrl, height, attempt]);
+  }, [peaks, durationMs, audioUrl, height, attempt, rangeSelect]);
 
   // Canvas colours cannot use CSS variables, so re-read them when the theme changes.
   useEffect(() => {
@@ -321,9 +344,42 @@ export function WaveformPlayer({
           event.preventDefault();
           setHelpOpen(true);
           return;
+        case "i":
+        case "I":
+        case "o":
+        case "O": {
+          if (!rangeSelect || !onRangeChange) return;
+          event.preventDefault();
+          const at = Math.floor(now / 1000) * 1000;
+          const isStart = event.key.toLowerCase() === "i";
+          const start = isStart
+            ? at
+            : (range?.startMs ?? Math.max(0, at - 5000));
+          const end = isStart
+            ? Math.max(range?.endMs ?? 0, at + RANGE_MIN_MS)
+            : at;
+          if (end - start < RANGE_MIN_MS) return;
+          onRangeChange({ startMs: start, endMs: Math.min(end, durationMs) });
+          return;
+        }
+        case "Escape":
+          if (!range || !onRangeChange) return;
+          event.preventDefault();
+          onRangeChange(null);
+          return;
       }
     },
-    [currentMs, durationMs, onCommentHere, seekTo, toggleMute, togglePlay],
+    [
+      currentMs,
+      durationMs,
+      onCommentHere,
+      seekTo,
+      toggleMute,
+      togglePlay,
+      rangeSelect,
+      range,
+      onRangeChange,
+    ],
   );
 
   useEffect(() => {
@@ -395,6 +451,22 @@ export function WaveformPlayer({
               activeCommentId={activeCommentId}
               durationMs={durationMs}
             />
+            {range ? (
+              <RangeShade range={range} durationMs={durationMs} />
+            ) : null}
+            {rangeSelect ? (
+              <RangeLayer
+                durationMs={durationMs}
+                playheadMs={() =>
+                  (wsRef.current?.getCurrentTime() ?? currentMs / 1000) * 1000
+                }
+                onSeek={(ms) => {
+                  onRangeChange?.(null);
+                  seekTo(ms);
+                }}
+                onRange={(next) => onRangeChange?.(next)}
+              />
+            ) : null}
             <input
               type="range"
               className="sr-only"
@@ -484,16 +556,18 @@ export function WaveformPlayer({
             </DialogDescription>
           </DialogHeader>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5">
-            {SHORTCUTS.map(([key, label]) => (
-              <div key={key} className="contents">
-                <dt>
-                  <kbd className="rounded-xs border bg-muted px-1.5 py-0.5 font-sans text-xs font-medium">
-                    {key}
-                  </kbd>
-                </dt>
-                <dd className="text-muted-foreground">{label}</dd>
-              </div>
-            ))}
+            {(rangeSelect ? [...SHORTCUTS, ...RANGE_SHORTCUTS] : SHORTCUTS).map(
+              ([key, label]) => (
+                <div key={key} className="contents">
+                  <dt>
+                    <kbd className="rounded-xs border bg-muted px-1.5 py-0.5 font-sans text-xs font-medium">
+                      {key}
+                    </kbd>
+                  </dt>
+                  <dd className="text-muted-foreground">{label}</dd>
+                </div>
+              ),
+            )}
           </dl>
         </DialogContent>
       </Dialog>
@@ -518,6 +592,115 @@ function ActiveLine({
       aria-hidden="true"
       className="pointer-events-none absolute inset-y-0 w-px bg-primary-text motion-safe:animate-in motion-safe:fade-in-0"
       style={{ left: `${(active.time_ms / durationMs) * 100}%` }}
+    />
+  );
+}
+
+/** The picked range, shaded over the waveform, with its times on top. */
+function RangeShade({
+  range,
+  durationMs,
+}: {
+  range: TimeRange;
+  durationMs: number;
+}) {
+  const left = (range.startMs / durationMs) * 100;
+  const width = ((range.endMs - range.startMs) / durationMs) * 100;
+  const label = `${formatTime(range.startMs)} to ${formatTime(range.endMs)}`;
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 z-10 rounded-xs border-x-2 border-primary-text bg-primary/15"
+        style={{ left: `${left}%`, width: `${width}%` }}
+      >
+        <span
+          data-numeric
+          className="absolute -top-1 left-1 -translate-y-full rounded-xs bg-popover px-1.5 py-0.5 text-[11px] whitespace-nowrap text-popover-foreground shadow-pop"
+        >
+          {label}
+        </span>
+      </div>
+      <p className="sr-only" aria-live="polite">
+        Range {label} selected.
+      </p>
+    </>
+  );
+}
+
+/**
+ * Pointer layer over the waveform when ranges are on. A click seeks, a drag
+ * or shift + click picks a range. Times snap to whole seconds.
+ */
+function RangeLayer({
+  durationMs,
+  playheadMs,
+  onSeek,
+  onRange,
+}: {
+  durationMs: number;
+  playheadMs: () => number;
+  onSeek: (ms: number) => void;
+  onRange: (range: TimeRange) => void;
+}) {
+  const drag = useRef<{
+    pointer: number;
+    x: number;
+    ms: number;
+    moved: boolean;
+  } | null>(null);
+
+  const msAt = (event: React.PointerEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(
+      1,
+      Math.max(0, (event.clientX - box.left) / box.width),
+    );
+    return Math.round((ratio * durationMs) / 1000) * 1000;
+  };
+  const toRange = (a: number, b: number): TimeRange | null => {
+    const startMs = Math.min(a, b);
+    const endMs = Math.max(a, b);
+    return endMs - startMs >= RANGE_MIN_MS ? { startMs, endMs } : null;
+  };
+
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 z-20 cursor-crosshair touch-pan-y"
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        drag.current = {
+          pointer: event.pointerId,
+          x: event.clientX,
+          ms: msAt(event),
+          moved: false,
+        };
+      }}
+      onPointerMove={(event) => {
+        const d = drag.current;
+        if (!d || d.pointer !== event.pointerId) return;
+        if (!d.moved && Math.abs(event.clientX - d.x) < 4) return;
+        d.moved = true;
+        const next = toRange(d.ms, msAt(event));
+        if (next) onRange(next);
+      }}
+      onPointerUp={(event) => {
+        const d = drag.current;
+        drag.current = null;
+        if (!d || d.moved) return;
+        const at = msAt(event);
+        if (event.shiftKey) {
+          const next = toRange(Math.floor(playheadMs() / 1000) * 1000, at);
+          if (next) onRange(next);
+          return;
+        }
+        onSeek(at);
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+      }}
     />
   );
 }

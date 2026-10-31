@@ -4,9 +4,9 @@ import { useRef, useState } from "react";
 
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { CATEGORY_LABELS } from "@/config/labels";
-import { formatTime } from "@/lib/time";
+import { formatSpan } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import type { Comment, VersionedComment } from "@/types/view";
+import type { Comment, RangeComment, VersionedComment } from "@/types/view";
 
 const LONG_PRESS_MS = 450;
 
@@ -74,12 +74,37 @@ export function CommentMarkers({
         move(target);
       }}
     >
+      {sorted.map((comment) => {
+        const end = (comment as RangeComment).end_ms;
+        const start = comment.time_ms ?? 0;
+        if (end == null || end <= start) return null;
+        // Range comments get a bar under the avatars from start to end.
+        return (
+          <span
+            key={`span-${comment.id}`}
+            aria-hidden="true"
+            className={cn(
+              "absolute bottom-0 h-1 rounded-full",
+              comment.id === activeCommentId || comment.id === previewId
+                ? "bg-primary-text"
+                : "bg-wave",
+            )}
+            style={{
+              left: `${(start / durationMs) * 100}%`,
+              width: `${((end - start) / durationMs) * 100}%`,
+            }}
+          />
+        );
+      })}
       {sorted.map((comment, index) => {
         const left = ((comment.time_ms ?? 0) / durationMs) * 100;
         const active = comment.id === activeCommentId;
         const previewing = comment.id === previewId;
         const name = displayNameOf(comment.author);
-        const time = formatTime(comment.time_ms ?? 0);
+        const time = formatSpan(
+          comment.time_ms ?? 0,
+          (comment as RangeComment).end_ms,
+        );
         const previewIdAttr = `marker-preview-${comment.id}`;
         // Comments from another version stay visible but step back.
         const otherVersion =

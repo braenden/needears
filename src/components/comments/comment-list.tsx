@@ -33,9 +33,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORY_LABELS } from "@/config/labels";
 import { isTrusted } from "@/config/reputation";
-import { formatTime } from "@/lib/time";
+import { formatSpan } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import type { Comment, ThreadComment } from "@/types/view";
+import type { Comment, RangeComment, ThreadComment } from "@/types/view";
 
 import type { SubmitResult } from "./comment-composer";
 import { ReplyComposer } from "./reply-composer";
@@ -370,9 +370,11 @@ function CommentItem({
               type="button"
               onClick={() => onJump?.(comment)}
               className="inline-flex h-6 items-center rounded-full bg-primary-soft px-2 text-xs font-medium text-primary-text outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)] focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`Jump to ${formatTime(comment.time_ms)}`}
+              aria-label={`Jump to ${formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}`}
             >
-              <time data-numeric>{formatTime(comment.time_ms)}</time>
+              <time data-numeric>
+                {formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}
+              </time>
             </button>
           ) : (
             <Badge variant="secondary" className="h-6 px-2">

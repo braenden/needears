@@ -14,6 +14,7 @@ import { PlayerSection } from "./player-section";
 import { PrimitivesSection } from "./primitives-section";
 import { ProfileV11Section } from "./profile-v11-section";
 import { SearchSection } from "./search-section";
+import { RangeSection } from "./range-section";
 import { ShellSection } from "./shell-section";
 import { ThreadsSection } from "./threads-section";
 import { TokensSection } from "./tokens-section";
@@ -31,6 +32,7 @@ const CONTENTS = [
   ["comment-list", "CommentList"],
   ["versions", "Versions and A/B"],
   ["threads", "Replies and Resolved"],
+  ["range", "Ranges and export"],
   ["track-card", "TrackCard"],
   ["weekly", "Weekly list"],
   ["upload", "UploadWizard"],
@@ -99,6 +101,7 @@ export function DesignGallery() {
           <PlayerSection />
           <VersionsSection />
           <ThreadsSection />
+          <RangeSection />
           <FeedSection />
           <WeeklySection />
           <UploadSection />

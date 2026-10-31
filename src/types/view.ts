@@ -68,6 +68,9 @@ export type Comment = Pick<
   | "created_at"
 > & { author: ProfileSummary };
 
+// A comment on a stretch of the track (comments.end_ms), 1:42 to 1:58.
+export type RangeComment = Comment & { end_ms?: number | null };
+
 // One uploaded version of a track (track_versions). Version 1 is the first
 // upload; the track's own audio, peaks and duration mirror the latest one.
 export type TrackVersion = {
