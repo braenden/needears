@@ -5,15 +5,10 @@ import { Loader2Icon, MailIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { callbackUrl } from "@/lib/auth/callback-url";
 import { readLastLogin } from "@/lib/auth/last-login";
 import { browserClient } from "@/lib/supabase/lazy";
 import { GoogleButton } from "./google-button";
-
-function callbackUrl(next: string) {
-  const url = new URL("/auth/callback", window.location.origin);
-  url.searchParams.set("next", next);
-  return url.toString();
-}
 
 // The last login only changes when signing in, which leaves this page.
 const noSubscription = () => () => {};
