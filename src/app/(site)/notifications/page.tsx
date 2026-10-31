@@ -90,8 +90,20 @@ export default async function NotificationsPage() {
               n.comment?.time_ms != null
                 ? `?t=${Math.floor(n.comment.time_ms / 1000)}`
                 : "";
+            // The whole row opens the track: its link stretches over the
+            // row (after:inset-0), with the hover and focus on the row.
+            // A removed track has no page to open.
+            const opens =
+              !!n.track &&
+              !(
+                n.kind === "moderation" &&
+                n.action === "removed" &&
+                n.target === "track"
+              );
             const rowClass = cn(
-              "flex gap-3 px-4 py-3 text-sm",
+              "relative flex gap-3 px-4 py-3 text-sm",
+              opens &&
+                "hover:bg-accent/60 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring has-[a:focus-visible]:ring-inset",
               !n.read_at && "bg-primary-soft/40",
             );
             if (n.kind === "moderation") {
@@ -123,7 +135,7 @@ export default async function NotificationsPage() {
                     {n.track ? (
                       <Link
                         href={`/t/${n.track.slug}${at}`}
-                        className="font-medium underline-offset-4 hover:underline"
+                        className="font-medium underline-offset-4 outline-none after:absolute after:inset-0 hover:underline"
                       >
                         {n.track.title}
                       </Link>
