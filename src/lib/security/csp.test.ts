@@ -52,6 +52,26 @@ describe("buildCsp", () => {
     );
   });
 
+  it("lets Google Identity Services in only when Google sign-in is on", () => {
+    const off = buildCsp(base);
+    expect(off).not.toContain("accounts.google.com");
+    expect(directive(off, "frame-src")).toBeUndefined();
+
+    const on = buildCsp({ ...base, googleSignIn: true });
+    expect(directive(on, "script-src")).toBe(
+      "'self' 'nonce-abc123' 'strict-dynamic' https://accounts.google.com/gsi/client",
+    );
+    expect(directive(on, "style-src")).toBe(
+      "'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+    );
+    expect(directive(on, "frame-src")).toBe(
+      "'self' https://accounts.google.com/gsi/",
+    );
+    expect(directive(on, "connect-src")).toBe(
+      "'self' https://xyz.supabase.co https://accounts.google.com/gsi/",
+    );
+  });
+
   it("allows eval and hot reload in development", () => {
     const csp = buildCsp({ ...base, isDev: true, upgradeInsecure: false });
     expect(directive(csp, "script-src")).toContain("'unsafe-eval'");

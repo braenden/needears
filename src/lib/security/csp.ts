@@ -13,8 +13,16 @@
 //
 // When Sentry is on, its ingest origin is allowed for fetch so the browser
 // SDK can send errors (src/lib/monitoring/sentry.ts).
+//
+// When Google sign-in is set up, Google Identity Services gets the paths it
+// needs on accounts.google.com: its script (loaded with our nonce; the
+// source is listed for browsers without 'strict-dynamic'), its stylesheet,
+// the button frame and its status calls. On every page, because the CSP
+// of the first page loaded stays in force when someone navigates to /login
+// without a full load.
 
 export const GOOGLE_AVATAR_ORIGIN = "https://lh3.googleusercontent.com";
+const GSI = "https://accounts.google.com/gsi/";
 
 export function buildCsp({
   nonce,
@@ -22,13 +30,16 @@ export function buildCsp({
   isDev,
   upgradeInsecure,
   sentryOrigin = null,
+  googleSignIn = false,
 }: {
   nonce: string;
   supabaseOrigin: string;
   isDev: boolean;
   upgradeInsecure: boolean;
   sentryOrigin?: string | null;
+  googleSignIn?: boolean;
 }): string {
+  const gsi = (path: string) => (googleSignIn ? [`${GSI}${path}`] : []);
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     "script-src": [
@@ -37,8 +48,9 @@ export function buildCsp({
       "'strict-dynamic'",
       // React uses eval for better stack traces in development only.
       ...(isDev ? ["'unsafe-eval'"] : []),
+      ...gsi("client"),
     ],
-    "style-src": ["'self'", "'unsafe-inline'"],
+    "style-src": ["'self'", "'unsafe-inline'", ...gsi("style")],
     "img-src": [
       "'self'",
       "data:",
@@ -52,11 +64,13 @@ export function buildCsp({
       "'self'",
       supabaseOrigin,
       ...(sentryOrigin ? [sentryOrigin] : []),
+      ...gsi(""),
       // Hot reload in development.
       ...(isDev ? ["ws:"] : []),
     ],
     // The mp3 encoder runs in a module worker from our own origin.
     "worker-src": ["'self'", "blob:"],
+    ...(googleSignIn ? { "frame-src": ["'self'", ...gsi("")] } : {}),
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],

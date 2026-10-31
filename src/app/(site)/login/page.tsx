@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/api/redirect";
+import { googleClientId } from "@/lib/auth/google-client-id";
 import { getViewer } from "@/lib/data/viewer";
 import { LoginForm } from "./login-form";
 
@@ -40,7 +42,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           already. Ask for a new one.
         </p>
       ) : null}
-      <LoginForm next={next} />
+      <LoginForm
+        next={next}
+        googleClientId={googleClientId()}
+        scriptNonce={(await headers()).get("x-nonce") ?? undefined}
+      />
       <p className="mt-8 text-xs text-muted-foreground">
         By continuing you agree to the{" "}
         <Link href="/terms" className="underline underline-offset-2">
