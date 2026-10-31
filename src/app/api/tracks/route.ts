@@ -1,7 +1,7 @@
-import { isIP } from "node:net";
 import { z } from "zod";
 import { requireUser } from "@/lib/api/auth";
 import { BodyError, databaseError, jsonError, readJson } from "@/lib/api/http";
+import { clientIp } from "@/lib/api/ip";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_DURATION_MS, MIN_DURATION_MS } from "@/config/upload";
 import { isAllowedLinkUrl } from "@/config/profile";
@@ -46,16 +46,6 @@ const bodySchema = z
     ownWork: z.literal(true),
   })
   .strict();
-
-// The client IP as seen by Vercel. Stored for 30 days for takedown tracing.
-function clientIp(request: Request): string | null {
-  const forwarded = request.headers
-    .get("x-forwarded-for")
-    ?.split(",")[0]
-    ?.trim();
-  const ip = forwarded || request.headers.get("x-real-ip")?.trim();
-  return ip && isIP(ip) ? ip : null;
-}
 
 // Step 2 of an upload. Verifies the objects the browser uploaded with the
 // URLs from /api/upload/sign and creates the track. Users cannot insert
@@ -134,6 +124,7 @@ export async function POST(request: Request) {
     if (loud.error) console.error("Could not store loudness", loud.error.code);
   }
 
+  // Stored for 30 days for takedown tracing.
   const ip = clientIp(request);
   if (ip) {
     const stored = await admin

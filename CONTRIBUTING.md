@@ -23,18 +23,18 @@ pnpm dev
 
 CI runs the same commands you can run locally. Run them before you open a pull request:
 
-| Command                | What it does                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------- |
-| `pnpm format:check`    | Prettier                                                                                          |
-| `pnpm lint`            | ESLint                                                                                            |
-| `pnpm typecheck`       | TypeScript in strict mode                                                                         |
-| `pnpm knip`            | Unused files, exports and dependencies                                                            |
-| `pnpm test`            | Unit tests (Vitest)                                                                               |
-| `pnpm build`           | Production build                                                                                  |
-| `pnpm test:db`         | Database tests (pgTAP), needs `supabase start`                                                    |
-| `pnpm test:e2e`        | End to end tests (Playwright) against `pnpm start` and the local Supabase, run `pnpm build` first |
-| `pnpm test:lighthouse` | Lighthouse budgets (`lighthouserc.json`), same setup as `test:e2e`                                |
-| `pnpm secrets:scan`    | Gitleaks over the git history, needs Docker                                                       |
+| Command                | What it does                                                                                                                  |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`    | Prettier                                                                                                                      |
+| `pnpm lint`            | ESLint                                                                                                                        |
+| `pnpm typecheck`       | TypeScript in strict mode                                                                                                     |
+| `pnpm knip`            | Unused files, exports and dependencies                                                                                        |
+| `pnpm test`            | Unit tests (Vitest)                                                                                                           |
+| `pnpm build`           | Production build                                                                                                              |
+| `pnpm test:db`         | Database tests (pgTAP), needs `supabase start`                                                                                |
+| `pnpm test:e2e`        | End to end and accessibility tests (Playwright, axe-core) against `pnpm start` and the local Supabase, run `pnpm build` first |
+| `pnpm test:lighthouse` | Lighthouse budgets (`lighthouserc.json`), same setup as `test:e2e`                                                            |
+| `pnpm secrets:scan`    | Gitleaks over the git history, needs Docker                                                                                   |
 
 `pnpm format` fixes formatting. The first time you run the end to end tests, install the browser with `pnpm exec playwright install chromium`.
 

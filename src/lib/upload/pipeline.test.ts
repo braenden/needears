@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseRateLimit } from "./client";
-import { parseTags } from "./pipeline";
+import { parseTags } from "./tags";
 
 describe("parseTags", () => {
   it("normalizes, drops invalid tags and caps at five", () => {
