@@ -111,6 +111,7 @@ export type Database = {
       };
       notifications: {
         Row: {
+          action: string | null;
           actor_id: string | null;
           comment_id: string | null;
           created_at: string;
@@ -123,6 +124,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          action?: string | null;
           actor_id?: string | null;
           comment_id?: string | null;
           created_at?: string;
@@ -135,6 +137,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          action?: string | null;
           actor_id?: string | null;
           comment_id?: string | null;
           created_at?: string;
@@ -669,6 +672,10 @@ export type Database = {
           bucket_id: string;
           name: string;
         }[];
+      };
+      record_play: {
+        Args: { p_listener: string; p_track: string; p_user?: string };
+        Returns: boolean;
       };
       reputation_level: {
         Args: { p_helpful: number };

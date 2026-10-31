@@ -3,7 +3,7 @@
 -- anonymous and bans stay silent.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(17);
 \ir _helpers.psql
 
 create temp table ids (track uuid, other_track uuid, comment uuid, report uuid);
@@ -47,15 +47,15 @@ select throws_ok(
 reset role;
 
 select results_eq(
-  $$ select target::text, reason from public.notifications
+  $$ select target::text, action, reason from public.notifications
      where user_id = '11111111-1111-4111-8111-111111111111' and kind = 'moderation' and track_id = (select track from ids) $$,
-  $$ values ('track', 'Copyright claim from the label') $$,
+  $$ values ('track', 'hidden', 'Copyright claim from the label') $$,
   'the owner gets a moderation notice with the trimmed reason'
 );
 select results_eq(
-  $$ select target::text, reason, comment_id = (select comment from ids) from public.notifications
+  $$ select target::text, action, reason, comment_id = (select comment from ids) from public.notifications
      where user_id = '22222222-2222-4222-8222-222222222222' and kind = 'moderation' $$,
-  $$ values ('comment', 'Harassment', true) $$,
+  $$ values ('comment', 'removed', 'Harassment', true) $$,
   'the comment author gets a notice'
 );
 select results_eq(
@@ -103,6 +103,43 @@ select throws_ok(
   '42501', 'not_allowed', 'non admins cannot moderate'
 );
 reset role;
+
+-- A report that is acted on: the reporter hears so, and the owner of an
+-- auto hidden post learns why, once.
+create temp table upheld (track uuid, report uuid);
+grant select on upheld to authenticated;
+insert into upheld (track) values (pg_temp.make_track('33333333-3333-4333-8333-333333333333'));
+insert into public.reports (reporter_id, target_type, track_id, reason)
+select '11111111-1111-4111-8111-111111111111', 'track', track, 'copyright' from upheld;
+update upheld set report = (select id from public.reports where track_id = upheld.track);
+-- What auto hide does.
+update public.tracks set status = 'hidden' where id = (select track from upheld);
+
+select set_config('request.jwt.claims', '{"sub": "44444444-4444-4444-8444-444444444444", "role": "authenticated"}', true);
+set local role authenticated;
+select public.admin_resolve_report((select report from upheld), 'resolved', '
+  Confirmed with the rights holder 
+');
+select public.admin_resolve_report((select report from upheld), 'open');
+select public.admin_resolve_report((select report from upheld), 'resolved', 'Again');
+reset role;
+
+select results_eq(
+  $$ select action, reason from public.notifications
+     where user_id = '11111111-1111-4111-8111-111111111111' and track_id = (select track from upheld)
+     order by reason $$,
+  $$ values ('report_upheld', 'Again'), ('report_upheld', 'Confirmed with the rights holder') $$,
+  'the reporter hears that the report was acted on'
+);
+select results_eq(
+  $$ select action from public.notifications
+     where user_id = '33333333-3333-4333-8333-333333333333' and track_id = (select track from upheld) $$,
+  $$ values ('hidden') $$,
+  'the owner of the hidden post gets one notice'
+);
+
+select hasnt_function('public', 'admin_set_track_status', array['uuid', 'track_status'], 'the old signature is gone');
+select hasnt_function('public', 'admin_resolve_report', array['uuid', 'report_status'], 'the old report signature is gone');
 
 select * from finish();
 rollback;
