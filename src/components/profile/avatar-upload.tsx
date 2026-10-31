@@ -72,17 +72,13 @@ function centred(width: number, height: number): Crop {
 }
 
 /** Draws the crop at 512 px and keeps lowering quality until it fits 512 KB. */
-async function exportAvatar(image: HTMLImageElement, crop: Crop) {
+async function exportAvatar(image: ImageBitmap, crop: Crop) {
   const canvas = document.createElement("canvas");
   canvas.width = AVATAR_SIZE;
   canvas.height = AVATAR_SIZE;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("no canvas");
-  const { sx, sy, size } = sourceRect(
-    crop,
-    image.naturalWidth,
-    image.naturalHeight,
-  );
+  const { sx, sy, size } = sourceRect(crop, image.width, image.height);
   context.imageSmoothingQuality = "high";
   context.drawImage(image, sx, sy, size, size, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
 
@@ -119,16 +115,12 @@ export function AvatarUpload({
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [source, setSource] = useState<{
-    url: string;
-    width: number;
-    height: number;
-  } | null>(null);
+  // The picked image, decoded straight from the file. Drawn on canvas only,
+  // so nothing from the file ever ends up in an element's src.
+  const [source, setSource] = useState<ImageBitmap | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (source) URL.revokeObjectURL(source.url);
-    };
+    return () => source?.close();
   }, [source]);
 
   function pick(file: File) {
@@ -141,19 +133,9 @@ export function AvatarUpload({
       return;
     }
     setError(null);
-    const url = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () =>
-      setSource({
-        url,
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-      });
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      setError("We couldn't open that image. Try another one.");
-    };
-    image.src = url;
+    createImageBitmap(file).then(setSource, () =>
+      setError("We couldn't open that image. Try another one."),
+    );
   }
 
   return (
@@ -204,7 +186,7 @@ export function AvatarUpload({
       </div>
       {source ? (
         <CropDialog
-          source={source}
+          image={source}
           onClose={() => setSource(null)}
           onSave={onSave}
         />
@@ -213,17 +195,60 @@ export function AvatarUpload({
   );
 }
 
+/** Draws the cropped square of the image at a given size. */
+function CropCanvas({
+  image,
+  crop,
+  size,
+  className,
+}: {
+  image: ImageBitmap;
+  crop: Crop;
+  size: number;
+  className?: string;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(size * ratio);
+    canvas.height = Math.round(size * ratio);
+    const { sx, sy, size: side } = sourceRect(crop, image.width, image.height);
+    context.imageSmoothingQuality = "high";
+    context.drawImage(
+      image,
+      sx,
+      sy,
+      side,
+      side,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+  }, [image, crop, size]);
+  return (
+    <canvas
+      ref={ref}
+      aria-hidden="true"
+      className={className}
+      style={{ width: size, height: size }}
+    />
+  );
+}
+
 function CropDialog({
-  source,
+  image,
   onClose,
   onSave,
 }: {
-  source: { url: string; width: number; height: number };
+  image: ImageBitmap;
   onClose: () => void;
   onSave: (photo: Blob) => Promise<AvatarSaveResult>;
 }) {
-  const { width, height } = source;
-  const imageRef = useRef<HTMLImageElement>(null);
+  const { width, height } = image;
   const drag = useRef<{
     pointer: number;
     startX: number;
@@ -234,23 +259,24 @@ function CropDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const update = (next: Crop) => setCrop(clampCrop(next, width, height));
-  const scale = coverScale(width, height) * crop.zoom;
+  // Always from the latest crop, so quick key repeats add up.
+  const update = (change: (current: Crop) => Crop) =>
+    setCrop((current) => clampCrop(change(current), width, height));
 
   // Zoom around the centre of the square, so the face stays put.
-  function zoomTo(zoom: number) {
-    const next = Math.min(MAX_ZOOM, Math.max(1, zoom));
-    const ratio = next / crop.zoom;
-    update({
-      zoom: next,
-      x: VIEW / 2 - (VIEW / 2 - crop.x) * ratio,
-      y: VIEW / 2 - (VIEW / 2 - crop.y) * ratio,
+  function zoomBy(change: (zoom: number) => number) {
+    update((current) => {
+      const next = Math.min(MAX_ZOOM, Math.max(1, change(current.zoom)));
+      const ratio = next / current.zoom;
+      return {
+        zoom: next,
+        x: VIEW / 2 - (VIEW / 2 - current.x) * ratio,
+        y: VIEW / 2 - (VIEW / 2 - current.y) * ratio,
+      };
     });
   }
 
   async function save() {
-    const image = imageRef.current;
-    if (!image) return;
     setSaving(true);
     setError(null);
     try {
@@ -266,24 +292,6 @@ function CropDialog({
     }
     setSaving(false);
   }
-
-  const picture = (size: number) => {
-    const factor = size / VIEW;
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- a local object URL, not something next/image can optimise
-      <img
-        src={source.url}
-        alt=""
-        draggable={false}
-        className="pointer-events-none absolute top-0 left-0 max-w-none select-none"
-        style={{
-          width: width * scale * factor,
-          height: height * scale * factor,
-          transform: `translate(${crop.x * factor}px, ${crop.y * factor}px)`,
-        }}
-      />
-    );
-  };
 
   return (
     <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
@@ -314,15 +322,18 @@ function CropDialog({
             onPointerMove={(e) => {
               const d = drag.current;
               if (!d || d.pointer !== e.pointerId) return;
-              update({
+              update(() => ({
                 ...d.crop,
                 x: d.crop.x + e.clientX - d.startX,
                 y: d.crop.y + e.clientY - d.startY,
-              });
+              }));
             }}
             onPointerUp={() => (drag.current = null)}
             onPointerCancel={() => (drag.current = null)}
-            onWheel={(e) => zoomTo(crop.zoom - e.deltaY / 500)}
+            onWheel={(e) => {
+              const delta = e.deltaY / 500;
+              zoomBy((z) => z - delta);
+            }}
             onKeyDown={(e) => {
               const step = e.shiftKey ? 40 : 10;
               const moves: Record<string, [number, number]> = {
@@ -334,28 +345,21 @@ function CropDialog({
               const move = moves[e.key];
               if (move) {
                 e.preventDefault();
-                update({ ...crop, x: crop.x + move[0], y: crop.y + move[1] });
+                update((c) => ({ ...c, x: c.x + move[0], y: c.y + move[1] }));
               } else if (e.key === "+" || e.key === "=") {
                 e.preventDefault();
-                zoomTo(crop.zoom + 0.1);
+                zoomBy((z) => z + 0.1);
               } else if (e.key === "-") {
                 e.preventDefault();
-                zoomTo(crop.zoom - 0.1);
+                zoomBy((z) => z - 0.1);
               }
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- a local object URL */}
-            <img
-              ref={imageRef}
-              src={source.url}
-              alt=""
-              draggable={false}
-              className="pointer-events-none absolute top-0 left-0 max-w-none select-none"
-              style={{
-                width: width * scale,
-                height: height * scale,
-                transform: `translate(${crop.x}px, ${crop.y}px)`,
-              }}
+            <CropCanvas
+              image={image}
+              crop={crop}
+              size={VIEW}
+              className="pointer-events-none absolute inset-0"
             />
             {/* Darkens what falls outside the circle people will see. */}
             <div
@@ -372,7 +376,10 @@ function CropDialog({
               max={MAX_ZOOM}
               step={0.01}
               value={crop.zoom}
-              onChange={(e) => zoomTo(Number(e.target.value))}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                zoomBy(() => value);
+              }}
               className="flex-1 accent-(--primary)"
             />
           </label>
@@ -388,7 +395,7 @@ function CropDialog({
                 className="relative overflow-hidden rounded-full bg-muted ring-1 ring-border"
                 style={{ width: size, height: size }}
               >
-                {picture(size)}
+                <CropCanvas image={image} crop={crop} size={size} />
               </div>
             ))}
             <span className="text-xs text-muted-foreground">
