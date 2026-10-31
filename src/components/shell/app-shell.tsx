@@ -64,7 +64,7 @@ export type HeaderProps = {
   unread?: number;
   /** Name for the nav landmark. Needs to be unique if there are several on a page. */
   navLabel?: string;
-  /** Search box (wide) or search button (narrow). Off until /search exists. */
+  /** Search box (wide) or search button (narrow). */
   showSearch?: boolean;
   /** Let / focus the search box. Only one header on a page should. */
   searchShortcut?: boolean;

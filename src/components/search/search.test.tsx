@@ -58,19 +58,19 @@ describe("SearchField", () => {
 
 describe("SearchResults", () => {
   it("shows tracks and people in two groups with links", () => {
-    const { tracks, profiles } = searchMock("mi");
-    render(<SearchResults query="mi" tracks={tracks} profiles={profiles} />);
+    const { tracks, profiles } = searchMock("mia");
+    render(<SearchResults query="mia" tracks={tracks} profiles={profiles} />);
     expect(screen.getByRole("heading", { name: /People/ })).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /Mia/ });
     expect(link).toHaveAttribute("href", "/u/miamixes");
     expect(
-      within(link).getAllByText("mi", { selector: "mark" }).length,
+      within(link).getAllByText(/mia/i, { selector: "mark" }).length,
     ).toBeGreaterThan(0);
   });
 
-  it("asks for at least two characters", () => {
-    render(<SearchResults query=" m " tracks={[]} profiles={[]} />);
-    expect(screen.getByText(/Type at least 2 characters/)).toBeInTheDocument();
+  it("asks for at least as many characters as the database searches", () => {
+    render(<SearchResults query=" mi " tracks={[]} profiles={[]} />);
+    expect(screen.getByText(/Type at least 3 characters/)).toBeInTheDocument();
   });
 
   it("says when nothing was found", () => {

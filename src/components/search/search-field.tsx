@@ -6,8 +6,6 @@ import { SearchIcon } from "lucide-react";
 import { fieldClasses } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-export const SEARCH_MIN_LENGTH = 2;
-
 function isEditable(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   return (
