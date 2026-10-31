@@ -79,6 +79,51 @@ export type Database = {
           },
         ];
       };
+      email_queue: {
+        Row: {
+          attempts: number;
+          claimed_at: string | null;
+          created_at: string;
+          id: number;
+          notification_id: string;
+          sent_at: string | null;
+          user_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          claimed_at?: string | null;
+          created_at?: string;
+          id?: never;
+          notification_id: string;
+          sent_at?: string | null;
+          user_id: string;
+        };
+        Update: {
+          attempts?: number;
+          claimed_at?: string | null;
+          created_at?: string;
+          id?: never;
+          notification_id?: string;
+          sent_at?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "email_queue_notification_id_fkey";
+            columns: ["notification_id"];
+            isOneToOne: true;
+            referencedRelation: "notifications";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "email_queue_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       genres: {
         Row: {
           id: number;
@@ -189,6 +234,7 @@ export type Database = {
           created_at: string;
           daw: string;
           display_name: string;
+          email_notifications: boolean;
           handle: string;
           id: string;
           links: Json;
@@ -204,6 +250,7 @@ export type Database = {
           created_at?: string;
           daw?: string;
           display_name: string;
+          email_notifications?: boolean;
           handle: string;
           id: string;
           links?: Json;
@@ -219,6 +266,7 @@ export type Database = {
           created_at?: string;
           daw?: string;
           display_name?: string;
+          email_notifications?: boolean;
           handle?: string;
           id?: string;
           links?: Json;
@@ -574,6 +622,16 @@ export type Database = {
         Args: { p_extension: string; p_name: string };
         Returns: boolean;
       };
+      email_batch: {
+        Args: { p_daily_budget?: number; p_limit?: number };
+        Returns: {
+          email: string;
+          items: Json;
+          queue_ids: number[];
+          total: number;
+          user_id: string;
+        }[];
+      };
       feed_latest: {
         Args: { p_genre?: string; p_page?: number; p_page_size?: number };
         Returns: {
@@ -666,16 +724,14 @@ export type Database = {
       };
       forget_expired_upload_reservations: { Args: never; Returns: undefined };
       is_admin: { Args: never; Returns: boolean };
+      mark_emails_failed: { Args: { p_ids: number[] }; Returns: undefined };
+      mark_emails_sent: { Args: { p_ids: number[] }; Returns: undefined };
       orphaned_upload_objects: {
         Args: { p_limit?: number };
         Returns: {
           bucket_id: string;
           name: string;
         }[];
-      };
-      record_play: {
-        Args: { p_listener: string; p_track: string; p_user?: string };
-        Returns: boolean;
       };
       reputation_level: {
         Args: { p_helpful: number };
