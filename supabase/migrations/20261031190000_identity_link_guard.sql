@@ -1,72 +1,110 @@
--- Recent sign in for linking and unlinking sign in methods.
+-- Linking and unlinking sign in methods, with a recent sign in proven by
+-- the session that asks.
 --
 -- Linking another identity (for example a Google account) to a user, or
--- removing one, needs a session that signed in within the last 10 minutes
--- (private.reauth_window(), kept equal to REAUTH_WINDOW_MS in the app). The
--- app asks for that already, but Supabase Auth would accept the request from
--- any valid session if manual linking is on, so a stolen or forgotten
--- session could add the attacker's Google account and keep access after the
--- victim signs out. The rule now holds in the database, where every path
--- into auth.identities passes.
+-- removing one, needs a link intent: a row in private.identity_intents that
+-- POST /api/account/identity-intent writes after checking that the session
+-- making that request signed in within the last 10 minutes (its own `amr`
+-- claim, REAUTH_WINDOW_MS in src/lib/api/reauth.ts). The intent is for one
+-- action and provider, lasts five minutes and is used once, in the same
+-- transaction as the change. Supabase Auth would otherwise accept a link
+-- from any valid session if manual linking is on, so a stolen session could
+-- add the attacker's Google account and keep access after sign out. The
+-- database cannot tell which session sent a request to Auth, which is why
+-- the proof is made by our own route first.
 --
--- A recent sign in means an email link, Google or password sign in, not a
--- factor someone added to an old session. Allowed without one: the first
--- identity of a new user, an identity for the account's own email that the
--- provider verified (Supabase links those by itself at sign in), and
--- Supabase cleaning up an unconfirmed account. Never allowed: removing the
--- last identity. Deleting the whole account removes identities as before.
--- Setting a password on an existing account is blocked too: it would be
--- another way to sign in that needs no identity.
+-- Allowed without an intent: the first identity of a new user, an identity
+-- for the account's own email that the provider verified (Supabase links
+-- those by itself at sign in, including Google taking over an unconfirmed
+-- email sign up), Supabase cleaning up an unconfirmed account, and the
+-- cascade when an account is deleted. Never allowed: removing the last
+-- identity, or removing the one that carries the account's email within 24
+-- hours of linking a new one.
 --
--- When a user who already had a way to sign in gets one added or removed,
--- we email them (email_queue rows without a notification, sent whatever the
--- notification setting is).
+-- We sign in with email links and Google only, so passwords are not kept:
+-- a new account gets none, and one cannot be set later (a session could
+-- otherwise set a password and come back with it).
+--
+-- The account owner is emailed when a way to sign in is added or removed.
+-- The address is the account email at the time of the change, so a change
+-- that also moves the account email still reaches the owner.
 --
 -- Triggers on the auth schema are not an officially supported extension
 -- point. The functions live in private, run as their owner with an empty
--- search path, and only read auth tables and write email_queue.
+-- search path, and only touch auth tables, private.identity_intents and
+-- email_queue.
 
-create function private.reauth_window()
-returns interval
-language sql
-immutable
-set search_path = ''
-as $$
-  select interval '10 minutes';
-$$;
+-- Intents ------------------------------------------------------------------
 
--- The AMR methods that are a sign in. Others (totp, phone, webauthn) can be
--- added to an existing session by whoever holds it, so they prove nothing
--- here. Kept equal to SIGN_IN_METHODS in src/lib/api/reauth.ts.
-create function private.sign_in_methods()
-returns text[]
-language sql
-immutable
-set search_path = ''
-as $$
-  select array['otp', 'magiclink', 'oauth', 'password', 'email/signup'];
-$$;
+create table private.identity_intents (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  action text not null check (action in ('link', 'unlink')),
+  provider text not null check (provider ~ '^[a-z0-9_]{1,30}$'),
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '5 minutes',
+  used_at timestamptz
+);
 
--- True when the user has a live session whose sign in proof (an AMR claim,
--- the source of the `amr` timestamps in its tokens) is recent.
-create function private.has_recent_sign_in(p_user uuid)
-returns boolean
-language sql
-stable
+create index identity_intents_lookup_idx
+  on private.identity_intents (user_id, action, provider, expires_at)
+  where used_at is null;
+
+alter table private.identity_intents enable row level security;
+
+-- Called by POST /api/account/identity-intent with the service role, after
+-- it has checked the request's own session. Ten intents an hour per person.
+create function public.create_identity_intent(p_user uuid, p_action text, p_provider text)
+returns void
+language plpgsql
 security definer
 set search_path = ''
 as $$
-  select exists (
-    select 1
-    from auth.sessions s
-    join auth.mfa_amr_claims c on c.session_id = s.id
-    where s.user_id = p_user
-      and (s.not_after is null or s.not_after > now())
-      and c.authentication_method = any (private.sign_in_methods())
-      and c.updated_at > now() - private.reauth_window()
-      and c.updated_at <= now() + interval '1 minute'
-  );
+begin
+  perform pg_advisory_xact_lock(hashtextextended('identity_intent:' || p_user::text, 0));
+
+  if (
+    select count(*) from private.identity_intents
+    where user_id = p_user and created_at > now() - interval '1 hour'
+  ) >= 10 then
+    raise exception 'rate_limited' using errcode = 'PT429',
+      hint = 'Try again in an hour.';
+  end if;
+
+  insert into private.identity_intents (user_id, action, provider)
+  values (p_user, p_action, p_provider);
+end;
 $$;
+
+-- Uses an open intent for this change, or says there is none.
+create function private.use_identity_intent(p_user uuid, p_action text, p_provider text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  used bigint;
+begin
+  update private.identity_intents
+  set used_at = now()
+  where id = (
+    select i.id from private.identity_intents i
+    where i.user_id = p_user
+      and i.action = p_action
+      and i.provider = p_provider
+      and i.used_at is null
+      and i.expires_at > now()
+    order by i.created_at
+    limit 1
+    for update skip locked
+  )
+  returning id into used;
+  return used is not null;
+end;
+$$;
+
+-- Guards --------------------------------------------------------------------
 
 create function private.identities_before_insert()
 returns trigger
@@ -83,8 +121,7 @@ begin
   end if;
 
   -- Supabase linking a sign in for the same email, which the provider has
-  -- verified. This also covers an account whose email was never confirmed:
-  -- signing in with Google for that address confirms it.
+  -- verified.
   select u.email into account_email from auth.users u where u.id = new.user_id;
   if account_email is not null
     and lower(btrim(new.identity_data ->> 'email')) = lower(btrim(account_email))
@@ -93,7 +130,7 @@ begin
     return new;
   end if;
 
-  if not private.has_recent_sign_in(new.user_id) then
+  if not private.use_identity_intent(new.user_id, 'link', new.provider) then
     raise exception 'identity_link_requires_recent_sign_in' using errcode = '42501',
       detail = 'Sign in again to add a way to sign in.';
   end if;
@@ -110,11 +147,12 @@ set search_path = ''
 as $$
 declare
   confirmed timestamptz;
+  account_email text;
   found_user boolean;
 begin
   -- One change per user at a time, so two removals cannot both see the
   -- other identity and leave none.
-  select true, u.email_confirmed_at into found_user, confirmed
+  select true, u.email_confirmed_at, u.email into found_user, confirmed, account_email
   from auth.users u where u.id = old.user_id for update;
 
   -- Deleting the account: the user row is already gone when its identities
@@ -137,7 +175,20 @@ begin
     return old;
   end if;
 
-  if not private.has_recent_sign_in(old.user_id) then
+  -- The identity that carries the account email stays for a day after a
+  -- new way to sign in was added, so a new link cannot at once take over
+  -- where security emails go.
+  if lower(btrim(coalesce(old.identity_data ->> 'email', ''))) = lower(btrim(coalesce(account_email, '')))
+    and exists (
+      select 1 from auth.identities
+      where user_id = old.user_id and id <> old.id and created_at > now() - interval '24 hours'
+    )
+  then
+    raise exception 'identity_unlink_too_soon' using errcode = '42501',
+      detail = 'Try again tomorrow.';
+  end if;
+
+  if not private.use_identity_intent(old.user_id, 'unlink', old.provider) then
     raise exception 'identity_unlink_requires_recent_sign_in' using errcode = '42501',
       detail = 'Sign in again to remove a way to sign in.';
   end if;
@@ -155,18 +206,24 @@ create trigger identities_require_recent_sign_in_delete
   for each row execute function private.identities_before_delete();
 
 -- No passwords --------------------------------------------------------------
--- We sign in with email links and Google only. A session could otherwise
--- set a password with PUT /auth/v1/user and sign in with it later, without
--- touching auth.identities. A password can be cleared, not set or changed
--- on an existing account.
+-- A new account gets no password (Supabase sets a random one for email
+-- link sign ups), and one cannot be set or changed later. Clearing is fine.
+-- Local fixtures (seeding) keep theirs.
 
-create function private.users_block_password()
+create function private.users_no_password()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
+  if tg_op = 'INSERT' then
+    if not private.is_seeding() then
+      new.encrypted_password := null;
+    end if;
+    return new;
+  end if;
+
   if coalesce(new.encrypted_password, '') <> ''
     and new.encrypted_password is distinct from old.encrypted_password
   then
@@ -177,19 +234,21 @@ begin
 end;
 $$;
 
-create trigger users_block_password
-  before update of encrypted_password on auth.users
-  for each row execute function private.users_block_password();
+create trigger users_no_password
+  before insert or update of encrypted_password on auth.users
+  for each row execute function private.users_no_password();
 
 -- Security emails -------------------------------------------------------------
 
 alter table public.email_queue alter column notification_id drop not null;
 alter table public.email_queue
   add column kind text check (kind in ('identity_linked', 'identity_unlinked')),
-  add column payload jsonb;
+  add column payload jsonb,
+  -- For security emails: the account email when the change happened.
+  add column recipient text check (char_length(recipient) <= 320);
 alter table public.email_queue add constraint email_queue_one_source check (
-  (notification_id is not null and kind is null and payload is null)
-  or (notification_id is null and kind is not null and payload is not null)
+  (notification_id is not null and kind is null and payload is null and recipient is null)
+  or (notification_id is null and kind is not null and payload is not null and recipient is not null)
 );
 
 create function private.identities_notify()
@@ -202,6 +261,8 @@ declare
   uid uuid;
   provider text;
   address text;
+  account_email text;
+  confirmed timestamptz;
   remaining integer;
 begin
   if tg_op = 'INSERT' then
@@ -214,11 +275,24 @@ begin
     address := old.identity_data ->> 'email';
   end if;
 
-  select count(*) into remaining from auth.identities where user_id = uid;
+  -- The account email as it is now, before anything this change leads to.
+  select u.email, u.email_confirmed_at into account_email, confirmed
+  from auth.users u where u.id = uid;
 
-  -- Not for an unconfirmed account: that is Supabase taking over an
-  -- unconfirmed sign up, not a change to an account someone already uses.
-  if exists (select 1 from auth.users where id = uid and email_confirmed_at is null) then
+  -- Not when the account is being deleted, has no profile, has no email to
+  -- write to, or is unconfirmed (Supabase taking over an unconfirmed sign
+  -- up, not a change to an account someone already uses).
+  if not found
+    or confirmed is null
+    or coalesce(account_email, '') = ''
+    or not exists (select 1 from public.profiles where id = uid)
+  then
+    return null;
+  end if;
+
+  -- Only for people who already had a way to sign in (not at sign up).
+  select count(*) into remaining from auth.identities where user_id = uid;
+  if (tg_op = 'INSERT' and remaining < 2) or (tg_op = 'DELETE' and remaining < 1) then
     return null;
   end if;
 
@@ -231,21 +305,12 @@ begin
     return null;
   end if;
 
-  -- Only for people who already had a way to sign in (not at sign up) and
-  -- still have an account (not when it is deleted).
-  if not exists (select 1 from auth.users where id = uid)
-    or not exists (select 1 from public.profiles where id = uid)
-    or (tg_op = 'INSERT' and remaining < 2)
-    or (tg_op = 'DELETE' and remaining < 1)
-  then
-    return null;
-  end if;
-
-  insert into public.email_queue (user_id, kind, payload)
+  insert into public.email_queue (user_id, kind, payload, recipient)
   values (
     uid,
     case when tg_op = 'INSERT' then 'identity_linked' else 'identity_unlinked' end,
-    jsonb_build_object('provider', provider, 'email', left(coalesce(address, ''), 320), 'at', now())
+    jsonb_build_object('provider', provider, 'email', left(coalesce(address, ''), 320), 'at', now()),
+    left(account_email, 320)
   );
   return null;
 end;
@@ -338,24 +403,32 @@ begin
 end;
 $$;
 
-create function public.security_email_batch(p_limit integer default 20)
-returns table (queue_id bigint, user_id uuid, email text, kind text, payload jsonb)
-language sql
+create function public.security_email_batch(p_limit integer default 20, p_daily_budget integer default 60)
+returns table (queue_id bigint, user_id uuid, recipients text[], kind text, payload jsonb)
+language plpgsql
 volatile
 security definer
 set search_path = ''
 as $$
+declare
+  sent_today integer;
+  room integer;
+begin
+  -- Security emails share the daily budget with the digest.
+  select count(distinct q.sent_at) into sent_today
+  from public.email_queue q where q.sent_at > now() - interval '1 day';
+  room := least(greatest(p_limit, 0), greatest(p_daily_budget - sent_today, 0), 50);
+
+  return query
   with picked as (
     select q.id
     from public.email_queue q
-    join auth.users u on u.id = q.user_id
     where q.kind is not null
       and q.sent_at is null
       and q.attempts < 3
       and (q.claimed_at is null or q.claimed_at < now() - interval '15 minutes')
-      and u.email is not null
     order by q.created_at
-    limit least(greatest(p_limit, 1), 50)
+    limit room
     for update of q skip locked
   ),
   claimed as (
@@ -363,21 +436,30 @@ as $$
     set claimed_at = now()
     from picked
     where q.id = picked.id
-    returning q.id, q.user_id, q.kind, q.payload
+    returning q.id, q.user_id, q.kind, q.payload, q.recipient
   )
-  select c.id, c.user_id, u.email::text, c.kind, c.payload
+  -- The address from the time of the change, and the current one if it
+  -- has moved since.
+  select c.id, c.user_id,
+    array(
+      select distinct a from unnest(array[c.recipient, u.email::text]) a
+      where coalesce(a, '') <> ''
+    ),
+    c.kind, c.payload
   from claimed c
-  join auth.users u on u.id = c.user_id;
+  left join auth.users u on u.id = c.user_id;
+end;
 $$;
 
-revoke execute on function private.reauth_window() from public, anon, authenticated;
-revoke execute on function private.sign_in_methods() from public, anon, authenticated;
-revoke execute on function private.users_block_password() from public, anon, authenticated;
-revoke execute on function private.has_recent_sign_in(uuid) from public, anon, authenticated;
+revoke all on private.identity_intents from public, anon, authenticated;
+revoke execute on function public.create_identity_intent(uuid, text, text) from public, anon, authenticated;
+revoke execute on function private.use_identity_intent(uuid, text, text) from public, anon, authenticated;
 revoke execute on function private.identities_before_insert() from public, anon, authenticated;
 revoke execute on function private.identities_before_delete() from public, anon, authenticated;
+revoke execute on function private.users_no_password() from public, anon, authenticated;
 revoke execute on function private.identities_notify() from public, anon, authenticated;
 revoke execute on function public.email_batch(integer, integer) from public, anon, authenticated;
-revoke execute on function public.security_email_batch(integer) from public, anon, authenticated;
+revoke execute on function public.security_email_batch(integer, integer) from public, anon, authenticated;
+grant execute on function public.create_identity_intent(uuid, text, text) to service_role;
 grant execute on function public.email_batch(integer, integer) to service_role;
-grant execute on function public.security_email_batch(integer) to service_role;
+grant execute on function public.security_email_batch(integer, integer) to service_role;

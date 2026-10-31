@@ -130,6 +130,7 @@ export type Database = {
           kind: string | null;
           notification_id: string | null;
           payload: Json | null;
+          recipient: string | null;
           sent_at: string | null;
           user_id: string;
         };
@@ -141,6 +142,7 @@ export type Database = {
           kind?: string | null;
           notification_id?: string | null;
           payload?: Json | null;
+          recipient?: string | null;
           sent_at?: string | null;
           user_id: string;
         };
@@ -152,6 +154,7 @@ export type Database = {
           kind?: string | null;
           notification_id?: string | null;
           payload?: Json | null;
+          recipient?: string | null;
           sent_at?: string | null;
           user_id?: string;
         };
@@ -727,6 +730,10 @@ export type Database = {
         Args: { p_extension: string; p_name: string };
         Returns: boolean;
       };
+      create_identity_intent: {
+        Args: { p_action: string; p_provider: string; p_user: string };
+        Returns: undefined;
+      };
       email_batch: {
         Args: { p_daily_budget?: number; p_limit?: number };
         Returns: {
@@ -888,12 +895,12 @@ export type Database = {
         }[];
       };
       security_email_batch: {
-        Args: { p_limit?: number };
+        Args: { p_daily_budget?: number; p_limit?: number };
         Returns: {
-          email: string;
           kind: string;
           payload: Json;
           queue_id: number;
+          recipients: string[];
           user_id: string;
         }[];
       };
