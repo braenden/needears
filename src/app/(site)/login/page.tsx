@@ -48,7 +48,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       ) : null}
       <LoginForm
         next={next}
-        googleClientId={googleClientId()}
+        // Signing in again to connect Google: Google is not connected yet,
+        // and a Google account with another address would make a new
+        // account and sign this one out. Only the email link here.
+        googleClientId={reauth === "connect" ? null : googleClientId()}
         scriptNonce={(await headers()).get("x-nonce") ?? undefined}
       />
       <p className="mt-8 text-xs text-muted-foreground">

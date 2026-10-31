@@ -6,8 +6,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 // Deleting an account needs a fresh login in this session
-// (REAUTH_WINDOW_MS), so a stolen or forgotten session cannot do it, even
-// when the owner has just signed in somewhere else.
+// (REAUTH_WINDOW_MS), even when the owner has just signed in somewhere
+// else. On its own this route cannot stop a stolen session from first
+// connecting the thief's Google account and signing in fresh with it; the
+// database refuses that connection without a fresh sign-in
+// (private.reauth_window()).
 
 const bodySchema = z.object({ confirm: z.string() }).strict();
 

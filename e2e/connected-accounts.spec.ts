@@ -54,3 +54,20 @@ test("right after signing in, Google's button connects", async ({ page }) => {
     card.getByRole("button", { name: "Sign in with Google" }),
   ).toBeVisible();
 });
+
+test("signing in again to connect Google offers only the email link", async ({
+  page,
+}) => {
+  await page.route("https://accounts.google.com/gsi/client**", (route) =>
+    route.fulfill({ contentType: "text/javascript", body: fakeGsi }),
+  );
+  await page.goto(`${GOOGLE_URL}/login?reauth=connect&next=%2Fsettings`);
+  await expect(page.getByText(/Sign in again to connect Google/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Email me a sign-in link" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("google-button")).toHaveCount(0);
+  // The usual sign-in page on the same server does offer Google.
+  await page.goto(`${GOOGLE_URL}/login`);
+  await expect(page.getByTestId("google-button")).toHaveCount(1);
+});

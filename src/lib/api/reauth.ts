@@ -1,6 +1,9 @@
 // How recent the session's own sign-in must be for actions that hand over
-// the account: deleting it, or connecting another way to sign in to it. A
-// stolen or forgotten session cannot do either.
+// the account: deleting it (checked by /api/account/delete), and connecting
+// or disconnecting a way to sign in. Those last two can be done straight
+// against Supabase's API, so the database enforces the window for them
+// (private.reauth_window()); this page only checks it to show the right
+// button. Keep this value equal to private.reauth_window().
 export const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 
 // When the session presenting a request last proved who it is, from the
