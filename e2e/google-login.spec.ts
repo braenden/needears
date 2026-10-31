@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { E2E_GOOGLE_CLIENT_ID, GOOGLE_URL } from "../playwright.config";
+import { magicLinkFor } from "./helpers";
 
 // Sign in with Google Identity Services. Google's popup cannot run in CI, so
 // Google's script is replaced by a stand-in that records what the page asks
@@ -71,4 +72,30 @@ test("with a client ID, Google's button is offered with a hashed nonce", async (
   await expect(
     page.getByRole("button", { name: "Email me a sign-in link" }),
   ).toBeVisible();
+});
+
+test("after a magic link, the login page marks email as last used", async ({
+  page,
+}) => {
+  await page.route(`${GSI}**`, (route) =>
+    route.fulfill({ contentType: "text/javascript", body: fakeGsi }),
+  );
+  // Signs in on the server with Google set up, so the badge can show there
+  // (the browser keeps it per origin).
+  const sentAfter = Date.now() - 1_000;
+  await page.goto(`${GOOGLE_URL}/login?next=%2Ffeed`);
+  await expect(page.getByText("Last used")).toHaveCount(0);
+  await page.getByLabel("Email", { exact: true }).fill("jonas@example.com");
+  await page.getByRole("button", { name: "Email me a sign-in link" }).click();
+  await expect(page.getByText("Check your email.")).toBeVisible();
+  await page.goto(await magicLinkFor("jonas@example.com", sentAfter));
+  await expect(page).toHaveURL(`${GOOGLE_URL}/feed`);
+
+  // Signed in already, so ask to sign in again to see the form.
+  await page.goto(`${GOOGLE_URL}/login?reauth=1`);
+  const form = page
+    .locator("form")
+    .filter({ hasText: "Email me a sign-in link" });
+  await expect(form.getByText("Last used")).toBeVisible();
+  await expect(page.getByText("Last used")).toHaveCount(1);
 });

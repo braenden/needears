@@ -1,9 +1,11 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
 import { Loader2Icon, MailIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { readLastLogin } from "@/lib/auth/last-login";
 import { browserClient } from "@/lib/supabase/lazy";
 import { GoogleButton } from "./google-button";
 
@@ -12,6 +14,9 @@ function callbackUrl(next: string) {
   url.searchParams.set("next", next);
   return url.toString();
 }
+
+// The last login only changes when signing in, which leaves this page.
+const noSubscription = () => () => {};
 
 export function LoginForm({
   next,
@@ -27,6 +32,14 @@ export function LoginForm({
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
+  // Only in the browser (the server renders without it), and only worth
+  // pointing at when there is a choice. The hint takes no space of its own,
+  // so it appearing moves nothing.
+  const lastUsed = useSyncExternalStore(
+    noSubscription,
+    () => (googleClientId ? readLastLogin() : null),
+    () => null,
+  );
 
   async function sendLink(event: React.FormEvent) {
     event.preventDefault();
@@ -83,6 +96,7 @@ export function LoginForm({
             next={next}
             scriptNonce={scriptNonce}
             disabled={state !== "idle"}
+            lastUsed={lastUsed === "google"}
             onError={setError}
           />
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -93,9 +107,16 @@ export function LoginForm({
         </>
       ) : null}
       <form noValidate onSubmit={sendLink} className="grid gap-3">
-        <label htmlFor={`${id}-email`} className="text-sm font-medium">
-          Email
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={`${id}-email`} className="text-sm font-medium">
+            Email
+          </label>
+          {lastUsed === "email" ? (
+            <Badge variant="secondary" className="h-5 px-2 text-[11px]">
+              Last used
+            </Badge>
+          ) : null}
+        </div>
         <Input
           id={`${id}-email`}
           type="email"

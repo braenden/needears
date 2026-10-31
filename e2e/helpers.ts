@@ -14,7 +14,7 @@ async function latestMessageTo(email: string, after: number) {
 }
 
 /** Waits for the newest sign-in email to `email` and returns its link. */
-async function magicLinkFor(email: string, after: number) {
+export async function magicLinkFor(email: string, after: number) {
   let id: string | null = null;
   await expect
     .poll(

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeNext } from "@/lib/api/redirect";
+import { SIGNED_IN_HASH } from "@/lib/auth/last-login";
 import { createClient } from "@/lib/supabase/server";
 
 // Return URL for Google OAuth and magic links (PKCE). Exchanges the one time
@@ -13,12 +14,15 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      if (data.user.user_metadata.onboarded !== true) {
-        const welcome = new URL("/welcome", origin);
-        welcome.searchParams.set("next", next.pathname + next.search);
-        return NextResponse.redirect(welcome);
-      }
-      return NextResponse.redirect(next);
+      // Signed in: the next page remembers it in the browser (RememberLogin).
+      const to =
+        data.user.user_metadata.onboarded !== true
+          ? new URL("/welcome", origin)
+          : new URL(next);
+      if (to.pathname === "/welcome")
+        to.searchParams.set("next", next.pathname + next.search);
+      to.hash = SIGNED_IN_HASH;
+      return NextResponse.redirect(to);
     }
   }
   return NextResponse.redirect(new URL("/login?error=link", origin));
