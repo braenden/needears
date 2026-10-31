@@ -1,0 +1,130 @@
+import {
+  EarIcon,
+  LockIcon,
+  Music2Icon,
+  SparklesIcon,
+  StarIcon,
+} from "lucide-react";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { reputationLevels } from "@/config/reputation";
+import { cn } from "@/lib/utils";
+
+/** Mirrors the badge enum in the database. */
+export type BadgeKind =
+  "first_ears" | "finisher" | "ten_tracks_helped" | "golden_ear";
+
+export type EarnedBadge = { badge: BadgeKind; awarded_at: string };
+
+const goldenAt =
+  reputationLevels.find((l) => l.id === "golden_ear")?.minHelpful ?? 60;
+
+export const BADGES: Record<
+  BadgeKind,
+  { name: string; how: string; Icon: typeof EarIcon }
+> = {
+  first_ears: {
+    name: "First ears",
+    how: "Left the first comment on a track nobody else had commented on.",
+    Icon: EarIcon,
+  },
+  finisher: {
+    name: "Finisher",
+    how: "Uploaded a new version of a track after getting feedback.",
+    Icon: Music2Icon,
+  },
+  ten_tracks_helped: {
+    name: "Ten tracks helped",
+    how: "Had comments marked Helpful by ten different uploaders.",
+    Icon: SparklesIcon,
+  },
+  golden_ear: {
+    name: "Golden ear",
+    how: `Was marked Helpful ${goldenAt} times.`,
+    Icon: StarIcon,
+  },
+};
+
+const ORDER: BadgeKind[] = [
+  "first_ears",
+  "finisher",
+  "ten_tracks_helped",
+  "golden_ear",
+];
+
+const earnedOn = new Intl.DateTimeFormat("en", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * Badges as small chips. Hover or focus explains how each one is earned.
+ * On your own profile the ones you do not have yet show as locked, so it is
+ * clear what they are for.
+ */
+export function BadgeList({
+  badges,
+  showLocked = false,
+  className,
+}: {
+  badges: EarnedBadge[];
+  showLocked?: boolean;
+  className?: string;
+}) {
+  const earned = new Map(badges.map((b) => [b.badge, b.awarded_at]));
+  const kinds = ORDER.filter((kind) => showLocked || earned.has(kind));
+  if (kinds.length === 0) return null;
+
+  return (
+    <ul aria-label="Badges" className={cn("flex flex-wrap gap-1.5", className)}>
+      {kinds.map((kind) => {
+        const { name, how, Icon } = BADGES[kind];
+        const awardedAt = earned.get(kind);
+        const locked = !awardedAt;
+        return (
+          <li key={kind}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex h-7 cursor-help items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    locked
+                      ? "border-dashed text-muted-foreground"
+                      : kind === "golden_ear"
+                        ? "border-transparent bg-gold-soft text-gold"
+                        : "border-transparent bg-primary-soft text-primary-text",
+                  )}
+                >
+                  {locked ? (
+                    <LockIcon className="size-3.5" aria-hidden="true" />
+                  ) : (
+                    <Icon className="size-3.5" aria-hidden="true" />
+                  )}
+                  {name}
+                  {locked ? (
+                    <span className="sr-only"> (not earned yet)</span>
+                  ) : null}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-60">
+                {locked
+                  ? `How to get it: ${how.charAt(0).toLowerCase()}${how.slice(1)}`
+                  : how}
+                {awardedAt
+                  ? ` Earned ${earnedOn.format(new Date(awardedAt))}.`
+                  : null}
+              </TooltipContent>
+            </Tooltip>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

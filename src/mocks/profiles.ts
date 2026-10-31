@@ -65,3 +65,75 @@ export const statsFor: Record<string, ProfileStats> = {
   [newcomer.id]: { tracks: 0, commentsGiven: 0, helpfulReceived: 0 },
   [longName.id]: { tracks: 0, commentsGiven: 12, helpfulReceived: 16 },
 };
+
+/** The newer profile fields, keyed by profile id. */
+export const profileExtras: Record<
+  string,
+  {
+    workingOn: string;
+    daw: string;
+    links: { label: string; url: string }[];
+    stats: {
+      commentsGiven: number;
+      helpfulReceived: number;
+      helpfulShare: number;
+      weekStreak: number;
+    };
+    badges: {
+      badge: "first_ears" | "finisher" | "ten_tracks_helped" | "golden_ear";
+      awarded_at: string;
+    }[];
+  }
+> = {
+  [mia.id]: {
+    workingOn:
+      "Mixing a friend's debut EP, and learning to leave space in the low end.",
+    daw: "Bitwig Studio",
+    links: [
+      { label: "", url: "https://soundcloud.com/miamixes" },
+      { label: "Mixes for hire", url: "https://miamixes.bandcamp.com" },
+      { label: "", url: "https://www.instagram.com/miamixes" },
+    ],
+    stats: {
+      commentsGiven: 212,
+      helpfulReceived: 74,
+      helpfulShare: 0.35,
+      weekStreak: 9,
+    },
+    badges: [
+      { badge: "first_ears", awarded_at: "2026-08-16T10:00:00Z" },
+      { badge: "ten_tracks_helped", awarded_at: "2026-09-02T10:00:00Z" },
+      { badge: "golden_ear", awarded_at: "2026-10-11T10:00:00Z" },
+    ],
+  },
+  [jonas.id]: {
+    workingOn: "Night Bus, demo 5. Still fighting the drop.",
+    daw: "Ableton Live",
+    links: [
+      { label: "", url: "https://soundcloud.com/jonas-abl" },
+      { label: "Studio diary", url: "https://www.youtube.com/@jonasabl" },
+    ],
+    stats: {
+      commentsGiven: 64,
+      helpfulReceived: 18,
+      helpfulShare: 0.28,
+      weekStreak: 4,
+    },
+    badges: [
+      { badge: "first_ears", awarded_at: "2026-09-10T10:00:00Z" },
+      { badge: "finisher", awarded_at: "2026-10-30T18:00:00Z" },
+    ],
+  },
+  [newcomer.id]: {
+    workingOn: "",
+    daw: "",
+    links: [],
+    stats: {
+      commentsGiven: 0,
+      helpfulReceived: 0,
+      helpfulShare: 0,
+      weekStreak: 0,
+    },
+    badges: [],
+  },
+};

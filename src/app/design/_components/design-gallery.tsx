@@ -12,6 +12,7 @@ import { FeedSection } from "./feed-section";
 import { PeopleSection } from "./people-section";
 import { PlayerSection } from "./player-section";
 import { PrimitivesSection } from "./primitives-section";
+import { ProfileV11Section } from "./profile-v11-section";
 import { ShellSection } from "./shell-section";
 import { TokensSection } from "./tokens-section";
 import { UploadSection } from "./upload-section";
@@ -31,6 +32,7 @@ const CONTENTS = [
   ["reactions", "ReactionBar"],
   ["empty-states", "EmptyState"],
   ["report", "ReportDialog"],
+  ["profile-v11", "Profile photo and badges"],
   ["shell", "AppShell"],
   ["phone", "Phone width"],
   ["themes", "Both themes"],
@@ -90,6 +92,7 @@ export function DesignGallery() {
           <FeedSection />
           <UploadSection />
           <PeopleSection />
+          <ProfileV11Section />
           <ShellSection />
         </div>
       </div>
