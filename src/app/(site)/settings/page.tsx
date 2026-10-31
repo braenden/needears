@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { parseLinks } from "@/lib/data/profiles";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
+import { ConnectedAccounts } from "./connected-accounts";
 import { DeleteAccount } from "./delete-account";
 import { EmailSettings } from "./email-settings";
 import { ExtrasSettings, PhotoSettings } from "./profile-extras";
@@ -34,11 +35,14 @@ function Section({
   );
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: PageProps<"/settings">) {
   const viewer = await getViewer();
   if (!viewer) redirect("/login?next=/settings");
+  const query = await searchParams;
   const supabase = await createClient();
-  const [{ data: tracks }, { data: prefs }] = await Promise.all([
+  const [{ data: tracks }, { data: prefs }, { data: ids }] = await Promise.all([
     supabase
       .from("tracks")
       .select("id, slug, title, status, published_at")
@@ -51,6 +55,8 @@ export default async function SettingsPage() {
       )
       .eq("id", viewer.userId)
       .single(),
+    // The ways this person can sign in (email link, Google).
+    supabase.auth.getUserIdentities(),
   ]);
 
   return (
@@ -70,6 +76,16 @@ export default async function SettingsPage() {
             />
             <ProfileForm userId={viewer.userId} profile={viewer.profile} />
           </div>
+        </Section>
+
+        <Section id="accounts-heading" title="Connected accounts">
+          <ConnectedAccounts
+            identities={ids?.identities ?? []}
+            linked={query.linked === "google"}
+            linkError={
+              typeof query.link_error === "string" ? query.link_error : null
+            }
+          />
         </Section>
 
         <Section id="music-heading" title="Your music">
