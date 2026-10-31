@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatTime, formatTimeSpoken } from "@/lib/time";
+import { setListenVolume, useListenVolume } from "@/hooks/use-volume";
 import { cn } from "@/lib/utils";
 import type { Comment, VersionedComment } from "@/types/view";
 
@@ -171,7 +172,9 @@ export function WaveformPlayer({
   const onTimeChangeRef = useRef(onTimeChange);
   // Read when a new source is created, so mute and level carry over.
   const mutedRef = useRef(muted);
-  const volume = Math.min(1, 10 ** (Math.min(0, gainDb) / 20));
+  // The listener's own volume, times the level match between versions.
+  const listenVolume = useListenVolume();
+  const volume = listenVolume * Math.min(1, 10 ** (Math.min(0, gainDb) / 20));
   const volumeRef = useRef(volume);
   useEffect(() => {
     onTimeChangeRef.current = onTimeChange;
@@ -321,6 +324,8 @@ export function WaveformPlayer({
     (event: KeyboardEvent | React.KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement;
+      // The volume slider uses the arrow keys itself.
+      if (target.dataset?.volume !== undefined) return;
       const onButton = target instanceof HTMLButtonElement;
       const now = (wsRef.current?.getCurrentTime() ?? currentMs / 1000) * 1000;
       switch (event.key) {
@@ -548,8 +553,25 @@ export function WaveformPlayer({
               aria-label="Mute"
               className="text-muted-foreground hover:text-foreground"
             >
-              {muted ? <VolumeXIcon /> : <Volume2Icon />}
+              {muted || listenVolume === 0 ? <VolumeXIcon /> : <Volume2Icon />}
             </Button>
+            {/* Phones set the volume with their own buttons (and iOS
+                ignores it), so the slider is for wider screens. */}
+            <input
+              type="range"
+              data-volume=""
+              min={0}
+              max={100}
+              step={5}
+              value={muted ? 0 : Math.round(listenVolume * 100)}
+              onChange={(e) => {
+                setListenVolume(Number(e.target.value) / 100);
+                if (muted) toggleMute();
+              }}
+              aria-label="Volume"
+              aria-valuetext={`${muted ? 0 : Math.round(listenVolume * 100)}%`}
+              className="hidden h-1 w-20 cursor-pointer accent-(--primary) @sm:block"
+            />
             <Button
               type="button"
               variant="ghost"
