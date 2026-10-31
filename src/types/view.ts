@@ -66,3 +66,8 @@ export type Comment = Pick<
   | "status"
   | "created_at"
 > & { author: ProfileSummary };
+
+// A comment that may be a reply (parent_id set) or resolved by the track
+// owner. Optional so lists that do not load threads still type-check.
+export type ThreadComment = Comment &
+  Partial<Pick<Tables<"comments">, "parent_id" | "resolved_at">>;
