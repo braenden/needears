@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import {
   ArrowDownUpIcon,
   CheckIcon,
@@ -105,6 +106,7 @@ type Viewer = "owner" | "visitor" | "signed_out";
 export function CommentList({
   comments,
   viewer,
+  ownerId,
   activeCommentId,
   defaultFilter = "all",
   defaultSort = "time",
@@ -128,6 +130,8 @@ export function CommentList({
   /** Top-level comments and replies together. Replies have parent_id set. */
   comments: ThreadComment[];
   viewer: Viewer;
+  /** The track owner. Their comments get an Uploader badge. */
+  ownerId?: string;
   activeCommentId?: string | null;
   defaultFilter?: CommentFilter;
   defaultSort?: CommentSort;
@@ -276,6 +280,8 @@ export function CommentList({
                     key={comment.id}
                     comment={comment}
                     viewer={viewer}
+                    fromOwner={!!ownerId && comment.author_id === ownerId}
+                    ownerId={ownerId}
                     active={comment.id === activeCommentId}
                     onJump={onJump}
                     onToggleHelpful={onToggleHelpful}
@@ -298,6 +304,8 @@ export function CommentList({
 function CommentItem({
   comment,
   viewer,
+  fromOwner,
+  ownerId,
   active,
   onJump,
   onToggleHelpful,
@@ -309,6 +317,8 @@ function CommentItem({
 }: {
   comment: ThreadComment;
   viewer: Viewer;
+  fromOwner: boolean;
+  ownerId?: string;
   active: boolean;
   onJump?: (comment: Comment) => void;
   onToggleHelpful?: (comment: Comment, helpful: boolean) => void;
@@ -324,6 +334,7 @@ function CommentItem({
   const replyButton = useRef<HTMLButtonElement>(null);
   const canResolve = viewer === "owner" && !!onToggleResolved;
 
+  const profileHref = `/u/${comment.author.handle}`;
   return (
     <li
       aria-current={active ? "true" : undefined}
@@ -333,16 +344,25 @@ function CommentItem({
           "before:absolute before:inset-y-2 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary",
       )}
     >
-      <UserAvatar
-        profile={comment.author}
-        className={cn("mt-0.5", resolved && "grayscale")}
-      />
+      {/* The name next to it is the link for keyboard and screen readers. */}
+      <Link
+        href={profileHref}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="mt-0.5 shrink-0 self-start rounded-full"
+      >
+        <UserAvatar
+          profile={comment.author}
+          className={cn(resolved && "grayscale")}
+        />
+      </Link>
       <div className="min-w-0 flex-1">
         <CommentHeader
           comment={comment}
           viewer={viewer}
           onReport={onReport}
           muted={resolved}
+          fromOwner={fromOwner}
         />
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {comment.time_ms !== null ? (
@@ -435,6 +455,7 @@ function CommentItem({
                     key={reply.id}
                     reply={reply}
                     viewer={viewer}
+                    fromOwner={!!ownerId && reply.author_id === ownerId}
                     onReport={onReport}
                     muted={resolved}
                   />
@@ -464,24 +485,42 @@ function CommentHeader({
   viewer,
   onReport,
   muted,
+  fromOwner,
 }: {
   comment: Comment;
   viewer: Viewer;
   onReport?: (comment: Comment) => void;
   muted?: boolean;
+  fromOwner?: boolean;
 }) {
   const name = displayNameOf(comment.author);
+  const profileHref = `/u/${comment.author.handle}`;
   return (
     <div className="flex items-start gap-2">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        <span
-          className={cn(
-            "truncate text-sm font-semibold",
-            muted && "text-muted-foreground",
-          )}
+        {/* Display names are not unique, so the handle and the Uploader
+            badge show who is really speaking. */}
+        <Link
+          href={profileHref}
+          className="flex min-w-0 items-baseline gap-1.5 rounded-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {name}
-        </span>
+          <span
+            className={cn(
+              "truncate text-sm font-semibold",
+              muted && "text-muted-foreground",
+            )}
+          >
+            {name}
+          </span>
+          <span className="truncate text-xs text-muted-foreground">
+            @{comment.author.handle}
+          </span>
+        </Link>
+        {fromOwner ? (
+          <Badge variant="solid" className="h-5 px-2 text-[11px]">
+            Uploader
+          </Badge>
+        ) : null}
         <ReputationBadge helpful={comment.author.reputation} />
         <RelativeTime
           date={comment.created_at}
@@ -516,25 +555,35 @@ function CommentHeader({
 function ReplyItem({
   reply,
   viewer,
+  fromOwner,
   onReport,
   muted,
 }: {
   reply: ThreadComment;
   viewer: Viewer;
+  fromOwner: boolean;
   onReport?: (comment: Comment) => void;
   muted?: boolean;
 }) {
   return (
     <li className="flex gap-2.5">
-      <UserAvatar
-        profile={reply.author}
-        size="sm"
-        className={cn("mt-0.5", muted && "grayscale")}
-      />
+      <Link
+        href={`/u/${reply.author.handle}`}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="mt-0.5 shrink-0 self-start rounded-full"
+      >
+        <UserAvatar
+          profile={reply.author}
+          size="sm"
+          className={cn(muted && "grayscale")}
+        />
+      </Link>
       <div className="min-w-0 flex-1">
         <CommentHeader
           comment={reply}
           viewer={viewer}
+          fromOwner={fromOwner}
           onReport={onReport}
           muted={muted}
         />
