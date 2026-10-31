@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { MarkRead } from "./mark-read";
+import { isModerationAction, ModerationNotice } from "./moderation-notice";
 import {
   LISTED_NOTIFICATION_KINDS,
   type ListedNotificationKind,
@@ -22,6 +23,9 @@ export const metadata: Metadata = {
 type Row = {
   id: string;
   kind: ListedNotificationKind;
+  action: string | null;
+  target: "track" | "comment" | null;
+  reason: string | null;
   read_at: string | null;
   created_at: string;
   actor: {
@@ -33,7 +37,7 @@ type Row = {
   comment: { time_ms: number | null } | null;
 };
 
-const VERBS: Record<ListedNotificationKind, string> = {
+const VERBS: Record<Exclude<ListedNotificationKind, "moderation">, string> = {
   comment: "commented on",
   reply: "replied to your comment on",
   helpful: "marked your comment as Helpful on",
@@ -46,7 +50,7 @@ export default async function NotificationsPage() {
   const { data } = await supabase
     .from("notifications")
     .select(
-      "id, kind, read_at, created_at, actor:profiles!notifications_actor_id_fkey(handle, display_name, avatar_url), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms)",
+      "id, kind, action, target, reason, read_at, created_at, actor:profiles!notifications_actor_id_fkey(handle, display_name, avatar_url), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms)",
     )
     .eq("user_id", viewer.userId)
     .in("kind", [...LISTED_NOTIFICATION_KINDS])
@@ -73,14 +77,27 @@ export default async function NotificationsPage() {
               n.comment?.time_ms != null
                 ? `?t=${Math.floor(n.comment.time_ms / 1000)}`
                 : "";
+            const rowClass = cn(
+              "flex gap-3 px-4 py-3 text-sm",
+              !n.read_at && "bg-primary-soft/40",
+            );
+            if (n.kind === "moderation") {
+              if (!isModerationAction(n.action) || !n.target) return null;
+              return (
+                <li key={n.id} className={rowClass}>
+                  <ModerationNotice
+                    action={n.action}
+                    target={n.target}
+                    reason={n.reason}
+                    track={n.track}
+                    at={at}
+                    createdAt={n.created_at}
+                  />
+                </li>
+              );
+            }
             return (
-              <li
-                key={n.id}
-                className={cn(
-                  "flex gap-3 px-4 py-3 text-sm",
-                  !n.read_at && "bg-primary-soft/40",
-                )}
-              >
+              <li key={n.id} className={rowClass}>
                 {n.actor ? (
                   <UserAvatar profile={n.actor} size="sm" className="mt-0.5" />
                 ) : null}

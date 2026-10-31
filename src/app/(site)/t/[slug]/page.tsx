@@ -95,6 +95,7 @@ export default async function TrackPage({
       }
       startSeconds={startSeconds(query.t, track.duration_ms)}
       initialFilter={filter}
+      initialShowResolved={query.resolved !== "hide"}
       genres={genres}
     />
   );
