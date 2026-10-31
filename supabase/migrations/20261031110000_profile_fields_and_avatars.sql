@@ -6,9 +6,11 @@
 -- profiles.daw: the DAW or setup they use, free text.
 --
 -- profiles.avatar_key: a picture uploaded to the private `avatars` bucket.
--- It wins over avatar_url (the Google picture) when both are set. Files are
--- read through signed URLs, and only files that are someone's current
--- avatar can be read. People upload to their own folder, keep at most
+-- It wins over avatar_url (the Google picture) when both are set. Only
+-- POST /api/profile/avatar sets it (no update grant), after checking the
+-- file's size, type and first bytes, because Storage's copy endpoint skips
+-- the bucket limits. Files are read through signed URLs, and only files
+-- that are someone's current avatar can be read. People upload to their own folder, keep at most
 -- three files there, and can delete the ones they no longer use. Unused
 -- files older than three hours are removed by the daily cleanup.
 --
@@ -45,7 +47,11 @@ as $$
 declare
   v_host text;
 begin
-  if p_url is null or char_length(p_url) > 300 or p_url !~* '^https://[a-z0-9.-]+(/\S*)?$' then
+  if p_url is null
+    or char_length(p_url) > 300
+    or p_url !~ '^https://[a-z0-9.-]+(/\S*)?$'
+    or p_url ~ '[\u0001-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]'
+  then
     return false;
   end if;
   v_host := lower(substring(p_url from '^https://([^/]+)'));
@@ -85,7 +91,10 @@ begin
 
     label := btrim(item ->> 'label');
     url := btrim(item ->> 'url');
-    if char_length(label) not between 1 and 40 or not private.link_url_allowed(url) then
+    if char_length(label) not between 1 and 40
+      or label ~ '[\u0001-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]'
+      or not private.link_url_allowed(url)
+    then
       raise exception 'invalid_link' using errcode = '22023';
     end if;
 
@@ -112,7 +121,7 @@ alter table public.profiles add constraint profiles_avatar_key_format check (
 
 create index profiles_avatar_key_idx on public.profiles (avatar_key) where avatar_key is not null;
 
-grant update (links, working_on, daw, avatar_key) on public.profiles to authenticated;
+grant update (links, working_on, daw) on public.profiles to authenticated;
 
 create or replace function private.profiles_before_write()
 returns trigger
@@ -137,11 +146,22 @@ begin
     raise exception 'handle_reserved' using errcode = '22023';
   end if;
 
+  -- A banned person cannot change what others see on their profile.
+  if tg_op = 'UPDATE'
+    and old.banned_at is not null
+    and coalesce((select auth.jwt()) ->> 'role', '') = 'authenticated'
+    and (new.links, new.working_on, new.daw, new.avatar_key)
+      is distinct from (old.links, old.working_on, old.daw, old.avatar_key)
+  then
+    raise exception 'not_allowed' using errcode = '42501';
+  end if;
+
   if tg_op = 'INSERT' or new.links is distinct from old.links then
     new.links := private.normalize_links(new.links);
   end if;
 
-  -- An uploaded picture must be in the person's folder and uploaded by them.
+  -- An uploaded picture must be in the person's folder, uploaded by them,
+  -- and within the bucket limits (a copied file is not checked by Storage).
   if new.avatar_key is not null
     and (tg_op = 'INSERT' or new.avatar_key is distinct from old.avatar_key)
     and not exists (
@@ -149,6 +169,8 @@ begin
       where o.bucket_id = 'avatars'
         and o.name = new.avatar_key
         and o.owner_id = new.id::text
+        and (o.metadata ->> 'size')::bigint between 1 and 524288
+        and o.metadata ->> 'mimetype' in ('image/jpeg', 'image/webp')
     )
   then
     raise exception 'avatar_missing' using errcode = '22023';
@@ -202,6 +224,8 @@ create policy "Current avatars are readable" on storage.objects
   for select to anon, authenticated
   using (
     bucket_id = 'avatars'
+    and (metadata ->> 'size')::bigint <= 524288
+    and metadata ->> 'mimetype' in ('image/jpeg', 'image/webp')
     and exists (select 1 from public.profiles p where p.avatar_key = objects.name)
   );
 

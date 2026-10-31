@@ -28,13 +28,18 @@ export const profileLinkHosts = [
   "youtube.com",
 ] as const;
 
-// Same rule as the database (private.link_url_allowed): https, no port or
-// user info, and an allowed host.
+// Control characters and text direction marks, which can disguise a link.
+// The database rejects the same ones in labels and URLs.
+export const UNSAFE_CHARS =
+  /[\u0001-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
+
+// Same rule as the database (private.link_url_allowed): https, a lower case
+// host, no port or user info, and an allowed host.
 export function isAllowedLinkUrl(value: string): boolean {
-  if (value.length > LINK_URL_MAX) return false;
-  const match = /^https:\/\/([a-z0-9.-]+)(\/\S*)?$/i.exec(value);
+  if (value.length > LINK_URL_MAX || UNSAFE_CHARS.test(value)) return false;
+  const match = /^https:\/\/([a-z0-9.-]+)(\/\S*)?$/.exec(value);
   if (!match) return false;
-  const host = match[1]!.toLowerCase();
+  const host = match[1]!;
   return profileLinkHosts.some((h) => host === h || host.endsWith(`.${h}`));
 }
 

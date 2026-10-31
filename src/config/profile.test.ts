@@ -23,6 +23,8 @@ describe("isAllowedLinkUrl", () => {
     "https://user@soundcloud.com/",
     "javascript:alert(1)",
     "https://soundcloud.com/a b",
+    "HTTPS://SOUNDCLOUD.COM/x",
+    "https://soundcloud.com/\u202eevil",
     `https://soundcloud.com/${"a".repeat(300)}`,
   ])("rejects %s", (url) => {
     expect(isAllowedLinkUrl(url)).toBe(false);

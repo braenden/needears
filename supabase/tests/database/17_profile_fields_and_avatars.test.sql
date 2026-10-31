@@ -1,7 +1,7 @@
 -- Profile links, working on, DAW, and uploaded profile pictures.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(29);
 \ir _helpers.psql
 
 -- Links ----------------------------------------------------------------------
@@ -30,6 +30,16 @@ select throws_ok(
   $$ update public.profiles set links = '[{"label": "SC", "url": "https://soundcloud.com.evil.com/"}]'
      where id = '11111111-1111-4111-8111-111111111111' $$,
   '22023', 'invalid_link', 'a lookalike host is rejected'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "SC", "url": "HTTPS://SOUNDCLOUD.COM/alice"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'the host must be lower case, as in the form'
+);
+select throws_ok(
+  $$ update public.profiles set links = jsonb_build_array(jsonb_build_object('label', 'SC' || chr(8238), 'url', 'https://soundcloud.com/alice'))
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'text direction marks are rejected'
 );
 select throws_ok(
   $$ update public.profiles set links = '[{"label": "SC", "url": "https://x@soundcloud.com/"}]'
@@ -96,13 +106,23 @@ select throws_ok(
        '11111111-1111-4111-8111-111111111111') $$,
   '42501', null, 'a fourth file is refused'
 );
+select throws_ok(
+  $$ update public.profiles set avatar_key = null where id = '11111111-1111-4111-8111-111111111111' $$,
+  '42501', null, 'users cannot set avatar_key directly (POST /api/profile/avatar does)'
+);
+reset role;
+
+-- What the route does, as the service role.
+update storage.objects set metadata = '{"size": 1000, "mimetype": "image/webp"}'
+where bucket_id = 'avatars' and owner_id = '11111111-1111-4111-8111-111111111111';
+set local role service_role;
 select lives_ok(
   $$ update public.profiles
      set avatar_key = (select name from storage.objects
                        where bucket_id = 'avatars' and owner_id = '11111111-1111-4111-8111-111111111111'
                        order by name limit 1)
      where id = '11111111-1111-4111-8111-111111111111' $$,
-  'users can point avatar_key at their own upload'
+  'avatar_key can point at the user''s own upload'
 );
 select throws_ok(
   $$ update public.profiles set avatar_key = '11111111-1111-4111-8111-111111111111/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg'
@@ -116,15 +136,24 @@ select throws_ok(
 );
 reset role;
 
--- Someone else's file in alice's folder (not possible through the policy).
-insert into storage.objects (bucket_id, name, owner_id)
-values ('avatars', '11111111-1111-4111-8111-111111111111/cccccccc-cccc-4ccc-8ccc-cccccccccccc.jpg', '22222222-2222-4222-8222-222222222222');
-select set_config('request.jwt.claims', '{"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated"}', true);
-set local role authenticated;
+-- Someone else's file in alice's folder, and a file over the limit (as a
+-- copy inside Storage would leave).
+insert into storage.objects (bucket_id, name, owner_id, metadata)
+values
+  ('avatars', '11111111-1111-4111-8111-111111111111/cccccccc-cccc-4ccc-8ccc-cccccccccccc.jpg',
+    '22222222-2222-4222-8222-222222222222', '{"size": 1000, "mimetype": "image/jpeg"}'),
+  ('avatars', '11111111-1111-4111-8111-111111111111/dddddddd-dddd-4ddd-8ddd-dddddddddddd.jpg',
+    '11111111-1111-4111-8111-111111111111', '{"size": 26214400, "mimetype": "audio/mpeg"}');
+set local role service_role;
 select throws_ok(
   $$ update public.profiles set avatar_key = '11111111-1111-4111-8111-111111111111/cccccccc-cccc-4ccc-8ccc-cccccccccccc.jpg'
      where id = '11111111-1111-4111-8111-111111111111' $$,
   '22023', 'avatar_missing', 'avatar_key must be a file the user uploaded'
+);
+select throws_ok(
+  $$ update public.profiles set avatar_key = '11111111-1111-4111-8111-111111111111/dddddddd-dddd-4ddd-8ddd-dddddddddddd.jpg'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'avatar_missing', 'avatar_key must be an image within the bucket limits'
 );
 reset role;
 
@@ -143,7 +172,7 @@ update storage.objects set created_at = now() - interval '4 hours' where bucket_
 select is(
   (select count(*)::int from public.orphaned_upload_objects(500) o
    where o.bucket_id = 'avatars' and o.name like '11111111-%'),
-  3,
+  4,
   'cleanup finds the unused avatar files and skips the current one'
 );
 
@@ -153,6 +182,10 @@ set local role authenticated;
 select ok(
   not public.can_upload_avatar('22222222-2222-4222-8222-222222222222/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jpg'),
   'banned users cannot upload avatars'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[]', working_on = 'Spam' where id = '22222222-2222-4222-8222-222222222222' $$,
+  '42501', 'not_allowed', 'banned users cannot change their profile links or text'
 );
 reset role;
 
