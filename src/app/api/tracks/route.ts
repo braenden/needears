@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/api/auth";
 import { BodyError, databaseError, jsonError, readJson } from "@/lib/api/http";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_DURATION_MS, MIN_DURATION_MS } from "@/config/upload";
+import { LOUDNESS_MAX, LOUDNESS_MIN } from "@/config/versions";
 import { objectKeys } from "@/lib/upload/keys";
 import { verifyUpload } from "@/lib/upload/verify";
 import { Constants } from "@/types/database";
@@ -21,6 +22,13 @@ const bodySchema = z
     feedbackWants: z.array(z.enum(enums.feedback_category)).max(5).default([]),
     level: z.enum(enums.track_level).nullable().default(null),
     durationMs: z.number().int().min(MIN_DURATION_MS).max(MAX_DURATION_MS),
+    // Integrated loudness in LUFS, measured while decoding. Optional.
+    loudness: z
+      .number()
+      .min(LOUDNESS_MIN)
+      .max(LOUDNESS_MAX)
+      .nullable()
+      .default(null),
     waveformColor: z
       .string()
       .regex(/^#[0-9a-f]{6}$/)
@@ -105,6 +113,16 @@ export async function POST(request: Request) {
   if (inserted.error) {
     if (inserted.error.code !== "23505") await removeUnusedObjects(admin, keys);
     return databaseError(inserted.error);
+  }
+
+  // Version 1 was created with the track; it carries the loudness.
+  if (input.loudness !== null) {
+    const loud = await admin
+      .from("track_versions")
+      .update({ loudness: Math.round(input.loudness * 100) / 100 })
+      .eq("track_id", inserted.data.id)
+      .eq("version_no", 1);
+    if (loud.error) console.error("Could not store loudness", loud.error.code);
   }
 
   const ip = clientIp(request);

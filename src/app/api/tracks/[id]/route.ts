@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/api/auth";
 import { databaseError, jsonError } from "@/lib/api/http";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Deletes a track and its audio and peaks. Users have no delete grant on
+// Deletes a track and the audio and peaks of all its versions. Users have no delete grant on
 // tracks, so this route is the only way, and the files always go with the
 // row. Owners can delete live tracks without open reports; tracks hidden or
 // taken down by moderation, and reported ones, stay as a record until an
@@ -62,13 +62,24 @@ export async function DELETE(
   // between the read above and now.
   if (!admin.data)
     query = query.eq("owner_id", auth.user.id).eq("status", "live");
+  // Every version's files go with the track.
+  const versions = await service
+    .from("track_versions")
+    .select("audio_key, peaks_key")
+    .eq("track_id", id);
+  if (versions.error) return databaseError(versions.error);
   const deleted = await query.select("audio_key, peaks_key").maybeSingle();
   if (deleted.error) return databaseError(deleted.error);
   if (!deleted.data) return jsonError(404, "not_found", "No such track.");
 
+  const files = [deleted.data, ...versions.data];
   const [audio, peaks] = await Promise.all([
-    service.storage.from("audio").remove([deleted.data.audio_key]),
-    service.storage.from("peaks").remove([deleted.data.peaks_key]),
+    service.storage
+      .from("audio")
+      .remove([...new Set(files.map((f) => f.audio_key))]),
+    service.storage
+      .from("peaks")
+      .remove([...new Set(files.map((f) => f.peaks_key))]),
   ]);
   if (audio.error || peaks.error) {
     console.error("Track deleted but objects remain", id);
