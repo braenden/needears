@@ -52,7 +52,7 @@ import type {
 } from "@/types/view";
 
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, parent_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+  "id, track_id, author_id, parent_id, version_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
 
 // Only the owner needs these, so everyone else never downloads them.
 const NewVersion = dynamic(
