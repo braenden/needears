@@ -50,6 +50,39 @@ const widthFor = (parent: HTMLElement) =>
   Math.round(Math.min(400, Math.max(200, parent.clientWidth)));
 
 /**
+ * Resolves once the container has its final width: fonts loaded, two frames
+ * laid out, and not hidden (after a client-side navigation the new page can
+ * be in the document before it is shown, at zero width). Google keeps the
+ * width it is given the first time, so it must not measure too early.
+ */
+async function laidOut(parent: HTMLElement, signal: AbortSignal) {
+  await document.fonts?.ready;
+  await new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  );
+  if (parent.clientWidth > 0 || typeof ResizeObserver === "undefined") return;
+  if (signal.aborted) return;
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      wait.disconnect();
+      resolve();
+    };
+    const wait = new ResizeObserver(() => {
+      if (parent.clientWidth > 0) done();
+    });
+    wait.observe(parent);
+    // Unmounted while still hidden: stop watching.
+    signal.addEventListener("abort", done, { once: true });
+  });
+}
+
+/** How wide Google actually drew its button, or null before it has. */
+function drawnWidth(parent: HTMLElement) {
+  const button = parent.querySelector("iframe") ?? parent.firstElementChild;
+  return button ? button.getBoundingClientRect().width : null;
+}
+
+/**
  * Draws (or redraws) Google's button to fit our page: dark or light like the
  * site, as wide as the email button, square corners like ours.
  */
@@ -58,6 +91,8 @@ function paintButton(parent: HTMLElement) {
   if (!id) return false;
   const light = document.documentElement.classList.contains("light");
   parent.replaceChildren();
+  const width = widthFor(parent);
+  parent.dataset.width = String(width);
   id.renderButton(parent, {
     type: "standard",
     theme: light ? "outline" : "filled_black",
@@ -65,7 +100,7 @@ function paintButton(parent: HTMLElement) {
     text: "continue_with",
     shape: "rectangular",
     logo_alignment: "left",
-    width: widthFor(parent),
+    width,
     // The site is in English; Google would follow the browser's language.
     locale: "en",
   });
@@ -98,30 +133,68 @@ export function GoogleButton({
   const nonce = useRef<string | null>(null);
   const [drawn, setDrawn] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
+  // Aborted when the button leaves the page.
+  const life = useRef<AbortController | null>(null);
+  // Set once the pointer or focus has been on Google's button. Redrawing
+  // removes Google's frame, and with its popup open that would drop the
+  // token on the floor, so after that nothing is redrawn on its own.
+  const touched = useRef(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    life.current = controller;
+    const parent = mount.current;
+    const touch = () => {
+      touched.current = true;
+    };
+    // Events inside Google's frame stay there, but moving onto the frame,
+    // pressing it and tabbing into it all reach its element here.
+    const events = ["pointerover", "pointerdown", "focusin"] as const;
+    for (const type of events) parent?.addEventListener(type, touch);
+    return () => {
+      controller.abort();
+      for (const type of events) parent?.removeEventListener(type, touch);
+    };
+  }, []);
 
   useEffect(() => {
     const parent = mount.current;
-    if (!drawn || !parent) return;
-    let width = widthFor(parent);
+    if (!drawn || signingIn || !parent) return;
+    const redraw = () => {
+      if (!touched.current) paintButton(parent);
+    };
+    const painted = () => Number(parent.dataset.width);
     const resize =
       typeof ResizeObserver === "undefined"
         ? null
         : new ResizeObserver(() => {
-            if (widthFor(parent) === width) return;
-            width = widthFor(parent);
-            paintButton(parent);
+            if (parent.clientWidth === 0) return;
+            if (widthFor(parent) !== painted()) redraw();
           });
     resize?.observe(parent);
-    const theme = new MutationObserver(() => paintButton(parent));
+    const theme = new MutationObserver(redraw);
     theme.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
     });
+    // The personalized button ("Continue as ...") loads in a moment and has
+    // come out narrow before. If it ends up narrower than asked for, draw it
+    // again, twice at most.
+    let retries = 2;
+    const check = () => {
+      const width = drawnWidth(parent);
+      if (width === null || width >= painted() - 4 || retries === 0) return;
+      retries--;
+      redraw();
+    };
+    const timers = [400, 1500, 3000].map((ms) => setTimeout(check, ms));
+    // Also cleared as soon as a sign-in starts.
     return () => {
       resize?.disconnect();
       theme.disconnect();
+      timers.forEach(clearTimeout);
     };
-  }, [drawn]);
+  }, [drawn, signingIn]);
 
   async function draw() {
     const id = window.google?.accounts.id;
@@ -139,6 +212,13 @@ export function GoogleButton({
         if (response.credential) void finish(response.credential);
       },
     });
+    const signal = life.current?.signal;
+    if (!signal) return;
+    await laidOut(parent, signal);
+    if (signal.aborted || !parent.isConnected) return;
+    // Drawn on purpose (first time, or again after a failed sign-in, when
+    // Google's popup has closed), so the automatic redraws may run again.
+    touched.current = false;
     if (paintButton(parent)) setDrawn(true);
   }
 

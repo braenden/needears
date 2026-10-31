@@ -25,6 +25,10 @@ test("pages send a nonce based CSP and the hardening headers", async ({
   expect(headers["strict-transport-security"]).toContain("max-age=");
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["x-frame-options"]).toBe("DENY");
+  // Google's sign-in popup needs its opener to hand back the token.
+  expect(headers["cross-origin-opener-policy"]).toBe(
+    "same-origin-allow-popups",
+  );
   expect(headers["referrer-policy"]).toBeTruthy();
   expect(headers["permissions-policy"]).toBeTruthy();
 });

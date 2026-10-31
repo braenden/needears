@@ -11,8 +11,12 @@ const securityHeaders = [
     value: "max-age=63072000; includeSubDomains; preload",
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // Pages opened from here (or that open us) get no handle to this window.
-  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  // Pages that open us get no handle to this window. Popups we open keep
+  // theirs: Google's sign-in popup hands the token back through it, and
+  // with same-origin it shows a blank page and nothing happens. On every
+  // page, because moving to /login without a full load keeps the first
+  // page's headers.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // frame-ancestors in the CSP does the same for modern browsers.
   { key: "X-Frame-Options", value: "DENY" },
