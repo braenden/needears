@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -20,6 +20,7 @@ import {
 } from "@/components/comments/comment-list";
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
+import { useSharedAudio } from "@/components/player/shared-audio";
 import {
   type TimeRange,
   WaveformPlayer,
@@ -136,6 +137,15 @@ export function TrackView({
     null,
   );
   const countPlay = usePlayCounter(track.id, track.duration_ms);
+  // The site's shared audio element. When the feed was playing this track,
+  // the page carries on from the same address, without starting over.
+  const shared = useSharedAudio();
+  const [audioOwner] = useState(() => ({}));
+  const [carriedSrc] = useState(() => shared.playingSrc(track.id));
+  useEffect(() => {
+    shared.claim(audioOwner, { id: track.id, slug: track.slug });
+    return () => shared.release(audioOwner);
+  }, [shared, audioOwner, track.id, track.slug]);
   const [reporting, setReporting] = useState<
     { type: "track" } | { type: "comment"; id: string } | null
   >(null);
@@ -151,7 +161,7 @@ export function TrackView({
     durationMs: current?.duration_ms ?? track.duration_ms,
     peaks: current?.peaks ?? track.peaks,
     // The latest version's URL is refreshed when it expires.
-    audioUrl: isLatest ? audioUrl : (current?.audioUrl ?? null),
+    audioUrl: isLatest ? (carriedSrc ?? audioUrl) : (current?.audioUrl ?? null),
   };
   const measured = versions
     .map((v) => v.loudness)
@@ -478,6 +488,7 @@ export function TrackView({
           currentVersionId={versioned ? current?.id : undefined}
           versionNumbers={versioned ? versionNumbers : undefined}
           gainDb={gainDb}
+          media={() => shared.get()}
           rangeSelect
           range={range}
           onRangeChange={setRange}
