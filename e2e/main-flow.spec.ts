@@ -70,6 +70,18 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
     ).toBeVisible();
   });
 
+  await test.step("listening to the whole short track counts one play", async () => {
+    const counted = listener.waitForResponse(
+      (r) => r.url().endsWith("/play") && r.request().method() === "POST",
+      { timeout: 20_000 },
+    );
+    await listener.getByRole("button", { name: "Play", exact: true }).click();
+    const response = await counted;
+    expect(await response.json()).toEqual({ counted: true });
+    await listener.reload();
+    await expect(listener.getByText("1 play", { exact: true })).toBeVisible();
+  });
+
   await test.step("the producer marks it Helpful and reports it", async () => {
     await owner.goto(trackPath);
     await expect(

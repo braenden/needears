@@ -29,7 +29,9 @@ import { ReputationBadge } from "@/components/reputation-badge";
 import { Badge } from "@/components/ui/badge";
 import { FEEDBACK_WANT_LABELS, LEVEL_DISPLAY_LABELS } from "@/config/labels";
 import { siteUrl } from "@/config/site";
+import { usePlayCounter } from "@/hooks/use-play-counter";
 import { useSignedUrl } from "@/hooks/use-signed-url";
+import { formatPlays } from "@/lib/plays";
 import { browserClient } from "@/lib/supabase/lazy";
 import type {
   Comment,
@@ -76,6 +78,7 @@ export function TrackView({
   const [mine, setMine] = useState(initialReactions);
   const [counts, setCounts] = useState(track.reaction_counts);
   const [filter, setFilter] = useState<CommentFilter>(initialFilter);
+  const countPlay = usePlayCounter(track.id, track.duration_ms);
   const [reporting, setReporting] = useState<
     { type: "track" } | { type: "comment"; id: string } | null
   >(null);
@@ -237,6 +240,9 @@ export function TrackView({
             {track.genre.name}
           </Link>
           <RelativeTime date={track.published_at} />
+          {track.play_count > 0 ? (
+            <span data-numeric>{formatPlays(track.play_count)}</span>
+          ) : null}
         </div>
       </header>
 
@@ -254,6 +260,7 @@ export function TrackView({
           onTimeChange={(ms) => {
             setTimeMs(ms);
             setSelectedId(null);
+            countPlay(ms);
           }}
           onMarkerSelect={(c) => setSelectedId(c.id)}
           onCommentHere={(ms) =>
