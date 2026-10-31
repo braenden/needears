@@ -37,6 +37,27 @@
 -- search path, and only touch auth tables, private.identity_intents and
 -- email_queue.
 
+-- The guards read and change auth tables as postgres. If postgres ever
+-- lacks what they need, stop here instead of installing a guard that would
+-- fail open or break sign in.
+do $$
+begin
+  if not (select rolbypassrls from pg_roles where rolname = 'postgres') then
+    raise exception 'postgres needs BYPASSRLS for the identity guards';
+  end if;
+  if not has_table_privilege('postgres', 'auth.flow_state', 'select')
+    or not has_table_privilege('postgres', 'auth.flow_state', 'delete')
+    or not has_table_privilege('postgres', 'auth.identities', 'select')
+    or not has_table_privilege('postgres', 'auth.identities', 'trigger')
+    or not has_table_privilege('postgres', 'auth.users', 'select')
+    or not has_table_privilege('postgres', 'auth.users', 'update')
+    or not has_table_privilege('postgres', 'auth.users', 'trigger')
+  then
+    raise exception 'postgres is missing privileges on auth tables needed by the identity guards';
+  end if;
+end;
+$$;
+
 -- Intents ------------------------------------------------------------------
 
 create table private.identity_intents (
@@ -147,8 +168,10 @@ begin
   if exists (
     select 1 from auth.flow_state f
     where f.linking_target_id = new.user_id
+      -- Auth's clock and the database's can differ slightly; older flows
+      -- are already deleted when the intent is made, so a margin is safe.
       and f.created_at < (
-        select min(i.created_at) from private.identity_intents i
+        select min(i.created_at) - interval '5 seconds' from private.identity_intents i
         where i.user_id = new.user_id
           and i.action = 'link'
           and i.provider = new.provider

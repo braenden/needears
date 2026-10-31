@@ -58,6 +58,11 @@ export async function POST(request: Request) {
     return jsonError(500, "intent_failed", "Something went wrong. Try again.");
   }
 
+  // A request from another session that passed Auth's checks just before
+  // the sign out can still be finishing. Wait it out before the intent
+  // exists, so it cannot use it.
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+
   const created = await admin.rpc("create_identity_intent", {
     p_user: auth.user.id,
     p_action: body.data.action,
