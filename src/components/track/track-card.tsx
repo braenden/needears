@@ -13,7 +13,7 @@ import type { TrackSummary as Track } from "@/types/view";
 
 import { MiniWaveform } from "./mini-waveform";
 
-/** Tracks with 0 or 1 comments are the ones that need ears (plan part 3). */
+/** Tracks with 0 or 1 comments are the ones that need ears. */
 export function needsEars(track: Pick<Track, "comment_count">) {
   return track.comment_count <= 1;
 }

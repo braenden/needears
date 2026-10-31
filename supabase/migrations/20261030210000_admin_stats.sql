@@ -1,4 +1,4 @@
--- Numbers for /admin/stats (plan parts 10 and 12).
+-- Numbers for /admin/stats.
 --
 -- "Today" starts at midnight Oslo time, where the only admin lives.
 --
