@@ -15,6 +15,8 @@ export const TAG_PATTERN = /^[a-z0-9]([a-z0-9 -]{0,22}[a-z0-9])?$/;
 
 export const COMMENT_MAX = 2000;
 export const REPORT_DETAILS_MAX = 1000;
+// The reason an admin gives in a moderation notice.
+export const MODERATION_REASON_MAX = 500;
 
 // Feeds: the database caps the page size at 50. The page number is capped
 // here so a crafted URL cannot ask Postgres for a huge offset (issue 022).

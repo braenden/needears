@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/types/view";
+import { LISTED_NOTIFICATION_KINDS } from "@/lib/data/notification-kinds";
 
 export type Viewer = {
   userId: string;
@@ -35,6 +36,7 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
+      .in("kind", [...LISTED_NOTIFICATION_KINDS])
       .is("read_at", null),
   ]);
   if (!profile.data) return null;

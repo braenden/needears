@@ -111,32 +111,41 @@ export type Database = {
       };
       notifications: {
         Row: {
+          action: string | null;
           actor_id: string | null;
           comment_id: string | null;
           created_at: string;
           id: string;
           kind: Database["public"]["Enums"]["notification_kind"];
           read_at: string | null;
+          reason: string | null;
+          target: Database["public"]["Enums"]["report_target"] | null;
           track_id: string | null;
           user_id: string;
         };
         Insert: {
+          action?: string | null;
           actor_id?: string | null;
           comment_id?: string | null;
           created_at?: string;
           id?: string;
           kind: Database["public"]["Enums"]["notification_kind"];
           read_at?: string | null;
+          reason?: string | null;
+          target?: Database["public"]["Enums"]["report_target"] | null;
           track_id?: string | null;
           user_id: string;
         };
         Update: {
+          action?: string | null;
           actor_id?: string | null;
           comment_id?: string | null;
           created_at?: string;
           id?: string;
           kind?: Database["public"]["Enums"]["notification_kind"];
           read_at?: string | null;
+          reason?: string | null;
+          target?: Database["public"]["Enums"]["report_target"] | null;
           track_id?: string | null;
           user_id?: string;
         };
@@ -515,6 +524,7 @@ export type Database = {
     Functions: {
       admin_resolve_report: {
         Args: {
+          p_reason?: string;
           p_report: string;
           p_status: Database["public"]["Enums"]["report_status"];
         };
@@ -527,12 +537,14 @@ export type Database = {
       admin_set_comment_status: {
         Args: {
           p_comment: string;
+          p_reason?: string;
           p_status: Database["public"]["Enums"]["comment_status"];
         };
         Returns: undefined;
       };
       admin_set_track_status: {
         Args: {
+          p_reason?: string;
           p_status: Database["public"]["Enums"]["track_status"];
           p_track: string;
         };
@@ -692,7 +704,7 @@ export type Database = {
       comment_status: "live" | "hidden" | "deleted";
       feedback_category:
         "mix" | "arrangement" | "vocals" | "sound_design" | "vibe";
-      notification_kind: "comment" | "reply" | "helpful";
+      notification_kind: "comment" | "reply" | "helpful" | "moderation";
       reaction_kind: "fire" | "heart" | "eyes" | "headphones";
       report_reason:
         "spam" | "harassment" | "hate" | "copyright" | "ai_generated" | "other";
@@ -836,7 +848,7 @@ export const Constants = {
         "sound_design",
         "vibe",
       ],
-      notification_kind: ["comment", "reply", "helpful"],
+      notification_kind: ["comment", "reply", "helpful", "moderation"],
       reaction_kind: ["fire", "heart", "eyes", "headphones"],
       report_reason: [
         "spam",
