@@ -107,6 +107,22 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
     await dialog.getByRole("button", { name: "Close" }).first().click();
   });
 
+  await test.step("the producer edits the details after publishing", async () => {
+    await owner.getByRole("button", { name: "Edit details" }).click();
+    const dialog = owner.getByRole("dialog");
+    await dialog.getByLabel("Title").fill(`${title} v2`);
+    await dialog.getByLabel(/Description/).fill("Second pass on the drums.");
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog).toBeHidden();
+
+    // Stored, and the link stays the same.
+    await owner.goto(trackPath);
+    await expect(
+      owner.getByRole("heading", { name: `${title} v2` }),
+    ).toBeVisible();
+    await expect(owner.getByText("Second pass on the drums.")).toBeVisible();
+  });
+
   await test.step("the producer deletes the account", async () => {
     await owner.goto("/settings");
     await owner.getByRole("button", { name: "Delete my account" }).click();

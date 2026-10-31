@@ -1,5 +1,4 @@
 import type { UploadPipeline } from "@/components/upload/upload-wizard";
-import { TAG_PATTERN, TAGS_MAX } from "@/config/limits";
 import {
   AUDIO_MAX_BYTES,
   AUDIO_MIME,
@@ -20,16 +19,7 @@ import {
   signUpload,
   UploadError,
 } from "./client";
-
-// "Deep House, lo-fi,, " -> ["deep house", "lo-fi"]; anything the database
-// would refuse is dropped rather than failing the whole upload.
-export function parseTags(value: string): string[] {
-  const tags = value
-    .split(",")
-    .map((t) => t.trim().toLowerCase().replace(/\s+/g, " "))
-    .filter((t) => TAG_PATTERN.test(t));
-  return [...new Set(tags)].slice(0, TAGS_MAX);
-}
+import { parseTags } from "./tags";
 
 function isMp3(file: File) {
   return /\.mp3$/i.test(file.name) || file.type === "audio/mpeg";

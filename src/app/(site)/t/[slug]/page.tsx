@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { reputationLevelFor } from "@/config/reputation";
+import { getGenres } from "@/lib/data/profiles";
 import { getTrackPage } from "@/lib/data/tracks";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
@@ -67,6 +68,10 @@ export default async function TrackPage({
     mine = (rows ?? []).map((r) => r.kind);
   }
 
+  // The owner can edit the details, genre included.
+  const genres =
+    viewer && viewer.userId === track.owner_id ? await getGenres() : null;
+
   const filter =
     query.filter === "helpful" || query.filter === "trusted"
       ? query.filter
@@ -90,6 +95,7 @@ export default async function TrackPage({
       }
       startSeconds={startSeconds(query.t, track.duration_ms)}
       initialFilter={filter}
+      genres={genres}
     />
   );
 }
