@@ -28,7 +28,7 @@ const FEED_FUNCTIONS = {
 const OWNER =
   "owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
 const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, play_count, published_at, feedback_wants, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), ${OWNER}`;
-const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, description, tags, level, status, owner_id`;
+const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, description, tags, level, status, owner_id, reference_url`;
 
 // Bars in the card waveform (MiniWaveform's default).
 const CARD_BARS = 72;
@@ -145,7 +145,7 @@ export type PlayableVersion = TrackVersion & {
 };
 
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, parent_id, version_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
+  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
 
 // Everything the track page needs, read as the visitor, so RLS decides what
 // they see. Null when the track does not exist or is not visible to them.
@@ -161,7 +161,10 @@ export async function getTrackPage(
   if (error) throw new Error(`Track failed: ${error.code}`);
   if (!data) return null;
   const row = data as unknown as SummaryRow &
-    Pick<Track, "description" | "tags" | "level" | "status" | "owner_id">;
+    Pick<
+      Track,
+      "description" | "tags" | "level" | "status" | "owner_id" | "reference_url"
+    >;
   if (!row.owner || !row.genre || row.status === "deleted") return null;
 
   const [comments, versionRows] = await Promise.all([
@@ -234,6 +237,7 @@ export async function getTrackPage(
       level: row.level,
       status: row.status,
       owner_id: row.owner_id,
+      reference_url: row.reference_url,
     },
     audioUrl: urls.get(row.audio_key) ?? null,
     comments: rows.map((c, i) => ({ ...c, author: authors[i]! })),

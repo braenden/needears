@@ -21,6 +21,7 @@ import {
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import {
+  type TimeRange,
   WaveformPlayer,
   type WaveformPlayerHandle,
 } from "@/components/player/waveform-player";
@@ -28,6 +29,11 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { ReportDialog, type ReportResult } from "@/components/report-dialog";
 import { ReputationBadge } from "@/components/reputation-badge";
 import type { EditTrackResult } from "@/components/track/edit-track-dialog";
+import {
+  ExportMarkersMenu,
+  markersHref,
+} from "@/components/track/export-markers-menu";
+import { ReferenceLink } from "@/components/track/reference-link";
 import { VersionPicker } from "@/components/versions/version-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,7 +59,7 @@ import type {
 } from "@/types/view";
 
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, parent_id, time_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
 
 // Only the owner needs these, so everyone else never downloads them.
 const NewVersion = dynamic(
@@ -123,6 +129,7 @@ export function TrackView({
   const [filter, setFilter] = useState<CommentFilter>(initialFilter);
   const [showResolved, setShowResolved] = useState(initialShowResolved);
   const [editing, setEditing] = useState(false);
+  const [range, setRange] = useState<TimeRange | null>(null);
   const latest = versions[versions.length - 1];
   const [versionId, setVersionId] = useState(latest?.id ?? null);
   const [previousVersionId, setPreviousVersionId] = useState<string | null>(
@@ -203,6 +210,7 @@ export function TrackView({
         body: draft.body,
         category: draft.category,
         time_ms: draft.timeMs,
+        ...(draft.endMs != null ? { end_ms: draft.endMs } : {}),
         // Left out, the database uses the latest version.
         ...(versioned && current ? { version_id: current.id } : {}),
       })
@@ -375,6 +383,8 @@ export function TrackView({
         tags: parseTags(details.tags),
         feedback_wants: details.feedbackWants,
         level: details.level,
+        // An empty string clears it.
+        reference_url: details.reference.trim(),
         ...(genreId === undefined ? {} : { genre_id: genreId }),
       })
       .eq("id", track.id)
@@ -468,6 +478,9 @@ export function TrackView({
           currentVersionId={versioned ? current?.id : undefined}
           versionNumbers={versioned ? versionNumbers : undefined}
           gainDb={gainDb}
+          rangeSelect
+          range={range}
+          onRangeChange={setRange}
           initialTimeMs={startSeconds * 1000}
           comments={topLevel}
           activeCommentId={activeId}
@@ -499,6 +512,9 @@ export function TrackView({
           <p className="max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-line">
             {track.description}
           </p>
+        ) : null}
+        {track.reference_url ? (
+          <ReferenceLink url={track.reference_url} />
         ) : null}
         <dl className="grid gap-1 text-sm">
           {track.feedback_wants.length > 0 ? (
@@ -577,16 +593,34 @@ export function TrackView({
       </section>
 
       <section aria-labelledby="comments-heading" className="mt-10">
-        <h2
-          id="comments-heading"
-          className="mb-4 text-xl font-semibold tracking-tight"
-        >
-          Comments
-        </h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2
+            id="comments-heading"
+            className="text-xl font-semibold tracking-tight"
+          >
+            Comments
+          </h2>
+          {track.status === "live" ? (
+            <ExportMarkersMenu
+              trackId={track.id}
+              timedCommentCount={
+                topLevel.filter((c) => onVersion(c) && c.time_ms !== null)
+                  .length
+              }
+              hrefFor={(id, format) =>
+                versioned && current
+                  ? `${markersHref(id, format)}&version=${current.version_no}`
+                  : markersHref(id, format)
+              }
+            />
+          ) : null}
+        </div>
         <CommentComposer
           ref={composer}
           currentTimeMs={timeMs}
           durationMs={playing.durationMs}
+          range={range}
+          onClearRange={() => setRange(null)}
           signedIn={Boolean(viewer)}
           commentsPerHour={viewer?.commentsPerHour}
           onSubmit={submit}

@@ -1,5 +1,6 @@
 import type { TrackLevel, FeedbackWant } from "@/types/view";
 
+import { referenceError } from "@/components/track/reference-link";
 import { TAGS_MAX, TITLE_MAX } from "@/config/limits";
 import {
   INPUT_EXTENSIONS,
@@ -38,9 +39,13 @@ export type Details = {
   description: string;
   feedbackWants: FeedbackWant[];
   level: TrackLevel | null;
+  /** A link to a track the uploader is aiming for. Optional. */
+  reference: string;
 };
 
-export type DetailErrors = Partial<Record<"title" | "genre", string>>;
+export type DetailErrors = Partial<
+  Record<"title" | "genre" | "reference", string>
+>;
 
 export type UploadState = {
   step: "file" | "details" | "publish" | "done";
@@ -79,6 +84,7 @@ export const initialUploadState: UploadState = {
     genre: "",
     tags: "",
     description: "",
+    reference: "",
     feedbackWants: [],
     level: null,
   },
@@ -114,6 +120,8 @@ export function validateDetails(details: Details) {
   else if (details.title.length > UPLOAD_LIMITS.titleMax)
     errors.title = `Titles can be up to ${UPLOAD_LIMITS.titleMax} characters.`;
   if (!details.genre) errors.genre = "Pick a genre.";
+  const reference = referenceError(details.reference);
+  if (reference) errors.reference = reference;
   return errors;
 }
 

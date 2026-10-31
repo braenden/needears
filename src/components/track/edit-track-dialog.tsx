@@ -31,6 +31,7 @@ export function detailsOf(track: Track): Details {
     description: track.description,
     feedbackWants: track.feedback_wants,
     level: track.level,
+    reference: track.reference_url ?? "",
   };
 }
 
