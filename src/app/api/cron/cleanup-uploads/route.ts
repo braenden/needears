@@ -1,22 +1,13 @@
-import { timingSafeEqual } from "node:crypto";
+import { isCronRequest } from "@/lib/api/cron";
 import { jsonError } from "@/lib/api/http";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-function authorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  const header = request.headers.get("authorization") ?? "";
-  if (!secret) return false;
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const actual = Buffer.from(header);
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
 
 // Removes uploaded files that nothing uses: abandoned or rejected uploads,
 // and anything uploaded later with an old signed URL. The database decides
 // what is orphaned (public.orphaned_upload_objects). Run daily by Vercel
 // Cron (vercel.json), which sends `Authorization: Bearer $CRON_SECRET`.
 export async function GET(request: Request) {
-  if (!authorized(request))
+  if (!isCronRequest(request))
     return jsonError(401, "unauthorized", "Not allowed.");
 
   const admin = createAdminClient();
@@ -30,7 +21,7 @@ export async function GET(request: Request) {
       return jsonError(500, "cleanup_failed", "Could not list files.");
     if (orphans.data.length === 0) break;
 
-    for (const bucket of ["audio", "peaks"] as const) {
+    for (const bucket of ["audio", "peaks", "avatars"] as const) {
       const names = orphans.data
         .filter((o) => o.bucket_id === bucket)
         .map((o) => o.name);

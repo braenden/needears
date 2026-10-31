@@ -79,6 +79,51 @@ export type Database = {
           },
         ];
       };
+      email_queue: {
+        Row: {
+          attempts: number;
+          claimed_at: string | null;
+          created_at: string;
+          id: number;
+          notification_id: string;
+          sent_at: string | null;
+          user_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          claimed_at?: string | null;
+          created_at?: string;
+          id?: never;
+          notification_id: string;
+          sent_at?: string | null;
+          user_id: string;
+        };
+        Update: {
+          attempts?: number;
+          claimed_at?: string | null;
+          created_at?: string;
+          id?: never;
+          notification_id?: string;
+          sent_at?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "email_queue_notification_id_fkey";
+            columns: ["notification_id"];
+            isOneToOne: true;
+            referencedRelation: "notifications";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "email_queue_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       genres: {
         Row: {
           id: number;
@@ -97,34 +142,55 @@ export type Database = {
         };
         Relationships: [];
       };
+      link_hosts: {
+        Row: {
+          host: string;
+        };
+        Insert: {
+          host: string;
+        };
+        Update: {
+          host?: string;
+        };
+        Relationships: [];
+      };
       notifications: {
         Row: {
+          action: string | null;
           actor_id: string | null;
           comment_id: string | null;
           created_at: string;
           id: string;
           kind: Database["public"]["Enums"]["notification_kind"];
           read_at: string | null;
+          reason: string | null;
+          target: Database["public"]["Enums"]["report_target"] | null;
           track_id: string | null;
           user_id: string;
         };
         Insert: {
+          action?: string | null;
           actor_id?: string | null;
           comment_id?: string | null;
           created_at?: string;
           id?: string;
           kind: Database["public"]["Enums"]["notification_kind"];
           read_at?: string | null;
+          reason?: string | null;
+          target?: Database["public"]["Enums"]["report_target"] | null;
           track_id?: string | null;
           user_id: string;
         };
         Update: {
+          action?: string | null;
           actor_id?: string | null;
           comment_id?: string | null;
           created_at?: string;
           id?: string;
           kind?: Database["public"]["Enums"]["notification_kind"];
           read_at?: string | null;
+          reason?: string | null;
+          target?: Database["public"]["Enums"]["report_target"] | null;
           track_id?: string | null;
           user_id?: string;
         };
@@ -161,37 +227,52 @@ export type Database = {
       };
       profiles: {
         Row: {
+          avatar_key: string | null;
           avatar_url: string | null;
           banned_at: string | null;
           bio: string;
           created_at: string;
+          daw: string;
           display_name: string;
+          email_notifications: boolean;
           handle: string;
           id: string;
+          links: Json;
           reputation: number;
           role: Database["public"]["Enums"]["user_role"];
+          working_on: string;
         };
         Insert: {
+          avatar_key?: string | null;
           avatar_url?: string | null;
           banned_at?: string | null;
           bio?: string;
           created_at?: string;
+          daw?: string;
           display_name: string;
+          email_notifications?: boolean;
           handle: string;
           id: string;
+          links?: Json;
           reputation?: number;
           role?: Database["public"]["Enums"]["user_role"];
+          working_on?: string;
         };
         Update: {
+          avatar_key?: string | null;
           avatar_url?: string | null;
           banned_at?: string | null;
           bio?: string;
           created_at?: string;
+          daw?: string;
           display_name?: string;
+          email_notifications?: boolean;
           handle?: string;
           id?: string;
+          links?: Json;
           reputation?: number;
           role?: Database["public"]["Enums"]["user_role"];
+          working_on?: string;
         };
         Relationships: [];
       };
@@ -491,6 +572,7 @@ export type Database = {
     Functions: {
       admin_resolve_report: {
         Args: {
+          p_reason?: string;
           p_report: string;
           p_status: Database["public"]["Enums"]["report_status"];
         };
@@ -503,12 +585,14 @@ export type Database = {
       admin_set_comment_status: {
         Args: {
           p_comment: string;
+          p_reason?: string;
           p_status: Database["public"]["Enums"]["comment_status"];
         };
         Returns: undefined;
       };
       admin_set_track_status: {
         Args: {
+          p_reason?: string;
           p_status: Database["public"]["Enums"]["track_status"];
           p_track: string;
         };
@@ -533,9 +617,20 @@ export type Database = {
           waiting_tracks: number;
         }[];
       };
+      can_upload_avatar: { Args: { p_name: string }; Returns: boolean };
       can_upload_object: {
         Args: { p_extension: string; p_name: string };
         Returns: boolean;
+      };
+      email_batch: {
+        Args: { p_daily_budget?: number; p_limit?: number };
+        Returns: {
+          email: string;
+          items: Json;
+          queue_ids: number[];
+          total: number;
+          user_id: string;
+        }[];
       };
       feed_latest: {
         Args: { p_genre?: string; p_page?: number; p_page_size?: number };
@@ -629,12 +724,18 @@ export type Database = {
       };
       forget_expired_upload_reservations: { Args: never; Returns: undefined };
       is_admin: { Args: never; Returns: boolean };
+      mark_emails_failed: { Args: { p_ids: number[] }; Returns: undefined };
+      mark_emails_sent: { Args: { p_ids: number[] }; Returns: undefined };
       orphaned_upload_objects: {
         Args: { p_limit?: number };
         Returns: {
           bucket_id: string;
           name: string;
         }[];
+      };
+      record_play: {
+        Args: { p_listener: string; p_track: string; p_user?: string };
+        Returns: boolean;
       };
       reputation_level: {
         Args: { p_helpful: number };
@@ -663,7 +764,7 @@ export type Database = {
       comment_status: "live" | "hidden" | "deleted";
       feedback_category:
         "mix" | "arrangement" | "vocals" | "sound_design" | "vibe";
-      notification_kind: "comment" | "reply" | "helpful";
+      notification_kind: "comment" | "reply" | "helpful" | "moderation";
       reaction_kind: "fire" | "heart" | "eyes" | "headphones";
       report_reason:
         "spam" | "harassment" | "hate" | "copyright" | "ai_generated" | "other";
@@ -807,7 +908,7 @@ export const Constants = {
         "sound_design",
         "vibe",
       ],
-      notification_kind: ["comment", "reply", "helpful"],
+      notification_kind: ["comment", "reply", "helpful", "moderation"],
       reaction_kind: ["fire", "heart", "eyes", "headphones"],
       report_reason: [
         "spam",
