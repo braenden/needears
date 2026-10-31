@@ -2,11 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import {
-  isFreshSession,
-  REAUTH_WINDOW_MS,
-  sessionAuthenticatedAt,
-} from "@/lib/api/reauth";
+import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
 import { googleClientId } from "@/lib/auth/google-client-id";
 import { parseLinks } from "@/lib/data/profiles";
 import { getViewer } from "@/lib/data/viewer";
@@ -65,8 +61,6 @@ export default async function SettingsPage() {
       // When this session signed in, for connecting Google.
       supabase.auth.getClaims(),
     ]);
-  const signedInAt = sessionAuthenticatedAt(claims?.claims.amr);
-  const freshUntil = signedInAt === null ? null : signedInAt + REAUTH_WINDOW_MS;
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
@@ -98,7 +92,6 @@ export default async function SettingsPage() {
             googleClientId={googleClientId()}
             scriptNonce={(await headers()).get("x-nonce") ?? undefined}
             fresh={isFreshSession(claims?.claims.amr, REAUTH_WINDOW_MS)}
-            freshUntil={freshUntil}
           />
         </Section>
 

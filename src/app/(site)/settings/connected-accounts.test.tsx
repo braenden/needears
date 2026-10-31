@@ -37,8 +37,13 @@ vi.mock("@/components/auth/google-id-button", () => ({
   ),
 }));
 
-const { ConnectedAccounts, disconnectText, linkErrorText, REAUTH_TO_CONNECT } =
-  await import("./connected-accounts");
+const {
+  ConnectedAccounts,
+  disconnectText,
+  linkErrorText,
+  REAUTH_TO_CONNECT,
+  unlinkErrorText,
+} = await import("./connected-accounts");
 
 const identity = (provider: string, email: string): UserIdentity => ({
   id: `${provider}-id`,
@@ -52,11 +57,7 @@ const google = identity("google", "nora.k@gmail.com");
 
 const card = (
   identities: UserIdentity[],
-  options: Partial<{
-    fresh: boolean;
-    freshUntil: number | null;
-    googleClientId: string | null;
-  }> = {},
+  options: Partial<{ fresh: boolean; googleClientId: string | null }> = {},
 ) => (
   <ConnectedAccounts
     identities={identities}
@@ -65,16 +66,26 @@ const card = (
       "googleClientId" in options ? options.googleClientId! : "id.apps"
     }
     fresh={options.fresh ?? true}
-    freshUntil={
-      "freshUntil" in options ? options.freshUntil! : Date.now() + 600_000
-    }
   />
 );
+
+// POST /api/account/identity-intent
+const intent = vi.fn();
+const intentAnswers = {
+  ok: () => new Response(null, { status: 204 }),
+  reauth: () => Response.json({ error: "reauth_required" }, { status: 403 }),
+  broken: () => new Response(null, { status: 500 }),
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
   outcome.done = null;
+  intent.mockImplementation(async () => intentAnswers.ok());
+  vi.stubGlobal("fetch", intent);
 });
+
+const intentBody = () =>
+  JSON.parse((intent.mock.calls[0]![1] as RequestInit).body as string);
 
 describe("connecting Google", () => {
   it("links the ID token and nonce from Google's button", async () => {
@@ -85,6 +96,8 @@ describe("connecting Google", () => {
     expect(screen.getByText("Not connected")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Google button" }));
     await waitFor(() => expect(outcome.done).toBe(true));
+    expect(intent.mock.calls[0]![0]).toBe("/api/account/identity-intent");
+    expect(intentBody()).toEqual({ action: "link", provider: "google" });
     expect(auth.linkIdentity).toHaveBeenCalledWith({
       provider: "google",
       token: "id-token",
@@ -110,7 +123,7 @@ describe("connecting Google", () => {
   });
 
   it("asks for a fresh sign-in first when the last one is old", () => {
-    render(card([email], { fresh: false, freshUntil: null }));
+    render(card([email], { fresh: false }));
     expect(screen.queryByRole("button", { name: "Google button" })).toBeNull();
     expect(
       screen.getByRole("link", { name: "Connect Google" }),
@@ -118,13 +131,23 @@ describe("connecting Google", () => {
     expect(screen.getByText(/sign in again first/)).toBeInTheDocument();
   });
 
-  it("checks again when the token arrives after the window", async () => {
+  it("sends people to sign in again when the server says so", async () => {
+    intent.mockImplementation(async () => intentAnswers.reauth());
     const user = userEvent.setup();
-    render(card([email], { fresh: true, freshUntil: Date.now() - 1 }));
+    render(card([email]));
     await user.click(screen.getByRole("button", { name: "Google button" }));
     await waitFor(() => expect(outcome.done).toBe(true));
     expect(auth.linkIdentity).not.toHaveBeenCalled();
     expect(router.push).toHaveBeenCalledWith(REAUTH_TO_CONNECT);
+  });
+
+  it("does not link when the server cannot give the go-ahead", async () => {
+    intent.mockImplementation(async () => intentAnswers.broken());
+    const user = userEvent.setup();
+    render(card([email]));
+    await user.click(screen.getByRole("button", { name: "Google button" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(auth.linkIdentity).not.toHaveBeenCalled();
   });
 
   it("offers nothing to connect when Google sign-in is not set up", () => {
@@ -151,8 +174,28 @@ describe("disconnecting Google", () => {
     await waitFor(() =>
       expect(auth.unlinkIdentity).toHaveBeenCalledWith(google),
     );
+    expect(intentBody()).toEqual({ action: "unlink", provider: "google" });
     expect(toast.success).toHaveBeenCalledWith("Google disconnected.");
     expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("explains the day's wait right after connecting", async () => {
+    auth.unlinkIdentity.mockResolvedValue({
+      data: null,
+      error: { code: "unexpected_failure" },
+    });
+    const user = userEvent.setup();
+    const justNow = { ...google, created_at: new Date().toISOString() };
+    render(card([email, justNow]));
+    await user.click(screen.getByRole("button", { name: "Disconnect" }));
+    await user.click(
+      screen.getAllByRole("button", { name: "Disconnect" }).at(-1)!,
+    );
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringMatching(/for a day after a new one was connected/),
+      ),
+    );
   });
 
   it("does not let Google go when it is the only way in", () => {
@@ -185,5 +228,24 @@ describe("texts", () => {
       "Connecting a Google account isn't available right now.",
     );
     expect(linkErrorText(undefined)).toMatch(/Couldn't connect Google/);
+    // Errors from our database arrive wrapped, so they get the general text.
+    expect(linkErrorText("server_error")).toMatch(/Couldn't connect Google/);
+  });
+});
+
+describe("unlinkErrorText", () => {
+  const at = (iso: string) => ({ ...google, created_at: iso });
+  const now = Date.parse("2026-11-02T12:00:00Z");
+
+  it("explains the day's wait after a new connection", () => {
+    expect(unlinkErrorText([email, at("2026-11-02T08:00:00Z")], now)).toMatch(
+      /Try again tomorrow/,
+    );
+  });
+
+  it("is general otherwise", () => {
+    expect(unlinkErrorText([email, at("2026-10-20T08:00:00Z")], now)).toBe(
+      "Couldn't disconnect Google. Try again, or come back in a minute.",
+    );
   });
 });

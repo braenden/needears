@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { requestIdentityIntent } from "@/lib/auth/identity-intent";
 import { browserClient } from "@/lib/supabase/lazy";
 
 /** Where to prove it is you again before connecting Google. */
@@ -39,13 +40,38 @@ const emailOf = (identity: UserIdentity | null) =>
     ? identity.identity_data.email
     : null;
 
-/** What to say when connecting Google did not work. */
+/**
+ * What to say when connecting Google did not work. Supabase's own reasons
+ * come through; anything our database refuses arrives as a general error,
+ * so it gets the general message.
+ */
 export function linkErrorText(code: string | undefined): string {
   if (code === "identity_already_exists")
     return "That Google account already belongs to another profile.";
   if (code === "manual_linking_disabled")
     return "Connecting a Google account isn't available right now.";
   return "Couldn't connect Google. Try again, or come back in a minute.";
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * What to say when disconnecting did not work. For a day after a new way to
+ * sign in is connected, the database keeps the account's address from
+ * being taken away; the refusal cannot be told apart from other errors, so
+ * a recent connection is what points to it.
+ */
+export function unlinkErrorText(
+  identities: UserIdentity[],
+  now: number = Date.now(),
+): string {
+  const newest = Math.max(
+    0,
+    ...identities.map((i) => (i.created_at ? Date.parse(i.created_at) : 0)),
+  );
+  if (now - newest < DAY)
+    return "For your safety, a way to sign in can't be removed for a day after a new one was connected. Try again tomorrow.";
+  return "Couldn't disconnect Google. Try again, or come back in a minute.";
 }
 
 /** What disconnecting Google means for this person. */
@@ -74,7 +100,6 @@ export function ConnectedAccounts({
   googleClientId,
   scriptNonce,
   fresh,
-  freshUntil,
 }: {
   identities: UserIdentity[];
   /** The account's own address. */
@@ -84,21 +109,28 @@ export function ConnectedAccounts({
   scriptNonce?: string;
   /** This session signed in recently enough to connect Google. */
   fresh: boolean;
-  /** Until when (ms since 1970) it counts as recent, checked again on use. */
-  freshUntil: number | null;
 }) {
   const router = useRouter();
   const { email, google } = accountsOf(identities);
   const [disconnecting, setDisconnecting] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  async function connect(credential: string, rawNonce: string) {
-    // The page may have been open a while since the last sign-in.
-    if (freshUntil === null || Date.now() >= freshUntil) {
-      toast("Sign in again to connect Google.");
+  // Asks our server for the go-ahead. False when the person has been sent
+  // to sign in again, or it failed (and they have been told).
+  async function goAhead(action: "link" | "unlink") {
+    const result = await requestIdentityIntent(action, "google");
+    if (result === "ok") return true;
+    if (result === "reauth") {
+      toast("Sign in again to change how you sign in.");
       router.push(REAUTH_TO_CONNECT);
-      return true;
+    } else {
+      toast.error("Something broke on our side. Try again in a minute.");
     }
+    return false;
+  }
+
+  async function connect(credential: string, rawNonce: string) {
+    if (!(await goAhead("link"))) return true;
     const { error } = await (
       await browserClient()
     ).auth.linkIdentity({
@@ -118,11 +150,16 @@ export function ConnectedAccounts({
   async function disconnect() {
     if (!google || !email) return;
     setDisconnecting(true);
+    if (!(await goAhead("unlink"))) {
+      setDisconnecting(false);
+      setConfirming(false);
+      return;
+    }
     const { error } = await (await browserClient()).auth.unlinkIdentity(google);
     setDisconnecting(false);
     setConfirming(false);
     if (error) {
-      toast.error("Couldn't disconnect Google. Try again.");
+      toast.error(unlinkErrorText(identities));
       return;
     }
     toast.success("Google disconnected.");

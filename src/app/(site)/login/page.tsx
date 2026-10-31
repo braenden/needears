@@ -24,7 +24,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams;
   const next = nextPath(params.next);
   // ?reauth asks a signed in person to prove it again: before deleting the
-  // account (1) or connecting a Google account (connect).
+  // account (1) or connecting or disconnecting Google (connect).
   const reauth =
     params.reauth === "1" || params.reauth === "connect" ? params.reauth : null;
   if (!reauth && (await getViewer())) redirect(next === "/" ? "/feed" : next);
@@ -35,7 +35,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {reauth === "connect"
-          ? "Sign in again to connect Google. For your safety, connecting another way to sign in needs a recent sign-in."
+          ? "Sign in again to change how you sign in. For your safety, connecting or disconnecting Google needs a recent sign-in."
           : reauth
             ? "To delete your account, sign in again with the same Google account or email as before."
             : "Sign in to upload tracks and leave comments."}
