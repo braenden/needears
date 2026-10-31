@@ -9,10 +9,14 @@
 -- victim signs out. The rule now holds in the database, where every path
 -- into auth.identities passes.
 --
--- Allowed without a recent sign in: the first identity of a new user, and
--- an identity whose email is the user's own confirmed email (Supabase links
--- those by itself at sign in). Never allowed: removing the last identity.
--- Deleting the whole account removes identities as before.
+-- A recent sign in means an email link, Google or password sign in, not a
+-- factor someone added to an old session. Allowed without one: the first
+-- identity of a new user, an identity for the account's own email that the
+-- provider verified (Supabase links those by itself at sign in), and
+-- Supabase cleaning up an unconfirmed account. Never allowed: removing the
+-- last identity. Deleting the whole account removes identities as before.
+-- Setting a password on an existing account is blocked too: it would be
+-- another way to sign in that needs no identity.
 --
 -- When a user who already had a way to sign in gets one added or removed,
 -- we email them (email_queue rows without a notification, sent whatever the
@@ -31,6 +35,18 @@ as $$
   select interval '10 minutes';
 $$;
 
+-- The AMR methods that are a sign in. Others (totp, phone, webauthn) can be
+-- added to an existing session by whoever holds it, so they prove nothing
+-- here. Kept equal to SIGN_IN_METHODS in src/lib/api/reauth.ts.
+create function private.sign_in_methods()
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select array['otp', 'magiclink', 'oauth', 'password'];
+$$;
+
 -- True when the user has a live session whose sign in proof (an AMR claim,
 -- the source of the `amr` timestamps in its tokens) is recent.
 create function private.has_recent_sign_in(p_user uuid)
@@ -46,6 +62,7 @@ as $$
     join auth.mfa_amr_claims c on c.session_id = s.id
     where s.user_id = p_user
       and (s.not_after is null or s.not_after > now())
+      and c.authentication_method = any (private.sign_in_methods())
       and c.updated_at > now() - private.reauth_window()
       and c.updated_at <= now() + interval '1 minute'
   );
@@ -59,19 +76,19 @@ set search_path = ''
 as $$
 declare
   account_email text;
-  confirmed timestamptz;
 begin
   -- The first identity of a new user.
   if not exists (select 1 from auth.identities where user_id = new.user_id) then
     return new;
   end if;
 
-  -- Supabase linking a sign in with the same confirmed email.
-  select u.email, u.email_confirmed_at into account_email, confirmed
-  from auth.users u where u.id = new.user_id;
-  if confirmed is not null
-    and account_email is not null
+  -- Supabase linking a sign in for the same email, which the provider has
+  -- verified. This also covers an account whose email was never confirmed:
+  -- signing in with Google for that address confirms it.
+  select u.email into account_email from auth.users u where u.id = new.user_id;
+  if account_email is not null
     and lower(btrim(new.identity_data ->> 'email')) = lower(btrim(account_email))
+    and coalesce(new.identity_data ->> 'email_verified', '') = 'true'
   then
     return new;
   end if;
@@ -91,10 +108,18 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  confirmed timestamptz;
+  found_user boolean;
 begin
+  -- One change per user at a time, so two removals cannot both see the
+  -- other identity and leave none.
+  select true, u.email_confirmed_at into found_user, confirmed
+  from auth.users u where u.id = old.user_id for update;
+
   -- Deleting the account: the user row is already gone when its identities
   -- are removed by the cascade.
-  if not exists (select 1 from auth.users where id = old.user_id) then
+  if found_user is null then
     return old;
   end if;
 
@@ -103,6 +128,13 @@ begin
   ) then
     raise exception 'identity_unlink_last' using errcode = '42501',
       detail = 'Keep at least one way to sign in.';
+  end if;
+
+  -- Supabase removing the identities of an unconfirmed account when a
+  -- verified sign in for the same email takes it over (it confirms the
+  -- account in the same request, just before).
+  if confirmed is null or confirmed > now() - interval '2 minutes' then
+    return old;
   end if;
 
   if not private.has_recent_sign_in(old.user_id) then
@@ -121,6 +153,33 @@ create trigger identities_require_recent_sign_in
 create trigger identities_require_recent_sign_in_delete
   before delete on auth.identities
   for each row execute function private.identities_before_delete();
+
+-- No passwords --------------------------------------------------------------
+-- We sign in with email links and Google only. A session could otherwise
+-- set a password with PUT /auth/v1/user and sign in with it later, without
+-- touching auth.identities. A password can be cleared, not set or changed
+-- on an existing account.
+
+create function private.users_block_password()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if coalesce(new.encrypted_password, '') <> ''
+    and new.encrypted_password is distinct from old.encrypted_password
+  then
+    raise exception 'password_sign_in_disabled' using errcode = '42501',
+      detail = 'Sign in with an email link or Google.';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger users_block_password
+  before update of encrypted_password on auth.users
+  for each row execute function private.users_block_password();
 
 -- Security emails -------------------------------------------------------------
 
@@ -156,6 +215,26 @@ begin
   end if;
 
   select count(*) into remaining from auth.identities where user_id = uid;
+
+  -- Not for an account that is unconfirmed or was confirmed by this very
+  -- sign in: that is Supabase taking over an unconfirmed sign up, not a
+  -- change to an account someone already uses.
+  if exists (
+    select 1 from auth.users
+    where id = uid
+      and (email_confirmed_at is null or email_confirmed_at > now() - interval '2 minutes')
+  ) then
+    return null;
+  end if;
+
+  -- At most three security emails per person a day, so linking and
+  -- unlinking in a loop cannot use up the email quota.
+  if (
+    select count(*) from public.email_queue
+    where user_id = uid and kind is not null and created_at > now() - interval '1 day'
+  ) >= 3 then
+    return null;
+  end if;
 
   -- Only for people who already had a way to sign in (not at sign up) and
   -- still have an account (not when it is deleted).
@@ -297,6 +376,8 @@ as $$
 $$;
 
 revoke execute on function private.reauth_window() from public, anon, authenticated;
+revoke execute on function private.sign_in_methods() from public, anon, authenticated;
+revoke execute on function private.users_block_password() from public, anon, authenticated;
 revoke execute on function private.has_recent_sign_in(uuid) from public, anon, authenticated;
 revoke execute on function private.identities_before_insert() from public, anon, authenticated;
 revoke execute on function private.identities_before_delete() from public, anon, authenticated;
