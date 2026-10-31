@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { googleClientId } from "@/lib/auth/google-client-id";
 import { sentryOrigin } from "@/lib/monitoring/sentry";
 import { buildCsp, createNonce } from "@/lib/security/csp";
 import { updateSession } from "@/lib/supabase/proxy";
@@ -20,6 +21,7 @@ export async function proxy(request: NextRequest) {
     isDev: process.env.NODE_ENV === "development",
     upgradeInsecure: siteUrl.startsWith("https://"),
     sentryOrigin: sentryOrigin(),
+    googleSignIn: googleClientId() !== null,
   });
   request.headers.set(CSP_HEADER, csp);
   request.headers.set("x-nonce", nonce);
