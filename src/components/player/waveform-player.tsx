@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatTime, formatTimeSpoken } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import type { Comment } from "@/types/view";
+import type { Comment, VersionedComment } from "@/types/view";
 
 import { CommentMarkers } from "./comment-markers";
 
@@ -49,8 +49,17 @@ export type WaveformPlayerProps = {
   audioUrl?: string | null;
   /** Where the playhead starts, for links like /t/slug?t=102. */
   initialTimeMs?: number;
-  comments?: Comment[];
+  comments?: VersionedComment[];
   activeCommentId?: string | null;
+  /**
+   * Keep the second and keep playing when audioUrl and peaks change, for
+   * switching versions (A/B). Off by default so a new track starts fresh.
+   */
+  keepPosition?: boolean;
+  /** Markers from other versions are muted and say which version they are from. */
+  currentVersionId?: string;
+  /** Version id to its number, for "on v1" in marker labels. */
+  versionNumbers?: Record<string, number>;
   /** Fires once per second while playing and on every seek. */
   onTimeChange?: (ms: number) => void;
   onMarkerSelect?: (comment: Comment) => void;
@@ -103,6 +112,9 @@ export function WaveformPlayer({
   initialTimeMs = 0,
   comments = [],
   activeCommentId,
+  keepPosition = false,
+  currentVersionId,
+  versionNumbers,
   onTimeChange,
   onMarkerSelect,
   onCommentHere,
@@ -125,10 +137,14 @@ export function WaveformPlayer({
   const initialTimeRef = useRef(initialTimeMs);
   const [helpOpen, setHelpOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const keepPositionRef = useRef(keepPosition);
+  // Position and play state carried from the old source to the new one.
+  const handoffRef = useRef<{ time: number; playing: boolean } | null>(null);
   const onTimeChangeRef = useRef(onTimeChange);
   useEffect(() => {
     onTimeChangeRef.current = onTimeChange;
-  }, [onTimeChange]);
+    keepPositionRef.current = keepPosition;
+  }, [onTimeChange, keepPosition]);
 
   const status: Status = !audioUrl
     ? "ready"
@@ -175,8 +191,17 @@ export function WaveformPlayer({
         setCurrentMs(whole * 1000);
         onTimeChangeRef.current?.(whole * 1000);
       };
+      const handoff = () => {
+        const carried = handoffRef.current;
+        if (!carried || !ws) return;
+        handoffRef.current = null;
+        ws.setTime(Math.min(carried.time, durationMs / 1000));
+        if (carried.playing) void ws.play();
+      };
+      if (!audioUrl) handoff();
       ws.on("ready", () => {
         setReadyUrl(audioUrl ?? null);
+        handoff();
         // Start where the link pointed, once.
         if (initialTimeRef.current > 0) {
           ws?.setTime(initialTimeRef.current / 1000);
@@ -193,6 +218,12 @@ export function WaveformPlayer({
 
     return () => {
       cancelled = true;
+      if (ws && keepPositionRef.current) {
+        handoffRef.current = {
+          time: ws.getCurrentTime(),
+          playing: ws.isPlaying(),
+        };
+      }
       ws?.destroy();
       wsRef.current = null;
     };
@@ -383,6 +414,8 @@ export function WaveformPlayer({
               comments={timed}
               durationMs={durationMs}
               activeCommentId={activeCommentId}
+              currentVersionId={currentVersionId}
+              versionNumbers={versionNumbers}
               onSelect={(comment) => {
                 if (comment.time_ms !== null) seekTo(comment.time_ms);
                 onMarkerSelect?.(comment);
