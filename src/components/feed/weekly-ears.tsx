@@ -71,11 +71,13 @@ export function WeeklyEars({
   if (variant === "row") {
     return (
       <div className={cn("grid gap-2", className)}>
-        <div className="flex items-baseline justify-between gap-3">
+        <div>
           <h2 id={headingId} className="text-sm font-semibold">
             Most helpful ears this week
           </h2>
-          {countdown}
+          <p className="mt-0.5 text-xs text-muted-foreground" data-numeric>
+            Helpful marks received since Monday. {resetText(resetsAt, now)}.
+          </p>
         </div>
         {loading ? (
           <div className="flex gap-2" role="status" aria-label="Loading">
@@ -87,7 +89,9 @@ export function WeeklyEars({
           <EmptyText />
         ) : (
           <ol
-            className="relative -mx-4 flex snap-x [scrollbar-width:none] gap-2 overflow-x-auto px-4 pb-1"
+            // Room above and below for the focus ring, which the scrolling
+            // box would otherwise cut off.
+            className="relative -mx-4 -mt-1 flex snap-x [scrollbar-width:none] gap-2 overflow-x-auto px-4 pt-1 pb-1"
             aria-labelledby={headingId}
           >
             {top.map((leader) => (
