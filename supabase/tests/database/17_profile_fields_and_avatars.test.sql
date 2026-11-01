@@ -1,7 +1,7 @@
 -- Profile links, working on, DAW, and uploaded profile pictures.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(33);
 \ir _helpers.psql
 
 -- Links ----------------------------------------------------------------------
@@ -40,6 +40,26 @@ select throws_ok(
   $$ update public.profiles set links = jsonb_build_array(jsonb_build_object('label', 'SC' || chr(8238), 'url', 'https://soundcloud.com/alice'))
      where id = '11111111-1111-4111-8111-111111111111' $$,
   '22023', 'invalid_link', 'text direction marks are rejected'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "FB", "url": "https://l.facebook.com/l.php?u=https://evil.example"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'redirect subdomains are rejected'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "Twitch", "url": "https://id.twitch.tv/oauth2/authorize"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'sign in subdomains are rejected'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "YT", "url": "https://www.youtube.com/redirect?q=https://evil.example"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'redirect paths are rejected'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "X", "url": "https://.x.com/"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'empty host labels are rejected'
 );
 select throws_ok(
   $$ update public.profiles set links = '[{"label": "SC", "url": "https://x@soundcloud.com/"}]'
