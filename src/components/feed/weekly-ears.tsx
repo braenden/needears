@@ -94,7 +94,7 @@ export function WeeklyEars({
               <li key={leader.profile.id} className="shrink-0 snap-start">
                 <Link
                   href={`/u/${leader.profile.handle}`}
-                  className="flex h-10 items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1 text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1 text-sm focus-ring outline-none hover:bg-accent"
                 >
                   <Rank rank={leader.rank} />
                   <UserAvatar profile={leader.profile} size="sm" />
@@ -139,7 +139,7 @@ export function WeeklyEars({
             <li key={leader.profile.id} className="min-w-0">
               <Link
                 href={`/u/${leader.profile.handle}`}
-                className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm focus-ring outline-none hover:bg-accent"
               >
                 <Rank rank={leader.rank} />
                 <UserAvatar profile={leader.profile} size="sm" />

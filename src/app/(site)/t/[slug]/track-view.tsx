@@ -490,7 +490,7 @@ export function TrackView({
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
           <Link
             href={`/u/${track.owner.handle}`}
-            className="flex items-center gap-2 rounded-md text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-2 rounded-md text-foreground focus-ring outline-none hover:underline"
           >
             <UserAvatar profile={track.owner} size="sm" />
             {owner}
@@ -498,7 +498,7 @@ export function TrackView({
           <ReputationBadge helpful={track.owner.reputation} />
           <Link
             href={`/feed?tab=latest&genre=${track.genre.slug}`}
-            className="rounded-xs outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-xs focus-ring outline-none hover:text-foreground hover:underline"
           >
             {track.genre.name}
           </Link>

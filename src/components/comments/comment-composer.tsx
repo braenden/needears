@@ -201,7 +201,7 @@ export function CommentComposer({
                 type="button"
                 onClick={onClearRange}
                 aria-label="Clear range"
-                className="rounded-full px-2 py-0.5 text-xs font-normal underline decoration-1 underline-offset-2 outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)] focus-visible:ring-2 focus-visible:ring-ring"
+                className="rounded-full px-2 py-0.5 text-xs font-normal underline decoration-1 underline-offset-2 focus-ring outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)]"
               >
                 clear
               </button>
@@ -248,7 +248,7 @@ export function CommentComposer({
                 setTimeInput(time);
                 setEditingTime(true);
               }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary-soft px-3 text-sm font-medium text-primary-text outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)] focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary-soft px-3 text-sm font-medium text-primary-text focus-ring outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)]"
             >
               <span>
                 <span className="sr-only">Comment </span>
@@ -289,7 +289,7 @@ export function CommentComposer({
                 onChange={() => setCategory(value)}
                 className="peer sr-only"
               />
-              <span className="inline-flex h-8 cursor-pointer items-center rounded-full border px-3 text-[13px] font-medium text-muted-foreground transition-colors duration-(--duration-fast) select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:ring-2 peer-focus-visible:ring-ring hover:text-foreground peer-checked:hover:text-background">
+              <span className="inline-flex h-8 cursor-pointer items-center rounded-full border px-3 text-[13px] font-medium text-muted-foreground transition-colors duration-(--duration-fast) select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring hover:text-foreground peer-checked:hover:text-background">
                 {CATEGORY_LABELS[value]}
               </span>
             </label>

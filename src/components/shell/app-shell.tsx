@@ -123,10 +123,7 @@ export function SiteHeader({
   return (
     <header className="@container sticky top-0 z-40 border-b bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @min-[40rem]:gap-6">
-        <Link
-          href="/"
-          className="-ml-1 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
+        <Link href="/" className="-ml-1 rounded-md p-1 focus-ring outline-none">
           <Logo />
         </Link>
 
@@ -137,7 +134,7 @@ export function SiteHeader({
                 <Link
                   href={item.href}
                   aria-current={pathname === item.href ? "page" : undefined}
-                  className="touch-hit rounded-md px-2.5 py-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:text-foreground"
+                  className="touch-hit rounded-md px-2.5 py-1.5 text-sm text-muted-foreground focus-ring outline-none hover:text-foreground aria-[current=page]:text-foreground"
                 >
                   {item.label}
                 </Link>
@@ -255,7 +252,7 @@ function SiteFooter() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="rounded-xs outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring coarse:inline-flex coarse:min-h-11 coarse:items-center"
+                  className="rounded-xs focus-ring outline-none hover:text-foreground coarse:inline-flex coarse:min-h-11 coarse:items-center"
                 >
                   {item.label}
                 </Link>

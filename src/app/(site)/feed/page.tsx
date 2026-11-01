@@ -83,7 +83,7 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
                     href={feedHref(t, genre?.slug ?? null)}
                     aria-current={t === tab ? "page" : undefined}
                     className={cn(
-                      "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                      "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground focus-ring outline-none hover:text-foreground",
                       "aria-[current=page]:border-primary aria-[current=page]:text-foreground",
                     )}
                   >

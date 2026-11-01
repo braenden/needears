@@ -60,7 +60,7 @@ export function DesignGallery() {
               <li key={id}>
                 <a
                   href={`#${id}`}
-                  className="block rounded-sm px-2 py-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block rounded-sm px-2 py-1 text-muted-foreground focus-ring outline-none hover:text-foreground"
                 >
                   {label}
                 </a>

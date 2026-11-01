@@ -27,7 +27,7 @@ export function ProfileLinks({
               href={link.url}
               target="_blank"
               rel="me noopener noreferrer nofollow ugc"
-              className="inline-flex max-w-full items-center gap-1.5 rounded-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex max-w-full items-center gap-1.5 rounded-xs text-muted-foreground focus-ring outline-none hover:text-foreground"
             >
               <HostIcon host={host} className="size-4 shrink-0" />
               <span className="truncate">{label}</span>

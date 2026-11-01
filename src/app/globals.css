@@ -20,6 +20,14 @@
 /* A finger. */
 @custom-variant coarse (@media (pointer: coarse));
 
+/* The one focus style: a ring outside the control, in the accent color. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
 /*
  * At least 44 by 44 pixels to tap on touch screens, however small the control
  * looks. Not for controls that are positioned themselves.

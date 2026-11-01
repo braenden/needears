@@ -79,7 +79,7 @@ export function MobileMenu({
                   href={item.href}
                   onClick={() => setMenuOpen(false)}
                   aria-current={pathname === item.href ? "page" : undefined}
-                  className="flex h-11 items-center rounded-md px-3 text-[15px] outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-accent"
+                  className="flex h-11 items-center rounded-md px-3 text-[15px] focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent"
                 >
                   {item.label}
                 </Link>

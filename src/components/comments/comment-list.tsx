@@ -266,11 +266,7 @@ export function CommentList({
           ) : null}
 
           {filters.map(([value]) => (
-            <TabsContent
-              key={value}
-              value={value}
-              className="focus-visible:ring-offset-2"
-            >
+            <TabsContent key={value} value={value}>
               {loading ? (
                 <CommentListSkeleton />
               ) : visible.length === 0 ? (
@@ -378,7 +374,7 @@ function CommentItem({
             <button
               type="button"
               onClick={() => onJump?.(comment)}
-              className="inline-flex h-6 items-center rounded-full bg-primary-soft px-2 text-xs font-medium text-primary-text outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)] focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-6 items-center rounded-full bg-primary-soft px-2 text-xs font-medium text-primary-text focus-ring outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)]"
               aria-label={`Jump to ${formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}`}
             >
               <time data-numeric>
@@ -519,7 +515,7 @@ function CommentHeader({
             badge show who is really speaking. */}
         <Link
           href={profileHref}
-          className="flex min-w-0 items-baseline gap-1.5 rounded-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-w-0 items-baseline gap-1.5 rounded-xs focus-ring outline-none hover:underline"
         >
           <span
             className={cn(

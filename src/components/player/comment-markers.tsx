@@ -164,7 +164,7 @@ export function CommentMarkers({
               onBlur={() => setPreviewId(null)}
               className={cn(
                 "relative grid size-7 place-items-center rounded-full outline-none",
-                "focus-visible:ring-2 focus-visible:ring-ring",
+                "focus-ring",
               )}
             >
               {otherVersion && !active && !previewing ? (

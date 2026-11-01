@@ -127,7 +127,7 @@ export default async function SettingsPage() {
           </p>
           <a
             href="/api/account/export"
-            className="mt-3 inline-flex h-9 items-center rounded-md border px-3.5 text-sm font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+            className="mt-3 inline-flex h-9 items-center rounded-md border px-3.5 text-sm font-medium focus-ring outline-none hover:bg-accent"
           >
             Download my data
           </a>

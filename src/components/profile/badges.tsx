@@ -94,7 +94,7 @@ export function BadgeList({
                 <button
                   type="button"
                   className={cn(
-                    "inline-flex h-7 cursor-help items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "inline-flex h-7 cursor-help items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium focus-ring outline-none",
                     locked
                       ? "border-dashed text-muted-foreground"
                       : kind === "golden_ear"
@@ -158,7 +158,7 @@ export function BadgeIcons({
                 <button
                   type="button"
                   aria-label={name}
-                  className="grid size-5 cursor-help place-items-center rounded-full bg-primary-soft text-primary-text outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="grid size-5 cursor-help place-items-center rounded-full bg-primary-soft text-primary-text focus-ring outline-none"
                 >
                   <Icon className="size-3" aria-hidden="true" />
                 </button>

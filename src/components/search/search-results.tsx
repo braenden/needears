@@ -184,7 +184,7 @@ export function SearchResults({
               <li key={profile.id} className="min-w-0">
                 <Link
                   href={`/u/${profile.handle}`}
-                  className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 focus-ring outline-none hover:bg-accent"
                 >
                   <UserAvatar profile={profile} />
                   <span className="min-w-0 flex-1">
