@@ -112,6 +112,7 @@ const COMMENTS_PAGE = 30;
 
 export function CommentList({
   comments,
+  newCommentIds = [],
   viewer,
   ownerId,
   authorBadges = {},
@@ -137,6 +138,8 @@ export function CommentList({
 }: {
   /** Top-level comments and replies together. Replies have parent_id set. */
   comments: ThreadComment[];
+  /** Just posted: they come in with a short glow. */
+  newCommentIds?: string[];
   viewer: Viewer;
   /** The track owner. Their comments get an Uploader badge. */
   ownerId?: string;
@@ -297,6 +300,7 @@ export function CommentList({
                         fromOwner={!!ownerId && comment.author_id === ownerId}
                         ownerId={ownerId}
                         active={comment.id === activeCommentId}
+                        newCommentIds={newCommentIds}
                         onJump={onJump}
                         onToggleHelpful={onToggleHelpful}
                         onReport={onReport}
@@ -334,6 +338,7 @@ function CommentItem({
   fromOwner,
   ownerId,
   active,
+  newCommentIds,
   onJump,
   onToggleHelpful,
   onReport,
@@ -347,6 +352,7 @@ function CommentItem({
   fromOwner: boolean;
   ownerId?: string;
   active: boolean;
+  newCommentIds: string[];
   onJump?: (comment: Comment) => void;
   onToggleHelpful?: (comment: Comment, helpful: boolean) => void;
   onReport?: (comment: Comment) => void;
@@ -367,6 +373,8 @@ function CommentItem({
       aria-current={active ? "true" : undefined}
       className={cn(
         "relative flex gap-3 py-4 transition-colors duration-base",
+        newCommentIds.includes(comment.id) &&
+          "-mx-3 animate-comment-in rounded-lg px-3",
         active &&
           "before:absolute before:inset-y-2 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary",
       )}
@@ -490,6 +498,7 @@ function CommentItem({
                     reply={reply}
                     viewer={viewer}
                     fromOwner={!!ownerId && reply.author_id === ownerId}
+                    fresh={newCommentIds.includes(reply.id)}
                     onReport={onReport}
                     muted={resolved}
                   />
@@ -596,17 +605,24 @@ function ReplyItem({
   reply,
   viewer,
   fromOwner,
+  fresh,
   onReport,
   muted,
 }: {
   reply: ThreadComment;
   viewer: Viewer;
   fromOwner: boolean;
+  fresh: boolean;
   onReport?: (comment: Comment) => void;
   muted?: boolean;
 }) {
   return (
-    <li className="flex gap-2.5">
+    <li
+      className={cn(
+        "flex gap-2.5",
+        fresh && "-mx-2 animate-comment-in rounded-lg px-2 py-1",
+      )}
+    >
       <Link
         href={`/u/${reply.author.handle}`}
         tabIndex={-1}

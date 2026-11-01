@@ -11,8 +11,6 @@ import type WaveSurfer from "wavesurfer.js";
 import {
   KeyboardIcon,
   Loader2Icon,
-  PauseIcon,
-  PlayIcon,
   RotateCcwIcon,
   Volume2Icon,
   VolumeXIcon,
@@ -34,6 +32,7 @@ import type { Comment, VersionedComment } from "@/types/view";
 import { MiniWaveform } from "@/components/track/mini-waveform";
 
 import { CommentMarkers } from "./comment-markers";
+import { PlayPauseIcon } from "./play-pause-icon";
 
 export type TimeRange = { startMs: number; endMs: number };
 
@@ -476,10 +475,8 @@ export function WaveformPlayer({
         >
           {shownStatus === "loading" ? (
             <Loader2Icon className="animate-spin" />
-          ) : playing ? (
-            <PauseIcon className="fill-current" />
           ) : (
-            <PlayIcon className="translate-x-px fill-current" />
+            <PlayPauseIcon playing={playing} />
           )}
         </Button>
 

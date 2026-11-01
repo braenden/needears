@@ -116,6 +116,31 @@
   --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
   --ease-move: cubic-bezier(0.2, 0, 0, 1);
   --animate-marker-in: marker-in var(--duration-base) var(--ease-out-soft) both;
+  /* A reaction picked: a small bounce, nothing more. */
+  --animate-reaction-pop: reaction-pop var(--duration-base) var(--ease-out-soft);
+  /* A comment just posted: fades in, and its row glows for a moment. */
+  --animate-comment-in:
+    comment-in var(--duration-base) var(--ease-out-soft),
+    comment-glow 1.5s var(--ease-in-soft);
+
+  @keyframes reaction-pop {
+    50% {
+      scale: 1.15;
+    }
+  }
+
+  @keyframes comment-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes comment-glow {
+    from,
+    40% {
+      background-color: var(--primary-soft);
+    }
+  }
 
   @keyframes marker-in {
     from {

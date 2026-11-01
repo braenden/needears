@@ -133,6 +133,8 @@ export function TrackView({
   const player = useRef<WaveformPlayerHandle>(null);
   const composer = useRef<CommentComposerHandle>(null);
   const [comments, setComments] = useState(initialComments);
+  // Posted on this page just now: they fade in and glow for a moment.
+  const [posted, setPosted] = useState<string[]>([]);
   const [timeMs, setTimeMs] = useState(startSeconds * 1000);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mine, setMine] = useState(initialReactions);
@@ -257,6 +259,7 @@ export function TrackView({
       return { ok: false, error: "failed" };
     }
     setComments((list) => [...list, withOwnAvatar(data)]);
+    setPosted((ids) => [...ids, data.id]);
     return { ok: true };
   }
 
@@ -285,6 +288,7 @@ export function TrackView({
       return { ok: false, error: "failed" };
     }
     setComments((list) => [...list, withOwnAvatar(data)]);
+    setPosted((ids) => [...ids, data.id]);
     return { ok: true };
   }
 
@@ -727,6 +731,7 @@ export function TrackView({
         <CommentList
           className="mt-6"
           comments={listed}
+          newCommentIds={posted}
           viewer={viewerKind}
           ownerId={track.owner_id}
           authorBadges={authorBadges}

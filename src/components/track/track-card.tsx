@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageSquareIcon, PauseIcon, PlayIcon } from "lucide-react";
+import { MessageSquareIcon } from "lucide-react";
 
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
@@ -11,6 +11,8 @@ import { formatPlays } from "@/lib/plays";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import type { TrackSummary as Track } from "@/types/view";
+
+import { PlayPauseIcon } from "@/components/player/play-pause-icon";
 
 import { MiniWaveform } from "./mini-waveform";
 import { ReactionTotal } from "./reaction-total";
@@ -54,11 +56,7 @@ export function TrackCard({
           aria-label={`${playing ? "Pause" : "Play"} ${track.title}`}
           className="relative z-10 shrink-0 rounded-full"
         >
-          {playing ? (
-            <PauseIcon className="fill-current" />
-          ) : (
-            <PlayIcon className="translate-x-px fill-current" />
-          )}
+          <PlayPauseIcon playing={playing} />
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">

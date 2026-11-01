@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SlidingUnderline } from "@/components/common/sliding-underline";
 import { notFound } from "next/navigation";
 import { displayNameOf } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
@@ -97,7 +98,7 @@ export default async function ProfilePage({
       <ProfileStatsBlock stats={record.stats} className="mt-6" />
       <BadgeList badges={record.badges} showLocked={isOwn} className="mt-4" />
 
-      <nav aria-label="Profile sections" className="mt-10 border-b">
+      <nav aria-label="Profile sections" className="relative mt-10 border-b">
         <ul className="-mb-px flex gap-1">
           {(
             [
@@ -115,7 +116,7 @@ export default async function ProfilePage({
                 aria-current={tab === key ? "page" : undefined}
                 className={cn(
                   "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground focus-ring outline-none hover:text-foreground",
-                  "aria-[current=page]:border-primary aria-[current=page]:text-foreground",
+                  "aria-[current=page]:border-primary aria-[current=page]:text-foreground in-data-[underline=ready]:aria-[current=page]:border-transparent",
                 )}
               >
                 {label}
@@ -123,6 +124,10 @@ export default async function ProfilePage({
             </li>
           ))}
         </ul>
+        <SlidingUnderline
+          selector='[aria-current="page"]'
+          className="-bottom-px"
+        />
       </nav>
 
       <div className="mt-6">

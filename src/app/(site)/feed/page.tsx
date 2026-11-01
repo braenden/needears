@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SlidingUnderline } from "@/components/common/sliding-underline";
 import { ChevronUpIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { WeeklyEars } from "@/components/feed/weekly-ears";
@@ -75,7 +76,7 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
             <GenreFilter genres={genres} value={genre?.slug ?? ""} tab={tab} />
           </div>
 
-          <nav aria-label="Feed tabs" className="mt-6 border-b">
+          <nav aria-label="Feed tabs" className="relative mt-6 border-b">
             <ul className="-mb-px flex gap-1">
               {FEED_TABS.map((t) => (
                 <li key={t}>
@@ -84,7 +85,7 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
                     aria-current={t === tab ? "page" : undefined}
                     className={cn(
                       "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground focus-ring outline-none hover:text-foreground",
-                      "aria-[current=page]:border-primary aria-[current=page]:text-foreground",
+                      "aria-[current=page]:border-primary aria-[current=page]:text-foreground in-data-[underline=ready]:aria-[current=page]:border-transparent",
                     )}
                   >
                     {TAB_LABELS[t]}
@@ -92,6 +93,10 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
                 </li>
               ))}
             </ul>
+            <SlidingUnderline
+              selector='[aria-current="page"]'
+              className="-bottom-px"
+            />
           </nav>
           {/* Two lines kept for every tab, so the tracks start in the same
               place whichever tab is open. */}
