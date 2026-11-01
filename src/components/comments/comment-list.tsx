@@ -525,7 +525,8 @@ function CommentHeader({
           >
             {name}
           </span>
-          <span className="truncate text-xs text-muted-foreground">
+          {/* Narrow: name, time and one badge. The rest is on the profile. */}
+          <span className="hidden truncate text-xs text-muted-foreground @sm:block">
             @{comment.author.handle}
           </span>
         </Link>
@@ -534,8 +535,11 @@ function CommentHeader({
             Uploader
           </Badge>
         ) : null}
-        <ReputationBadge helpful={comment.author.reputation} />
-        <BadgeIcons badges={badges} />
+        <ReputationBadge
+          helpful={comment.author.reputation}
+          className={fromOwner ? "hidden @sm:inline-flex" : undefined}
+        />
+        <BadgeIcons badges={badges} className="hidden @sm:flex" />
         <RelativeTime
           date={comment.created_at}
           className="text-xs text-muted-foreground"
