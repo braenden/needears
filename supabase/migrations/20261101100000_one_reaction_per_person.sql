@@ -63,10 +63,17 @@ create trigger reactions_before_insert
   before insert or update of kind on public.reactions
   for each row execute function private.reactions_before_insert();
 
+-- Counts are recomputed only when something changed: an update to the same
+-- kind skips the rate limit, so it must not write the track row either.
 drop trigger reactions_after_write on public.reactions;
 create trigger reactions_after_write
-  after insert or update or delete on public.reactions
+  after insert or delete on public.reactions
   for each row execute function private.reactions_after_write();
+create trigger reactions_after_change
+  after update of kind on public.reactions
+  for each row
+  when (old.kind is distinct from new.kind)
+  execute function private.reactions_after_write();
 
 -- Counts after removing the extra reactions.
 update public.tracks t
