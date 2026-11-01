@@ -52,7 +52,7 @@ export function MobileMenu({
           Navigation and account
         </DialogDescription>
         {user ? (
-          <div className="flex items-center gap-3 pr-10">
+          <div className="flex items-center gap-3 pr-10 pl-3">
             <UserAvatar profile={user} size="lg" />
             <div className="min-w-0">
               <p className="truncate font-semibold">{displayNameOf(user)}</p>
@@ -87,19 +87,19 @@ export function MobileMenu({
             ))}
           </ul>
         </nav>
-        <div className="flex items-center justify-between border-t pt-4 text-sm text-muted-foreground">
+        {/* Every row starts on the same edge as the links. */}
+        <div className="flex items-center justify-between border-t pt-3 pl-3 text-[15px] text-muted-foreground">
           Theme
           <ThemeToggle />
         </div>
         {user ? (
-          <Button
+          <button
             type="submit"
             form={SIGN_OUT_FORM}
-            variant="ghost"
-            className="justify-start text-muted-foreground"
+            className="flex h-11 items-center rounded-md px-3 text-left text-[15px] text-muted-foreground focus-ring outline-none hover:bg-accent hover:text-foreground"
           >
             Sign out
-          </Button>
+          </button>
         ) : null}
       </DialogContent>
     </Dialog>
