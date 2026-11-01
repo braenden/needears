@@ -110,7 +110,7 @@ CI runs all of them on every pull request against a local Supabase and the local
 
 **v1** (now): accounts, upload, track page, feed, profiles, Helpful and reputation, reactions, reporting and admin, settings and account deletion, legal pages.
 
-**v1.1:** email summaries, realtime comments, a mini player that follows you around, following people, marking comments as resolved.
+**v1.1:** realtime comments, a mini player that follows you around, following people, marking comments as resolved.
 
 **v2:** versions of a track with A/B switching, exporting comments as DAW markers, collections and Feedback Friday, Norwegian, private links.
 
