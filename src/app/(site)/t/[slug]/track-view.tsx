@@ -606,8 +606,13 @@ export function TrackView({
                   <ExportMarkersSubmenu
                     trackId={track.id}
                     timedCommentCount={
-                      topLevel.filter((c) => onVersion(c) && c.time_ms !== null)
-                        .length
+                      // Like the file: live comments with a time.
+                      topLevel.filter(
+                        (c) =>
+                          onVersion(c) &&
+                          c.time_ms !== null &&
+                          c.status === "live",
+                      ).length
                     }
                     hrefFor={(id, format) =>
                       versioned && current
