@@ -14,7 +14,8 @@ grant select on ids to anon;
 
 insert into public.comments (track_id, author_id, body)
 select busy, author, 'Comment' from ids,
-  unnest(array['22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333']::uuid[]) as author;
+  unnest(array['22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333',
+    '44444444-4444-4444-8444-444444444444']::uuid[]) as author;
 insert into public.comments (track_id, author_id, body)
 select hidden, '22222222-2222-4222-8222-222222222222', 'Comment' from ids;
 
@@ -28,8 +29,8 @@ select is_empty(
   'feeds only return live tracks'
 );
 select is_empty(
-  $$ select 1 from public.feed_needs_ears(p_page_size => 50) where comment_count > 1 $$,
-  'Needs ears only has tracks with zero or one comment'
+  $$ select 1 from public.feed_needs_ears(p_page_size => 50) where not needs_ears $$,
+  'Needs ears only has tracks that still need ears'
 );
 select ok(
   exists (select 1 from public.feed_needs_ears('jazz') f join ids on f.id = ids.quiet),
@@ -37,7 +38,7 @@ select ok(
 );
 select ok(
   not exists (select 1 from public.feed_needs_ears('jazz') f join ids on f.id = ids.busy),
-  'a track with two comments is not in Needs ears'
+  'a track with comments from three people is not in Needs ears'
 );
 select is_empty(
   $$ select 1 from public.feed_latest('jazz', 1, 50) f
