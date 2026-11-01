@@ -2,6 +2,9 @@ import { expect, type Page, test } from "@playwright/test";
 
 // A card's waveform is a seek bar for the shared player, and its comment
 // count opens the track at its comments. Night bus is 18 seconds long.
+// Night bus is House. Filtered, the feed shows it on the first page however
+// many tracks earlier runs have uploaded.
+const FEED = "/feed?tab=latest&genre=house";
 const card = (page: Page) =>
   page.getByRole("listitem").filter({ hasText: "Night bus" });
 const bar = (page: Page) =>
@@ -13,7 +16,7 @@ test.describe("with a mouse and the keyboard", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   test("a click plays from that spot, keys move it", async ({ page }) => {
-    await page.goto("/feed?tab=latest");
+    await page.goto(FEED);
     // Retried until the page has hydrated.
     await bar(page).scrollIntoViewIfNeeded();
     await expect(async () => {
@@ -63,7 +66,7 @@ test.describe("with a mouse and the keyboard", () => {
   test("the comment count opens the track at its comments", async ({
     page,
   }) => {
-    await page.goto("/feed?tab=latest");
+    await page.goto(FEED);
     await card(page)
       .getByRole("link", { name: /comments?$/ })
       .click();
@@ -82,7 +85,7 @@ test.describe("with a finger", () => {
   test("a tap plays from that spot, without moving the page sideways", async ({
     page,
   }) => {
-    await page.goto("/feed?tab=latest");
+    await page.goto(FEED);
     await bar(page).scrollIntoViewIfNeeded();
     await expect(async () => {
       const box = (await bar(page).boundingBox())!;
@@ -99,7 +102,7 @@ test.describe("with a finger", () => {
   });
 
   test("the comment count lands below the sticky player", async ({ page }) => {
-    await page.goto("/feed?tab=latest");
+    await page.goto(FEED);
     await card(page)
       .getByRole("link", { name: /comments?$/ })
       .tap();
@@ -130,7 +133,7 @@ test("keys on a card that is not playing pick where Play starts", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/feed?tab=latest");
+  await page.goto(FEED);
   await bar(page).scrollIntoViewIfNeeded();
   await expect(async () => {
     await bar(page).focus();
@@ -156,18 +159,27 @@ test("a swipe over a card's waveform scrolls the page and plays nothing", async 
   browser,
 }) => {
   const context = await browser.newContext({
-    viewport: { width: 375, height: 812 },
+    // Short, so the page has room to scroll.
+    viewport: { width: 375, height: 480 },
     hasTouch: true,
     isMobile: true,
   });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
-  await page.goto("/feed?tab=latest");
+  await page.goto(FEED);
   await bar(page).scrollIntoViewIfNeeded();
   const box = (await bar(page).boundingBox())!;
   const x = box.x + box.width / 2;
   const y = box.y + box.height / 2;
   const before = await page.evaluate(() => window.scrollY);
+  // Swipe towards where the page can still scroll (the list may be short).
+  const room = await page.evaluate(
+    () =>
+      document.documentElement.scrollHeight -
+      window.innerHeight -
+      window.scrollY,
+  );
+  const dy = room > 120 ? -25 : 25;
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchStart",
     touchPoints: [{ x, y }],
@@ -175,16 +187,14 @@ test("a swipe over a card's waveform scrolls the page and plays nothing", async 
   for (let i = 1; i <= 8; i++) {
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchMove",
-      touchPoints: [{ x: x + i * 4, y: y - i * 25 }],
+      touchPoints: [{ x: x + i * 4, y: y + i * dy }],
     });
   }
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchEnd",
     touchPoints: [],
   });
-  await expect
-    .poll(() => page.evaluate(() => window.scrollY))
-    .toBeGreaterThan(before);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).not.toBe(before);
   await expect(
     card(page).getByRole("button", { name: /^Play Night bus/ }),
   ).toBeVisible();

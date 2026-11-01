@@ -11,11 +11,13 @@
 
 /**
  * Long enough to soften the click of a start or stop, short enough to feel
- * immediate. Measured on a 40 Hz tone with the volume stepping every 4 ms
- * (the worst case): 30 ms takes about 8 dB off the click, 25 ms about 7,
- * and longer fades gain little more.
+ * immediate (the button changes at once anyway). Measured on a 40 Hz tone
+ * with the volume stepping every 4 ms: 40 ms takes about 9.5 dB off the
+ * click, 30 ms about 8 and 25 ms about 7. At 4 ms a tick that is 10 steps,
+ * so even when a busy page makes a tick take two, no step is bigger than
+ * about 0.3.
  */
-export const FADE_MS = 30;
+export const FADE_MS = 40;
 // Fine enough for a smooth ramp; requestAnimationFrame (16 ms) is too
 // coarse, and barely better than no fade at all.
 const TICK_MS = 4;

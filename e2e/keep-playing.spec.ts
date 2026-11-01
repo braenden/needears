@@ -5,7 +5,9 @@ import { expect, test } from "@playwright/test";
 test("playback carries on from the feed into the track page", async ({
   page,
 }) => {
-  await page.goto("/feed?tab=latest");
+  // Night bus is House: on the first page of this filter, however many
+  // tracks earlier runs have uploaded.
+  await page.goto("/feed?tab=latest&genre=house");
   const card = page.getByRole("listitem").filter({ hasText: "Night bus" });
   // Waits for the page to hydrate before the click does anything.
   await expect(async () => {
@@ -25,12 +27,12 @@ test("playback carries on from the feed into the track page", async ({
   await expect(time).not.toHaveText("0:00");
 });
 
-// Opening another track's page stops what the feed was playing, and that
-// page plays its own track.
-test("another track's page does not play the feed's track", async ({
+// Opening another track's page stops what a track list was playing, and
+// that page plays its own track. Nora's profile lists both tracks.
+test("another track's page does not play the list's track", async ({
   page,
 }) => {
-  await page.goto("/feed?tab=latest");
+  await page.goto("/u/nora");
   const playingCard = page
     .getByRole("listitem")
     .filter({ hasText: "Night bus" });
@@ -44,10 +46,10 @@ test("another track's page does not play the feed's track", async ({
 
   await page
     .getByRole("listitem")
-    .filter({ hasText: "Fast lane" })
-    .getByRole("link", { name: "Fast lane" })
+    .filter({ hasText: "Slow tide" })
+    .getByRole("link", { name: "Slow tide" })
     .click();
-  await expect(page).toHaveURL(/\/t\/fast-lane-/);
+  await expect(page).toHaveURL(/\/t\/slow-tide-/);
   const play = page.getByRole("button", { name: "Play", exact: true });
   await expect(play).toBeVisible();
   // Nothing runs on: the time stays at the start.
