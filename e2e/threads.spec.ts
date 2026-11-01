@@ -73,22 +73,4 @@ test("reply, resolve, Show resolved in the URL and the reply notice", async ({
     await jonas.mouse.click(box.x + box.width - 20, box.y + box.height - 10);
     await expect(jonas).toHaveURL(/\/t\/night-bus-seed0002/);
   });
-
-  await test.step("Jonas switches email and it stays switched", async () => {
-    await jonas.goto("/settings");
-    const email = jonas.getByRole("checkbox", {
-      name: /Email me about new comments/,
-    });
-    // Toggle from whatever it is now, check it after a reload, then put it
-    // back, so a failed earlier run cannot break this one.
-    const before = await email.isChecked();
-    await email.setChecked(!before);
-    await expect(
-      jonas.getByText(before ? "Email is off." : "Email is on."),
-    ).toBeVisible();
-    await jonas.reload();
-    await expect(email).toBeChecked({ checked: !before });
-    await email.setChecked(true);
-    await expect(email).toBeChecked();
-  });
 });

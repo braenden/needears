@@ -10,7 +10,6 @@ import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { ConnectedAccounts } from "./connected-accounts";
 import { DeleteAccount } from "./delete-account";
-import { EmailSettings } from "./email-settings";
 import { ExtrasSettings, PhotoSettings } from "./profile-extras";
 import { ProfileForm } from "./profile-form";
 import { TrackManager } from "./track-manager";
@@ -52,9 +51,7 @@ export default async function SettingsPage() {
         .order("published_at", { ascending: false }),
       supabase
         .from("profiles")
-        .select(
-          "email_notifications, avatar_key, avatar_url, working_on, daw, links",
-        )
+        .select("avatar_key, avatar_url, working_on, daw, links")
         .eq("id", viewer.userId)
         .single(),
       // The ways this person can sign in (email link, Google).
@@ -106,13 +103,6 @@ export default async function SettingsPage() {
               daw: prefs?.daw ?? "",
               links: parseLinks(prefs?.links ?? []),
             }}
-          />
-        </Section>
-
-        <Section id="email-heading" title="Email">
-          <EmailSettings
-            userId={viewer.userId}
-            initial={prefs?.email_notifications ?? true}
           />
         </Section>
 
