@@ -212,6 +212,17 @@ export function TrackView({
   // marker on the waveform.
   const topLevel = comments.filter((c) => !c.parent_id);
   const listed = comments.filter(onVersion);
+  // The version open has no comments, but others do: say where they are,
+  // so an empty list does not read as "nobody commented".
+  const elsewhere =
+    versioned && !topLevel.some(onVersion)
+      ? versions
+          .map((v) => ({
+            version: v,
+            count: topLevel.filter((c) => c.version_id === v.id).length,
+          }))
+          .filter(({ count }) => count > 0)
+      : [];
   const activeId =
     selectedId ??
     activeCommentAt(topLevel.filter(onVersion), timeMs)?.id ??
@@ -746,6 +757,28 @@ export function TrackView({
           onSubmit={submit}
           onSignIn={signIn}
         />
+        {elsewhere.length > 0 ? (
+          <div
+            role="note"
+            className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-dashed p-4 text-sm"
+          >
+            <span className="text-muted-foreground">
+              No comments on this version yet.
+            </span>
+            {elsewhere.map(({ version, count }) => (
+              <Button
+                key={version.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => pickVersion(version.id)}
+              >
+                {count} {count === 1 ? "comment" : "comments"} on version{" "}
+                {version.version_no}
+              </Button>
+            ))}
+          </div>
+        ) : null}
         <CommentList
           className="mt-6"
           comments={listed}
