@@ -1,17 +1,16 @@
 import { LinkIcon } from "lucide-react";
+import {
+  isAllowedLinkUrl,
+  linkHostFor,
+  linkHosts,
+  linkServiceNames,
+} from "@/config/profile";
 
-/**
- * Hosts a profile can link to. Mirrors the list the database accepts for
- * profiles.links; read it from src/config once that list lives there.
- */
-export const LINK_HOSTS = [
-  { host: "soundcloud.com", name: "SoundCloud" },
-  { host: "bandcamp.com", name: "Bandcamp" },
-  { host: "instagram.com", name: "Instagram" },
-  { host: "youtube.com", name: "YouTube" },
-  { host: "spotify.com", name: "Spotify" },
-  { host: "tiktok.com", name: "TikTok" },
-] as const;
+/** Hosts a profile can link to, from src/config/profile.ts. */
+export const LINK_HOSTS = linkHosts;
+
+/** Each service once, for "Links can go to ...". */
+export const LINK_SERVICE_NAMES = linkServiceNames;
 
 export type LinkHost = (typeof LINK_HOSTS)[number]["host"];
 
@@ -20,7 +19,7 @@ export const LINK_LABEL_MAX = 40;
 
 export type ProfileLink = { label: string; url: string };
 
-/** The allowed host a URL belongs to, subdomains included (artist.bandcamp.com). */
+/** The allowed host a URL belongs to, by the rules in src/config/profile.ts. */
 export function hostOf(url: string): LinkHost | null {
   let parsed: URL;
   try {
@@ -28,11 +27,7 @@ export function hostOf(url: string): LinkHost | null {
   } catch {
     return null;
   }
-  const hostname = parsed.hostname.toLowerCase();
-  const match = LINK_HOSTS.find(
-    ({ host }) => hostname === host || hostname.endsWith(`.${host}`),
-  );
-  return match?.host ?? null;
+  return linkHostFor(parsed.hostname)?.host ?? null;
 }
 
 export function hostName(host: LinkHost) {
@@ -44,8 +39,8 @@ export function linkError(link: ProfileLink): string | null {
   const url = link.url.trim();
   if (!url) return "Add a link.";
   if (!/^https:\/\//i.test(url)) return "Links start with https://.";
-  if (!hostOf(url)) {
-    return `Links can go to ${LINK_HOSTS.map((h) => h.name).join(", ")}.`;
+  if (!hostOf(url) || !isAllowedLinkUrl(url)) {
+    return `Links can go to ${LINK_SERVICE_NAMES.join(", ")}.`;
   }
   if (link.label.length > LINK_LABEL_MAX) {
     return `Labels can be up to ${LINK_LABEL_MAX} characters.`;
@@ -97,6 +92,7 @@ export function HostIcon({
         </svg>
       );
     case "youtube.com":
+    case "youtu.be":
       return (
         <svg {...common}>
           <rect x="1.5" y="3.5" width="13" height="9" rx="2.5" />
@@ -115,6 +111,13 @@ export function HostIcon({
         <svg {...common}>
           <path d="M9 2.5v7.8a2.3 2.3 0 1 1-2.3-2.3" />
           <path d="M9 2.5c.3 1.7 1.6 3 3.5 3.2" />
+        </svg>
+      );
+    case "x.com":
+    case "twitter.com":
+      return (
+        <svg {...common}>
+          <path d="M3 3l10 10M13 3 3 13" />
         </svg>
       );
     default:

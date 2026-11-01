@@ -131,6 +131,7 @@ export type Database = {
           notification_id: string | null;
           payload: Json | null;
           recipient: string | null;
+          sends: number;
           sent_at: string | null;
           user_id: string;
         };
@@ -143,6 +144,7 @@ export type Database = {
           notification_id?: string | null;
           payload?: Json | null;
           recipient?: string | null;
+          sends?: number;
           sent_at?: string | null;
           user_id: string;
         };
@@ -155,6 +157,7 @@ export type Database = {
           notification_id?: string | null;
           payload?: Json | null;
           recipient?: string | null;
+          sends?: number;
           sent_at?: string | null;
           user_id?: string;
         };
@@ -195,13 +198,19 @@ export type Database = {
       };
       link_hosts: {
         Row: {
+          any_subdomain: boolean;
           host: string;
+          subdomains: string[];
         };
         Insert: {
+          any_subdomain?: boolean;
           host: string;
+          subdomains?: string[];
         };
         Update: {
+          any_subdomain?: boolean;
           host?: string;
+          subdomains?: string[];
         };
         Relationships: [];
       };
@@ -840,7 +849,10 @@ export type Database = {
       forget_expired_upload_reservations: { Args: never; Returns: undefined };
       is_admin: { Args: never; Returns: boolean };
       mark_emails_failed: { Args: { p_ids: number[] }; Returns: undefined };
-      mark_emails_sent: { Args: { p_ids: number[] }; Returns: undefined };
+      mark_emails_sent: {
+        Args: { p_ids: number[]; p_sends?: number };
+        Returns: undefined;
+      };
       orphaned_upload_objects: {
         Args: { p_limit?: number };
         Returns: {

@@ -10,8 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   HostIcon,
   hostOf,
-  LINK_HOSTS,
-  LINK_LABEL_MAX,
+  LINK_SERVICE_NAMES,
   linkError,
   LINKS_MAX,
   type ProfileLink,
@@ -74,9 +73,11 @@ export function ProfileExtrasForm({
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    // One address per link. The profile shows the service's name, so there
+    // is no label to fill in.
     const cleaned = links
-      .map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
-      .filter((l) => l.label || l.url);
+      .map((l) => ({ label: "", url: l.url.trim() }))
+      .filter((l) => l.url);
     const errors = cleaned.map(linkError);
     if (errors.some(Boolean)) {
       setLinks(cleaned);
@@ -158,7 +159,7 @@ export function ProfileExtrasForm({
           <span className="font-normal text-muted-foreground">(optional)</span>
         </legend>
         <p className="text-xs text-muted-foreground">
-          Up to {LINKS_MAX}, to {LINK_HOSTS.map((h) => h.name).join(", ")}.
+          Up to {LINKS_MAX}, to {LINK_SERVICE_NAMES.join(", ")}.
         </p>
         {links.length > 0 ? (
           <ul className="grid gap-2">
@@ -183,18 +184,7 @@ export function ProfileExtrasForm({
                       }
                       autoComplete="url"
                       spellCheck={false}
-                      className="min-w-0 flex-[2_1_12rem]"
-                    />
-                    <Input
-                      aria-label={`Link ${n} label`}
-                      value={link.label}
-                      maxLength={LINK_LABEL_MAX}
-                      placeholder="Label (optional)"
-                      onChange={(e) =>
-                        editLink(index, { label: e.target.value })
-                      }
-                      autoComplete="off"
-                      className="min-w-0 flex-[1_1_8rem]"
+                      className="min-w-0 flex-1"
                     />
                     <Button
                       type="button"

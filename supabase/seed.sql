@@ -196,7 +196,6 @@ from (values
   (5, 1, 'heart', interval '2 days'),
   (7, 1, 'fire', interval '20 minutes'),
   (7, 2, 'fire', interval '15 minutes'),
-  (7, 2, 'headphones', interval '15 minutes'),
   (8, 1, 'heart', interval '1 day'),
   (9, 1, 'eyes', interval '3 days')
 ) as r (track, usr, kind, age);

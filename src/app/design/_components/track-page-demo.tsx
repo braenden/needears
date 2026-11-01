@@ -17,7 +17,7 @@ import {
   WaveformPlayer,
   type WaveformPlayerHandle,
 } from "@/components/player/waveform-player";
-import { ReactionBar } from "@/components/reaction-bar";
+import { moveReaction, ReactionBar } from "@/components/reaction-bar";
 import { ReportDialog } from "@/components/report-dialog";
 import { useMockAudioUrl } from "@/mocks/audio";
 import { comments as mockComments } from "@/mocks/comments";
@@ -44,7 +44,7 @@ export function TrackPageDemo() {
   const [comments, setComments] = useState<Comment[]>(mockComments);
   const [timeMs, setTimeMs] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mine, setMine] = useState<ReactionKind[]>(["fire"]);
+  const [mine, setMine] = useState<ReactionKind | null>("fire");
   const [counts, setCounts] = useState(nightBus.reaction_counts);
   const [reporting, setReporting] = useState(false);
 
@@ -119,9 +119,9 @@ export function TrackPageDemo() {
         signedIn={viewer !== "signed_out"}
         shareUrl="https://needears.com/t/k3x9-night-bus"
         onSignIn={() => toast("Sign in to react.")}
-        onToggle={(kind, on) => {
-          setMine((m) => (on ? [...m, kind] : m.filter((k) => k !== kind)));
-          setCounts((c) => ({ ...c, [kind]: c[kind] + (on ? 1 : -1) }));
+        onPick={(kind) => {
+          setCounts((c) => moveReaction(c, mine, kind));
+          setMine(kind);
         }}
       />
       <CommentComposer

@@ -125,7 +125,7 @@ export function PeopleSection() {
         <Example title="Signed in, one reaction given">
           <ReactionBar
             counts={nightBus.reaction_counts}
-            mine={["fire"]}
+            mine="fire"
             signedIn
             shareUrl="https://needears.com/t/k3x9-night-bus"
           />
@@ -133,7 +133,7 @@ export function PeopleSection() {
         <Example title="Signed out, no reactions yet">
           <ReactionBar
             counts={{ fire: 0, heart: 0, eyes: 0, headphones: 0 }}
-            mine={[]}
+            mine={null}
             signedIn={false}
             onSignIn={() => toast("Sign in to react.")}
           />

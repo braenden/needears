@@ -1,7 +1,7 @@
 -- Profile links, working on, DAW, and uploaded profile pictures.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(36);
 \ir _helpers.psql
 
 -- Links ----------------------------------------------------------------------
@@ -42,6 +42,31 @@ select throws_ok(
   '22023', 'invalid_link', 'text direction marks are rejected'
 );
 select throws_ok(
+  $$ update public.profiles set links = '[{"label": "FB", "url": "https://l.facebook.com/l.php?u=https://evil.example"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'redirect subdomains are rejected'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "Twitch", "url": "https://id.twitch.tv/oauth2/authorize"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'sign in subdomains are rejected'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "YT", "url": "https://www.youtube.com/redirect?q=https://evil.example"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'redirect paths are rejected'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "FB", "url": "https://www.facebook.com/v19.0/dialog/oauth?client_id=1"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'blocked segments are rejected anywhere in the path'
+);
+select throws_ok(
+  $$ update public.profiles set links = '[{"label": "X", "url": "https://.x.com/"}]'
+     where id = '11111111-1111-4111-8111-111111111111' $$,
+  '22023', 'invalid_link', 'empty host labels are rejected'
+);
+select throws_ok(
   $$ update public.profiles set links = '[{"label": "SC", "url": "https://x@soundcloud.com/"}]'
      where id = '11111111-1111-4111-8111-111111111111' $$,
   '22023', 'invalid_link', 'user info in the URL is rejected'
@@ -77,6 +102,45 @@ select results_eq(
   'labels and text are trimmed'
 );
 select is((select working_on from public.profiles where handle = 'bob'), '', 'users cannot edit someone else''s profile fields');
+
+-- Paths a browser or the service would normalize into a blocked path.
+select is(
+  array(
+    select url from unnest(array[
+      'https://www.twitch.tv/foo/../oauth2/authorize',
+      'https://www.twitch.tv/./oauth2/authorize',
+      'https://www.twitch.tv/foo/%2e%2e/oauth2/authorize',
+      'https://www.facebook.com/x/../dialog/oauth',
+      'https://www.youtube.com/a/../redirect?q=https://evil.example',
+      'https://x.com/i/../i/redirect?url=https://evil.example',
+      'https://www.twitch.tv/foo\..\oauth2',
+      'https://www.twitch.tv//oauth2/authorize',
+      'https://www.twitch.tv/\oauth2',
+      'https://www.twitch.tv/%6fauth2/authorize',
+      'https://www.twitch.tv/%6Fauth2/authorize',
+      'https://www.facebook.com/l%2ephp?u=https://evil.example',
+      'https://x.com/i/oauth2/authorize?client_id=1',
+      'https://www.facebook.com/v19.0/dialog/oauth?client_id=1',
+      'https://www.facebook.com/DIALOG/OAuth'
+    ]) as url
+    where private.link_url_allowed(url)
+  ),
+  array[]::text[],
+  'dot segments, back slashes, double slashes, encoded ASCII and blocked segments are rejected'
+);
+select is(
+  array(
+    select url from unnest(array[
+      'https://soundcloud.com/nora/bl%C3%A5-time',
+      'https://www.youtube.com/watch?v=abc&t=1%3A20',
+      'https://open.spotify.com/track/abc?si=../oauth2#/redirect',
+      'https://soundcloud.com/nora/oauth-demo'
+    ]) as url
+    where not private.link_url_allowed(url)
+  ),
+  array[]::text[],
+  'encoded UTF-8, and anything after ? or #, is allowed'
+);
 
 -- Avatars --------------------------------------------------------------------
 select set_config('request.jwt.claims', '{"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated"}', true);

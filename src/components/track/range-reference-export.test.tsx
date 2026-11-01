@@ -121,6 +121,9 @@ describe("ReferenceLink", () => {
     expect(referenceError("https://example.com/a")).toMatch(
       /^Reference tracks can link to/,
     );
+    expect(
+      referenceError("https://www.facebook.com/v19.0/dialog/oauth"),
+    ).toMatch(/^Reference tracks can link to/);
   });
 
   it("opens the reference in a new tab and renders nothing for other hosts", () => {

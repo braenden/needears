@@ -8,23 +8,39 @@ import { REACTIONS } from "@/config/labels";
 import { cn } from "@/lib/utils";
 import type { ReactionKind } from "@/types/view";
 
+/** Counts after someone's reaction goes from `from` to `to` (null is none). */
+export function moveReaction(
+  counts: Record<ReactionKind, number>,
+  from: ReactionKind | null,
+  to: ReactionKind | null,
+): Record<ReactionKind, number> {
+  if (from === to) return counts;
+  const next = { ...counts };
+  if (from) next[from] = Math.max(0, next[from] - 1);
+  if (to) next[to] += 1;
+  return next;
+}
+
 /**
  * Quick reactions on the whole track, plus Copy link. Lets Nora say "love
- * this" without writing a comment.
+ * this" without writing a comment. One reaction per person: picking another
+ * moves it, picking the same one again takes it back.
  */
 export function ReactionBar({
   counts,
   mine,
   signedIn,
-  onToggle,
+  onPick,
   onSignIn,
   shareUrl,
   className,
 }: {
   counts: Record<ReactionKind, number>;
-  mine: ReactionKind[];
+  /** The viewer's reaction, if any. */
+  mine: ReactionKind | null;
   signedIn: boolean;
-  onToggle?: (kind: ReactionKind, on: boolean) => void;
+  /** The reaction picked, or null when the viewer takes theirs back. */
+  onPick?: (kind: ReactionKind | null) => void;
   onSignIn?: () => void;
   /** When set, a Copy link button is shown. */
   shareUrl?: string;
@@ -38,7 +54,7 @@ export function ReactionBar({
         className="flex flex-wrap gap-1.5"
       >
         {REACTIONS.map(({ kind, emoji, label }) => {
-          const pressed = mine.includes(kind);
+          const pressed = mine === kind;
           const count = counts[kind];
           return (
             <button
@@ -47,7 +63,7 @@ export function ReactionBar({
               aria-pressed={pressed}
               aria-label={`${label}, ${count}`}
               onClick={() =>
-                signedIn ? onToggle?.(kind, !pressed) : onSignIn?.()
+                signedIn ? onPick?.(pressed ? null : kind) : onSignIn?.()
               }
               className={cn(
                 "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-[background-color,border-color,transform] duration-(--duration-fast) outline-none select-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95",

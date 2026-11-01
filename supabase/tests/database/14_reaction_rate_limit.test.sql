@@ -2,7 +2,7 @@
 -- test and rolled back afterwards.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(3);
+select plan(6);
 \ir _helpers.psql
 
 create temp table ids as
@@ -18,6 +18,22 @@ insert into public.reactions (track_id, kind) values ((select track from ids), '
 select throws_ok(
   $$ insert into public.reactions (track_id, kind) values ((select track from ids), 'heart') $$,
   'PT429', 'rate_limited', 'toggling a reaction runs into the hourly limit'
+);
+select throws_ok(
+  $$ update public.reactions set kind = 'heart' where kind = 'fire' $$,
+  'PT429', 'rate_limited', 'changing a reaction counts against the same limit'
+);
+-- An update to the same kind is free, and must not write the track row
+-- (a new row version would mean the counts were recomputed).
+create temp table before_ctid as select ctid as c from public.tracks where id = (select track from ids);
+select lives_ok(
+  $$ update public.reactions set kind = 'fire' where kind = 'fire' $$,
+  'an update to the same kind is not limited'
+);
+select is(
+  (select ctid from public.tracks where id = (select track from ids)),
+  (select c from before_ctid),
+  'an update to the same kind leaves the track row alone'
 );
 select lives_ok(
   $$ delete from public.reactions where kind = 'fire' $$,

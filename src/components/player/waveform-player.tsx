@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatTime, formatTimeSpoken } from "@/lib/time";
+import { setListenVolume, useListenVolume } from "@/hooks/use-volume";
 import { cn } from "@/lib/utils";
 import type { Comment, VersionedComment } from "@/types/view";
 
@@ -78,6 +79,12 @@ export type WaveformPlayerProps = {
    * versions in A/B. Only ever down, so nothing can clip.
    */
   gainDb?: number;
+  /**
+   * An audio element to play through instead of one of its own, such as
+   * the site's shared one, so playback started elsewhere carries on here.
+   * Called in the browser only.
+   */
+  media?: () => HTMLAudioElement;
   /** Fires once per second while playing and on every seek. */
   onTimeChange?: (ms: number) => void;
   onMarkerSelect?: (comment: Comment) => void;
@@ -143,6 +150,7 @@ export function WaveformPlayer({
   currentVersionId,
   versionNumbers,
   gainDb = 0,
+  media,
   onTimeChange,
   onMarkerSelect,
   onCommentHere,
@@ -171,14 +179,18 @@ export function WaveformPlayer({
   const onTimeChangeRef = useRef(onTimeChange);
   // Read when a new source is created, so mute and level carry over.
   const mutedRef = useRef(muted);
-  const volume = Math.min(1, 10 ** (Math.min(0, gainDb) / 20));
+  const mediaRef = useRef(media);
+  // The listener's own volume, times the level match between versions.
+  const listenVolume = useListenVolume();
+  const volume = listenVolume * Math.min(1, 10 ** (Math.min(0, gainDb) / 20));
   const volumeRef = useRef(volume);
   useEffect(() => {
     onTimeChangeRef.current = onTimeChange;
     keepPositionRef.current = keepPosition;
     mutedRef.current = muted;
     volumeRef.current = volume;
-  }, [onTimeChange, keepPosition, muted, volume]);
+    mediaRef.current = media;
+  }, [onTimeChange, keepPosition, muted, volume, media]);
   useEffect(() => {
     wsRef.current?.setVolume(volume);
   }, [volume]);
@@ -201,10 +213,16 @@ export function WaveformPlayer({
     if (!container || !root) return;
     let cancelled = false;
     let ws: WaveSurfer | null = null;
+    let borrowed: HTMLAudioElement | null = null;
 
     void import("wavesurfer.js").then(({ default: WaveSurferLib }) => {
       if (cancelled) return;
+      // Borrowed only with an address to play: without one, wavesurfer would
+      // play whatever the element still holds.
+      const element = audioUrl ? mediaRef.current?.() : undefined;
+      borrowed = element ?? null;
       ws = WaveSurferLib.create({
+        ...(element ? { media: element } : {}),
         container,
         height,
         peaks: [peaks],
@@ -254,6 +272,11 @@ export function WaveformPlayer({
       ws.on("finish", () => setPlaying(false));
       ws.on("timeupdate", report);
       ws.on("interaction", report);
+      // Already playing this source when this player came: show where it is.
+      if (element && !element.paused && element.src === audioUrl) {
+        setPlaying(true);
+        report(element.currentTime);
+      }
     });
 
     return () => {
@@ -265,6 +288,9 @@ export function WaveformPlayer({
         };
       }
       ws?.destroy();
+      // wavesurfer leaves an element it did not make playing; stop it like
+      // its own (keepPosition carries the playing on to the new source).
+      borrowed?.pause();
       wsRef.current = null;
     };
   }, [peaks, durationMs, audioUrl, height, attempt, rangeSelect]);
@@ -321,6 +347,8 @@ export function WaveformPlayer({
     (event: KeyboardEvent | React.KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement;
+      // The volume slider uses the arrow keys itself.
+      if (target.dataset?.volume !== undefined) return;
       const onButton = target instanceof HTMLButtonElement;
       const now = (wsRef.current?.getCurrentTime() ?? currentMs / 1000) * 1000;
       switch (event.key) {
@@ -548,8 +576,25 @@ export function WaveformPlayer({
               aria-label="Mute"
               className="text-muted-foreground hover:text-foreground"
             >
-              {muted ? <VolumeXIcon /> : <Volume2Icon />}
+              {muted || listenVolume === 0 ? <VolumeXIcon /> : <Volume2Icon />}
             </Button>
+            {/* Phones set the volume with their own buttons (and iOS
+                ignores it), so the slider is for wider screens. */}
+            <input
+              type="range"
+              data-volume=""
+              min={0}
+              max={100}
+              step={5}
+              value={muted ? 0 : Math.round(listenVolume * 100)}
+              onChange={(e) => {
+                setListenVolume(Number(e.target.value) / 100);
+                if (muted) toggleMute();
+              }}
+              aria-label="Volume"
+              aria-valuetext={`${muted ? 0 : Math.round(listenVolume * 100)}%`}
+              className="hidden h-1 w-20 cursor-pointer accent-(--primary) @sm:block"
+            />
             <Button
               type="button"
               variant="ghost"

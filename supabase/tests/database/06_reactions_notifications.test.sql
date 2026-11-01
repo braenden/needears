@@ -2,7 +2,7 @@
 -- private and written by triggers only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(15);
 \ir _helpers.psql
 
 create temp table ids as
@@ -26,7 +26,7 @@ $$;
 
 select pg_temp.react_as('22222222-2222-4222-8222-222222222222', 'fire');
 select pg_temp.react_as('33333333-3333-4333-8333-333333333333', 'fire');
-select pg_temp.react_as('33333333-3333-4333-8333-333333333333', 'heart');
+select pg_temp.react_as('44444444-4444-4444-8444-444444444444', 'heart');
 
 select is(
   (select reaction_counts from public.tracks where id = (select track from ids)),
@@ -34,15 +34,30 @@ select is(
   'reaction_counts follows inserts'
 );
 select throws_ok(
-  $$ select pg_temp.react_as('33333333-3333-4333-8333-333333333333', 'fire') $$,
-  '23505', null, 'one reaction of each kind per user'
+  $$ select pg_temp.react_as('33333333-3333-4333-8333-333333333333', 'heart') $$,
+  '23505', null, 'one reaction per person per track'
+);
+
+-- Choosing another reaction replaces it.
+select set_config('request.jwt.claims', '{"sub": "33333333-3333-4333-8333-333333333333", "role": "authenticated"}', true);
+set local role authenticated;
+select lives_ok(
+  $$ update public.reactions set kind = 'eyes' where track_id = (select track from ids) $$,
+  'choosing another reaction replaces the old one'
+);
+update public.reactions set kind = 'heart' where user_id = '22222222-2222-4222-8222-222222222222';
+reset role;
+select is(
+  (select reaction_counts from public.tracks where id = (select track from ids)),
+  '{"eyes": 1, "heart": 1, "fire": 1}'::jsonb,
+  'counts follow a changed reaction, and nobody can change someone else''s'
 );
 
 select set_config('request.jwt.claims', '{"sub": "22222222-2222-4222-8222-222222222222", "role": "authenticated"}', true);
 set local role authenticated;
 select is((select count(*)::int from public.reactions), 1, 'users only see their own reactions');
+update public.reactions set kind = 'heart';
 delete from public.reactions where user_id = '33333333-3333-4333-8333-333333333333';
-delete from public.reactions where user_id = '22222222-2222-4222-8222-222222222222';
 select throws_ok(
   $$ insert into public.reactions (track_id, kind) values ((select hidden_track from ids), 'fire') $$,
   '42501', null, 'nobody can react to a hidden track'
@@ -51,8 +66,8 @@ reset role;
 
 select is(
   (select reaction_counts from public.tracks where id = (select track from ids)),
-  '{"fire": 1, "heart": 1}'::jsonb,
-  'users can remove their own reactions, not other people''s'
+  '{"eyes": 1, "heart": 2}'::jsonb,
+  'users can change and keep their own reaction, not remove other people''s'
 );
 
 select set_config('request.jwt.claims', '{"role": "anon"}', true);
@@ -60,7 +75,7 @@ set local role anon;
 select throws_ok('select * from public.reactions', '42501', null, 'anon cannot read reactions');
 select is(
   (select reaction_counts from public.tracks where id = (select track from ids)),
-  '{"fire": 1, "heart": 1}'::jsonb,
+  '{"eyes": 1, "heart": 2}'::jsonb,
   'reaction counts are public'
 );
 reset role;

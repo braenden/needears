@@ -1,4 +1,5 @@
 import { RememberLogin } from "@/components/common/remember-login";
+import { SharedAudioProvider } from "@/components/player/shared-audio";
 import { AppShell } from "@/components/shell/app-shell";
 import { getViewer } from "@/lib/data/viewer";
 
@@ -13,7 +14,7 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
       unread={viewer?.unread ?? 0}
       showSearch
     >
-      {children}
+      <SharedAudioProvider>{children}</SharedAudioProvider>
       <RememberLogin />
     </AppShell>
   );

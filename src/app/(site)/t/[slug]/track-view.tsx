@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -20,12 +20,13 @@ import {
 } from "@/components/comments/comment-list";
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
+import { useSharedAudio } from "@/components/player/shared-audio";
 import {
   type TimeRange,
   WaveformPlayer,
   type WaveformPlayerHandle,
 } from "@/components/player/waveform-player";
-import { ReactionBar } from "@/components/reaction-bar";
+import { moveReaction, ReactionBar } from "@/components/reaction-bar";
 import { ReportDialog, type ReportResult } from "@/components/report-dialog";
 import { ReputationBadge } from "@/components/reputation-badge";
 import type { EditTrackResult } from "@/components/track/edit-track-dialog";
@@ -43,6 +44,7 @@ import type { PlayableVersion } from "@/lib/data/tracks";
 import { FEEDBACK_WANT_LABELS, LEVEL_DISPLAY_LABELS } from "@/config/labels";
 import { siteUrl } from "@/config/site";
 import { usePlayCounter } from "@/hooks/use-play-counter";
+import { shareReactionCounts } from "@/hooks/use-reaction-counts";
 import { matchGainDb } from "@/lib/audio/loudness";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { formatPlays } from "@/lib/plays";
@@ -105,7 +107,8 @@ export function TrackView({
   track: Track;
   audioUrl: string | null;
   initialComments: ThreadComment[];
-  initialReactions: ReactionKind[];
+  /** The viewer's reaction, if any. */
+  initialReactions: ReactionKind | null;
   viewer: TrackViewer | null;
   startSeconds: number;
   initialFilter: CommentFilter;
@@ -126,6 +129,10 @@ export function TrackView({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mine, setMine] = useState(initialReactions);
   const [counts, setCounts] = useState(track.reaction_counts);
+  // Cards for this track elsewhere (the feed kept for going back) follow.
+  useEffect(() => {
+    shareReactionCounts(track.id, counts);
+  }, [track.id, counts]);
   const [filter, setFilter] = useState<CommentFilter>(initialFilter);
   const [showResolved, setShowResolved] = useState(initialShowResolved);
   const [editing, setEditing] = useState(false);
@@ -136,6 +143,21 @@ export function TrackView({
     null,
   );
   const countPlay = usePlayCounter(track.id, track.duration_ms);
+  // The site's shared audio element. When the feed was playing this track,
+  // the page takes it over and carries on from the same address, without
+  // starting over. Otherwise the page has a player of its own, and whatever
+  // the feed played stops.
+  const shared = useSharedAudio();
+  const [audioOwner] = useState(() => ({}));
+  const [carriedSrc] = useState(() => shared.playingSrc(track.id));
+  // The feed's address until the page renews it.
+  const [firstAudioUrl] = useState(audioUrl);
+  const carrying = !!carriedSrc && audioUrl === firstAudioUrl;
+  useEffect(() => {
+    if (!carriedSrc) return;
+    shared.claim(audioOwner, { id: track.id, slug: track.slug });
+    return () => shared.release(audioOwner);
+  }, [shared, audioOwner, carriedSrc, track.id, track.slug]);
   const [reporting, setReporting] = useState<
     { type: "track" } | { type: "comment"; id: string } | null
   >(null);
@@ -151,7 +173,11 @@ export function TrackView({
     durationMs: current?.duration_ms ?? track.duration_ms,
     peaks: current?.peaks ?? track.peaks,
     // The latest version's URL is refreshed when it expires.
-    audioUrl: isLatest ? audioUrl : (current?.audioUrl ?? null),
+    audioUrl: isLatest
+      ? carrying
+        ? carriedSrc
+        : audioUrl
+      : (current?.audioUrl ?? null),
   };
   const measured = versions
     .map((v) => v.loudness)
@@ -310,37 +336,63 @@ export function TrackView({
       );
   }
 
-  async function toggleReaction(kind: ReactionKind, on: boolean) {
+  // One reaction per person: picking one adds or moves it, null takes it
+  // back. Shown at once, undone if the database says no. Writes run in
+  // order, so quick clicks cannot land the wrong way round.
+  const reactionWrites = useRef(Promise.resolve());
+  function pickReaction(next: ReactionKind | null) {
     if (!viewer) return;
-    setMine((m) => (on ? [...m, kind] : m.filter((k) => k !== kind)));
-    setCounts((c) => ({ ...c, [kind]: Math.max(0, c[kind] + (on ? 1 : -1)) }));
-    const { error } = on
-      ? await (
-          await browserClient()
-        )
-          .from("reactions")
-          .insert({ track_id: track.id, kind })
-      : await (
-          await browserClient()
-        )
-          .from("reactions")
-          .delete()
-          .eq("track_id", track.id)
-          .eq("user_id", viewer.userId)
-          .eq("kind", kind);
-    // A duplicate means it was already there: nothing to undo.
-    if (error && error.code !== "23505") {
-      setMine((m) => (on ? m.filter((k) => k !== kind) : [...m, kind]));
-      setCounts((c) => ({
-        ...c,
-        [kind]: Math.max(0, c[kind] + (on ? -1 : 1)),
-      }));
+    const before = mine;
+    setMine(next);
+    setCounts((c) => moveReaction(c, before, next));
+    reactionWrites.current = reactionWrites.current.then(async () => {
+      const error = await saveReaction(viewer.userId, before, next).catch(
+        () => ({ code: undefined }),
+      );
+      if (!error) return;
+      // Undo this click only; a later one may already have moved on.
+      setMine((m) => (m === next ? before : m));
+      setCounts((c) => moveReaction(c, next, before));
       toast.error(
         error.code === "PT429"
           ? "You've reacted a lot in the last hour. Try again in a bit."
           : "Something broke on our side. Try again, or come back in a minute.",
       );
+    });
+  }
+
+  /** Stores the viewer's reaction. The database's error, or null. */
+  async function saveReaction(
+    userId: string,
+    before: ReactionKind | null,
+    next: ReactionKind | null,
+  ): Promise<{ code?: string } | null> {
+    const supabase = await browserClient();
+    const reactions = () => supabase.from("reactions");
+    const add = async (kind: ReactionKind) =>
+      (await reactions().insert({ track_id: track.id, kind })).error;
+    const change = async (kind: ReactionKind) => {
+      const { data, error } = await reactions()
+        .update({ kind })
+        .eq("track_id", track.id)
+        .eq("user_id", userId)
+        .select("kind");
+      if (error || data.length > 0) return error;
+      // Taken back in another tab: add it again.
+      return add(kind);
+    };
+    if (!next) {
+      return (
+        await reactions()
+          .delete()
+          .eq("track_id", track.id)
+          .eq("user_id", userId)
+      ).error;
     }
+    if (before) return change(next);
+    const error = await add(next);
+    // Already reacted in another tab: change that one instead.
+    return error?.code === "23505" ? change(next) : error;
   }
 
   async function sendReport(report: {
@@ -478,6 +530,7 @@ export function TrackView({
           currentVersionId={versioned ? current?.id : undefined}
           versionNumbers={versioned ? versionNumbers : undefined}
           gainDb={gainDb}
+          media={carriedSrc ? () => shared.get() : undefined}
           rangeSelect
           range={range}
           onRangeChange={setRange}
@@ -504,7 +557,7 @@ export function TrackView({
         signedIn={Boolean(viewer)}
         shareUrl={shareUrl}
         onSignIn={signIn}
-        onToggle={(kind, on) => void toggleReaction(kind, on)}
+        onPick={pickReaction}
       />
 
       <section aria-label="About this track" className="mt-6 grid gap-3">

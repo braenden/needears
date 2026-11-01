@@ -60,7 +60,7 @@ export default async function TrackPage({
   if (!data) notFound();
   const { track, audioUrl, comments, versions, authorBadges } = data;
 
-  let mine: ReactionKind[] = [];
+  let mine: ReactionKind | null = null;
   if (viewer) {
     const supabase = await createClient();
     const { data: rows } = await supabase
@@ -68,7 +68,7 @@ export default async function TrackPage({
       .select("kind")
       .eq("track_id", track.id)
       .eq("user_id", viewer.userId);
-    mine = (rows ?? []).map((r) => r.kind);
+    mine = rows?.[0]?.kind ?? null;
   }
 
   // The owner can edit the details, genre included.

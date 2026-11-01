@@ -18,15 +18,93 @@ export const AVATAR_SIZE_PX = 512;
 // or by the daily cleanup.
 export const AVATAR_FILES_MAX = 3;
 
-// A link may point to one of these hosts or a subdomain of it.
-export const profileLinkHosts = [
-  "bandcamp.com",
-  "instagram.com",
-  "soundcloud.com",
-  "spotify.com",
-  "tiktok.com",
-  "youtube.com",
-] as const;
+// The services a profile link or a reference track may point to. A link
+// may use the host itself, www. or m. in front of it, and the subdomains
+// listed for that host (or any subdomain where `anySubdomain` is set, for
+// artist pages like nora.bandcamp.com). Other subdomains are refused, since
+// services keep redirect and sign in pages there (l.facebook.com,
+// id.twitch.tv). The names are what the forms show.
+type LinkHostRule = {
+  host: string;
+  name: string;
+  subdomains?: readonly string[];
+  anySubdomain?: boolean;
+};
+
+export const linkHosts = [
+  { host: "soundcloud.com", name: "SoundCloud", subdomains: ["on"] },
+  { host: "bandcamp.com", name: "Bandcamp", anySubdomain: true },
+  { host: "spotify.com", name: "Spotify", subdomains: ["open"] },
+  { host: "music.apple.com", name: "Apple Music" },
+  { host: "youtube.com", name: "YouTube", subdomains: ["music"] },
+  { host: "youtu.be", name: "YouTube" },
+  { host: "instagram.com", name: "Instagram" },
+  { host: "tiktok.com", name: "TikTok", subdomains: ["vm"] },
+  { host: "x.com", name: "X", subdomains: ["mobile"] },
+  { host: "twitter.com", name: "X", subdomains: ["mobile"] },
+  { host: "facebook.com", name: "Facebook" },
+  { host: "threads.com", name: "Threads" },
+  { host: "threads.net", name: "Threads" },
+  { host: "bsky.app", name: "Bluesky" },
+  { host: "mixcloud.com", name: "Mixcloud" },
+  { host: "audiomack.com", name: "Audiomack" },
+  { host: "beatport.com", name: "Beatport" },
+  { host: "tidal.com", name: "Tidal", subdomains: ["listen"] },
+  { host: "deezer.com", name: "Deezer" },
+  { host: "twitch.tv", name: "Twitch" },
+  { host: "patreon.com", name: "Patreon" },
+] as const satisfies readonly LinkHostRule[];
+
+export type LinkHostName = (typeof linkHosts)[number]["host"];
+
+// Subdomains every host allows.
+const COMMON_SUBDOMAINS = ["www", "m"];
+
+// Every subdomain a host allows, as the database stores it.
+export function allowedSubdomains(rule: LinkHostRule): string[] {
+  return [...COMMON_SUBDOMAINS, ...(rule.subdomains ?? [])];
+}
+
+// Path segments that sign in or bounce the visitor somewhere else, refused
+// anywhere in the path on every host (/dialog/oauth, /v19.0/dialog/oauth,
+// /i/redirect, /l.php).
+const BLOCKED_LINK_SEGMENTS = /(^|\/)(oauth2?|dialog|l\.php|redirect)(\/|$)/i;
+
+// The path before ? and #, checked the way a browser would open it. Back
+// slashes, empty segments, . and .. segments and percent encoded ASCII are
+// refused, since browsers and services normalize them and could land on a
+// blocked path (/foo/../oauth2, //oauth2, /%6fauth2). Percent encoded UTF-8
+// (%C3%A6) is fine. Kept equal to private.link_url_allowed.
+function isAllowedLinkPath(pathAndQuery: string): boolean {
+  const path = pathAndQuery.split(/[?#]/, 1)[0]!;
+  if (path.includes("\\") || path.includes("//")) return false;
+  if (/(^|\/)\.\.?(\/|$)/.test(path)) return false;
+  if (/%[0-7][0-9a-f]/i.test(path)) return false;
+  return !BLOCKED_LINK_SEGMENTS.test(path);
+}
+
+export const profileLinkHosts = linkHosts.map((h) => h.host);
+
+// Each service once, in the order above, for "Links can go to ...".
+export const linkServiceNames = [...new Set(linkHosts.map((h) => h.name))];
+
+// The rule a host name matches, or null.
+export function linkHostFor(
+  hostname: string,
+): (typeof linkHosts)[number] | null {
+  const name = hostname.toLowerCase();
+  for (const rule of linkHosts) {
+    if (name === rule.host) return rule;
+    if (!name.endsWith(`.${rule.host}`)) continue;
+    const sub = name.slice(0, -rule.host.length - 1);
+    if ("anySubdomain" in rule && rule.anySubdomain) {
+      if (/^[a-z0-9-]+$/.test(sub)) return rule;
+    } else if (allowedSubdomains(rule).includes(sub)) {
+      return rule;
+    }
+  }
+  return null;
+}
 
 // Control characters and text direction marks, which can disguise a link.
 // The database rejects the same ones in labels and URLs.
@@ -34,13 +112,14 @@ export const UNSAFE_CHARS =
   /[\u0001-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
 
 // Same rule as the database (private.link_url_allowed): https, a lower case
-// host, no port or user info, and an allowed host.
+// host made of non empty labels, no port or user info, an allowed host and
+// subdomain, and a path that passes isAllowedLinkPath.
 export function isAllowedLinkUrl(value: string): boolean {
   if (value.length > LINK_URL_MAX || UNSAFE_CHARS.test(value)) return false;
-  const match = /^https:\/\/([a-z0-9.-]+)(\/\S*)?$/.exec(value);
+  const match = /^https:\/\/((?:[a-z0-9-]+\.)+[a-z0-9-]+)(\/\S*)?$/.exec(value);
   if (!match) return false;
-  const host = match[1]!;
-  return profileLinkHosts.some((h) => host === h || host.endsWith(`.${h}`));
+  if (!isAllowedLinkPath(match[2] ?? "")) return false;
+  return linkHostFor(match[1]!) !== null;
 }
 
 function sqlString(value: string): string {
@@ -49,14 +128,21 @@ function sqlString(value: string): string {
 
 // The SQL written to supabase/seeds/profile.sql. Idempotent.
 export function profileSeedSql(): string {
-  const hosts = profileLinkHosts.map(sqlString);
+  const hosts = linkHosts.map((h) => sqlString(h.host));
+  const rows = linkHosts.map((h) => {
+    const any = "anySubdomain" in h && h.anySubdomain === true;
+    const subs = allowedSubdomains(h).map(sqlString).join(", ");
+    return `  (${sqlString(h.host)}, array[${subs}]::text[], ${any})`;
+  });
   return [
     "-- Generated from src/config/profile.ts by `pnpm db:config`. Do not edit.",
     `delete from public.link_hosts where host not in (${hosts.join(", ")});`,
-    "insert into public.link_hosts (host)",
+    "insert into public.link_hosts (host, subdomains, any_subdomain)",
     "values",
-    hosts.map((h) => `  (${h})`).join(",\n"),
-    "on conflict (host) do nothing;",
+    rows.join(",\n"),
+    "on conflict (host) do update set",
+    "  subdomains = excluded.subdomains,",
+    "  any_subdomain = excluded.any_subdomain;",
     "",
   ].join("\n");
 }

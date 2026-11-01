@@ -2,8 +2,9 @@ import {
   HostIcon,
   hostName,
   hostOf,
-  LINK_HOSTS,
+  LINK_SERVICE_NAMES,
 } from "@/components/profile/link-hosts";
+import { isAllowedLinkUrl } from "@/config/profile";
 import { cn } from "@/lib/utils";
 
 /** Null when the reference URL is fine, otherwise what to tell the uploader. */
@@ -11,8 +12,8 @@ export function referenceError(url: string): string | null {
   const value = url.trim();
   if (!value) return null;
   if (!/^https:\/\//i.test(value)) return "Links start with https://.";
-  if (!hostOf(value)) {
-    return `Reference tracks can link to ${LINK_HOSTS.map((h) => h.name).join(", ")}.`;
+  if (!hostOf(value) || !isAllowedLinkUrl(value)) {
+    return `Reference tracks can link to ${LINK_SERVICE_NAMES.join(", ")}.`;
   }
   return null;
 }
