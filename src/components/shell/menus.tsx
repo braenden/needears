@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MenuIcon } from "lucide-react";
+import { ChevronRightIcon, MenuIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
@@ -80,7 +80,7 @@ export function MobileMenu({
             className="mr-10 flex items-center gap-3 rounded-md px-3 py-2 focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent"
           >
             <UserAvatar profile={user} size="lg" />
-            <span className="min-w-0">
+            <span className="min-w-0 flex-1">
               <span className="block truncate font-semibold">
                 {displayNameOf(user)}
               </span>
@@ -88,6 +88,11 @@ export function MobileMenu({
                 @{user.handle}
               </span>
             </span>
+            {/* Says the row opens something: your profile. */}
+            <ChevronRightIcon
+              className="size-4 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
           </Link>
         ) : null}
         <nav aria-label={`${navLabel}, mobile`}>

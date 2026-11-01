@@ -222,7 +222,18 @@ export function SiteHeader({
                 ) : null}
               </Link>
             </Button>
-          ) : null}
+          ) : (
+            // Signed out on a phone: Sign in where the bell would be, not
+            // only inside the menu.
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="touch-hit px-2 @min-[40rem]:hidden"
+            >
+              <Link href="/login">Sign in</Link>
+            </Button>
+          )}
           {/* Signed in, the theme is in the account menu. */}
           <div className="hidden items-center gap-1 @min-[40rem]:flex">
             {user ? (
