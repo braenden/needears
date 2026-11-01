@@ -65,10 +65,23 @@ export function allowedSubdomains(rule: LinkHostRule): string[] {
   return [...COMMON_SUBDOMAINS, ...(rule.subdomains ?? [])];
 }
 
-// Paths that sign in or bounce the visitor somewhere else. Refused on every
-// host. Kept equal to the pattern in private.link_url_allowed.
-export const BLOCKED_LINK_PATHS =
-  /^\/(oauth|dialog\/|l\.php|i\/redirect|redirect)/i;
+// Path segments that sign in or bounce the visitor somewhere else, refused
+// anywhere in the path on every host (/dialog/oauth, /v19.0/dialog/oauth,
+// /i/redirect, /l.php).
+const BLOCKED_LINK_SEGMENTS = /(^|\/)(oauth2?|dialog|l\.php|redirect)(\/|$)/i;
+
+// The path before ? and #, checked the way a browser would open it. Back
+// slashes, empty segments, . and .. segments and percent encoded ASCII are
+// refused, since browsers and services normalize them and could land on a
+// blocked path (/foo/../oauth2, //oauth2, /%6fauth2). Percent encoded UTF-8
+// (%C3%A6) is fine. Kept equal to private.link_url_allowed.
+function isAllowedLinkPath(pathAndQuery: string): boolean {
+  const path = pathAndQuery.split(/[?#]/, 1)[0]!;
+  if (path.includes("\\") || path.includes("//")) return false;
+  if (/(^|\/)\.\.?(\/|$)/.test(path)) return false;
+  if (/%[0-7][0-9a-f]/i.test(path)) return false;
+  return !BLOCKED_LINK_SEGMENTS.test(path);
+}
 
 export const profileLinkHosts = linkHosts.map((h) => h.host);
 
@@ -100,12 +113,12 @@ export const UNSAFE_CHARS =
 
 // Same rule as the database (private.link_url_allowed): https, a lower case
 // host made of non empty labels, no port or user info, an allowed host and
-// subdomain, and no redirect or sign in path.
+// subdomain, and a path that passes isAllowedLinkPath.
 export function isAllowedLinkUrl(value: string): boolean {
   if (value.length > LINK_URL_MAX || UNSAFE_CHARS.test(value)) return false;
   const match = /^https:\/\/((?:[a-z0-9-]+\.)+[a-z0-9-]+)(\/\S*)?$/.exec(value);
   if (!match) return false;
-  if (BLOCKED_LINK_PATHS.test(match[2] ?? "")) return false;
+  if (!isAllowedLinkPath(match[2] ?? "")) return false;
   return linkHostFor(match[1]!) !== null;
 }
 

@@ -9,9 +9,13 @@
 -- redirect and sign in pages on other subdomains (l.facebook.com,
 -- id.twitch.tv), so now only the host itself, www., m. and the subdomains
 -- listed for it count, or any subdomain where any_subdomain is set (artist
--- pages on Bandcamp). Paths that sign in or bounce the visitor elsewhere
--- (/oauth, /dialog/, /l.php, /i/redirect, /redirect) are refused on every
--- host, and the host must be made of non empty labels.
+-- pages on Bandcamp). Path segments that sign in or bounce the visitor
+-- elsewhere (oauth, oauth2, dialog, l.php, redirect) are refused anywhere in
+-- the path on every host. So are back slashes, empty segments, . and ..
+-- segments and percent encoded ASCII in the path, since browsers and
+-- services normalize them and could land on a blocked path
+-- (/foo/../oauth2, //oauth2, /%6fauth2). The host must be made of non empty
+-- labels.
 --
 -- The list lives in src/config/profile.ts; the rows below are what
 -- `pnpm db:config` writes to supabase/seeds/profile.sql, so a database push
@@ -69,10 +73,16 @@ begin
   end if;
 
   v_host := substring(p_url from '^https://([^/]+)');
-  v_path := coalesce(substring(p_url from '^https://[^/]+(/.*)$'), '');
+  -- The path before ? and #. Kept equal to isAllowedLinkPath in
+  -- src/config/profile.ts.
+  v_path := coalesce(substring(p_url from '^https://[^/]+(/[^?#]*)'), '');
 
-  -- Kept equal to BLOCKED_LINK_PATHS in src/config/profile.ts.
-  if v_path ~* '^/(oauth|dialog/|l\.php|i/redirect|redirect)' then
+  if strpos(v_path, '\') > 0
+    or strpos(v_path, '//') > 0
+    or v_path ~ '(^|/)\.\.?(/|$)'
+    or v_path ~* '%[0-7][0-9a-f]'
+    or v_path ~* '(^|/)(oauth2?|dialog|l\.php|redirect)(/|$)'
+  then
     return false;
   end if;
 
