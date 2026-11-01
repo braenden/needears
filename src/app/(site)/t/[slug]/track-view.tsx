@@ -602,7 +602,7 @@ export function TrackView({
               type="button"
               variant="ghost"
               size="sm"
-              className="text-muted-foreground"
+              className="-ml-3 text-muted-foreground"
               onClick={() => setEditing(true)}
             >
               <PencilIcon /> Edit details

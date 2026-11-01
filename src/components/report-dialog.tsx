@@ -88,7 +88,12 @@ export function ReportDialog({
       {trigger !== null ? (
         <DialogTrigger asChild>
           {trigger ?? (
-            <Button variant="ghost" size="sm" className="text-muted-foreground">
+            // Pulled out by its padding, so the icon sits on the content edge.
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-3 text-muted-foreground"
+            >
               <FlagIcon /> Report
             </Button>
           )}
