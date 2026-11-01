@@ -214,6 +214,20 @@ function seeked(element: HTMLMediaElement) {
 export async function fadedSeek(element: HTMLMediaElement, seconds: number) {
   const state = stateOf(element);
   const mine = ++state.seq;
+  // Nothing loaded yet (a slow connection, right after Play): nothing to
+  // hear, but a position set this early can be dropped, so set it again
+  // once the element knows the track, unless a newer seek came since.
+  if (element.readyState < 1 /* HAVE_METADATA */) {
+    element.currentTime = seconds;
+    element.addEventListener(
+      "loadedmetadata",
+      () => {
+        if (state.seq === mine) element.currentTime = seconds;
+      },
+      { once: true },
+    );
+    return;
+  }
   if (element.paused || !fadeNow(element)) {
     element.currentTime = seconds;
     return;

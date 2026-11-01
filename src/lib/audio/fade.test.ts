@@ -185,3 +185,17 @@ describe("a busy page", () => {
     expect(audio.pause).toHaveBeenCalledOnce();
   });
 });
+
+describe("before the track has loaded", () => {
+  it("sets the spot again once it knows the track, and the latest one wins", async () => {
+    const audio = Object.assign(fakeAudio(), { readyState: 0 });
+    audio.paused = false;
+    await fadedSeek(asMedia(audio), 10);
+    await fadedSeek(asMedia(audio), 12.6);
+    expect(audio.currentTime).toBe(12.6);
+    // The element drops it while loading, then reports the metadata.
+    audio.currentTime = 0;
+    audio.fire("loadedmetadata");
+    expect(audio.currentTime).toBe(12.6);
+  });
+});

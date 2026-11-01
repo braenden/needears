@@ -212,7 +212,7 @@ export function TrackList({
     const seconds = Math.min(at, 0.999) * duration;
     if (audio.paused || !wantsToPlay.current) {
       // Paused: jump in silence, then fade in from there.
-      audio.currentTime = seconds;
+      void fadedSeek(audio, seconds);
       wantsToPlay.current = true;
       void fadeInPlay(audio).catch(() => {
         wantsToPlay.current = false;

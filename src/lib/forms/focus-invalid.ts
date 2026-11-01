@@ -9,6 +9,6 @@ export function focusFirstInvalid(form: HTMLElement | null) {
     const field = form?.querySelector<HTMLElement>('[aria-invalid="true"]');
     if (!field) return;
     field.focus({ preventScroll: true });
-    field.scrollIntoView({ block: "center" });
+    field.scrollIntoView?.({ block: "center" });
   });
 }
