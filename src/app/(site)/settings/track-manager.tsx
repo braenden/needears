@@ -131,9 +131,7 @@ export function TrackManager({ tracks }: { tracks: OwnTrack[] }) {
               disabled={deleting}
               onClick={() => confirm && void remove(confirm)}
             >
-              {deleting ? (
-                <Loader2Icon className="motion-safe:animate-spin" />
-              ) : null}
+              {deleting ? <Loader2Icon className="animate-spin" /> : null}
               Delete track
             </Button>
           </DialogFooter>

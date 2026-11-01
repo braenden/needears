@@ -109,7 +109,7 @@ export function HandleForm({
         </p>
       </div>
       <Button type="submit" size="lg" disabled={saving}>
-        {saving ? <Loader2Icon className="motion-safe:animate-spin" /> : null}
+        {saving ? <Loader2Icon className="animate-spin" /> : null}
         Continue
       </Button>
     </form>

@@ -186,7 +186,7 @@ export function ReportDialog({
               </DialogClose>
               <Button type="submit" disabled={state === "sending"}>
                 {state === "sending" ? (
-                  <Loader2Icon className="motion-safe:animate-spin" />
+                  <Loader2Icon className="animate-spin" />
                 ) : null}
                 Send report
               </Button>

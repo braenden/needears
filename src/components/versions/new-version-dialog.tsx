@@ -346,9 +346,7 @@ function VersionDialog({
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={busy}>
-                {busy ? (
-                  <Loader2Icon className="motion-safe:animate-spin" />
-                ) : null}
+                {busy ? <Loader2Icon className="animate-spin" /> : null}
                 {state.publishError && state.publishError !== "rate_limited"
                   ? "Try again"
                   : `Publish v${nextVersionNo}`}

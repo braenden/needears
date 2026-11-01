@@ -344,7 +344,7 @@ function CommentItem({
     <li
       aria-current={active ? "true" : undefined}
       className={cn(
-        "relative flex gap-3 py-4 transition-colors duration-(--duration-base)",
+        "relative flex gap-3 py-4 transition-colors duration-base",
         active &&
           "before:absolute before:inset-y-2 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary",
       )}

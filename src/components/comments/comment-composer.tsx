@@ -289,7 +289,7 @@ export function CommentComposer({
                 onChange={() => setCategory(value)}
                 className="peer sr-only"
               />
-              <span className="inline-flex h-8 cursor-pointer items-center rounded-full border px-3 text-[13px] font-medium text-muted-foreground transition-colors duration-(--duration-fast) select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring hover:text-foreground peer-checked:hover:text-background">
+              <span className="inline-flex h-8 cursor-pointer items-center rounded-full border px-3 text-[13px] font-medium text-muted-foreground transition-colors duration-fast select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring hover:text-foreground peer-checked:hover:text-background">
                 {CATEGORY_LABELS[value]}
               </span>
             </label>
@@ -362,9 +362,7 @@ export function CommentComposer({
           disabled={submitting}
           aria-keyshortcuts="Meta+Enter Control+Enter"
         >
-          {submitting ? (
-            <Loader2Icon className="motion-safe:animate-spin" />
-          ) : null}
+          {submitting ? <Loader2Icon className="animate-spin" /> : null}
           {submitting ? "Sending…" : "Comment"}
         </Button>
       </div>

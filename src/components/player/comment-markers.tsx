@@ -179,7 +179,7 @@ export function CommentMarkers({
                   profile={comment.author}
                   size="sm"
                   className={cn(
-                    "size-5 ring-2 ring-card transition-transform duration-(--duration-fast)",
+                    "size-5 ring-2 ring-card transition-transform duration-fast",
                     active && "ring-primary",
                     previewing && "scale-110",
                   )}

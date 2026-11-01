@@ -20,6 +20,24 @@
 /* A finger. */
 @custom-variant coarse (@media (pointer: coarse));
 
+/*
+ * Durations: fast for small things (a press, a hover, an exit), base for
+ * menus and dialogs, slow for whole sheets. Also used by the enter and
+ * leave animations.
+ */
+@utility duration-fast {
+  --tw-duration: var(--duration-fast);
+  transition-duration: var(--duration-fast);
+}
+@utility duration-base {
+  --tw-duration: var(--duration-base);
+  transition-duration: var(--duration-base);
+}
+@utility duration-slow {
+  --tw-duration: var(--duration-slow);
+  transition-duration: var(--duration-slow);
+}
+
 /* The one focus style: a ring outside the control, in the accent color. */
 @utility focus-ring {
   &:focus-visible {
@@ -92,7 +110,11 @@
   --shadow-pop: var(--shadow-pop);
   --shadow-dialog: var(--shadow-dialog);
 
+  /* Motion: things come in with a quick start and a soft landing, leave
+     with a soft start, and move from place to place with the third. */
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
+  --ease-move: cubic-bezier(0.2, 0, 0, 1);
   --animate-marker-in: marker-in var(--duration-base) var(--ease-out-soft) both;
 
   @keyframes marker-in {
@@ -232,13 +254,27 @@
   }
 }
 
+/*
+ * Reduced motion: nothing moves or grows, things only fade, and quickly.
+ * Spinners and the progress bar keep going, since they tell that something
+ * is happening; skeletons stop pulsing.
+ */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-base: var(--duration-fast);
+    --duration-slow: var(--duration-fast);
+  }
   *,
   *::before,
   *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
+    --tw-enter-translate-x: 0 !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-enter-scale: 1 !important;
+    --tw-enter-rotate: 0 !important;
+    --tw-exit-translate-x: 0 !important;
+    --tw-exit-translate-y: 0 !important;
+    --tw-exit-scale: 1 !important;
+    --tw-exit-rotate: 0 !important;
     scroll-behavior: auto !important;
   }
 }

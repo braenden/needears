@@ -93,7 +93,7 @@ export function VersionPicker({
                   );
                 }}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[13px] font-medium focus-ring transition-colors duration-(--duration-fast) outline-none",
+                  "inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[13px] font-medium focus-ring transition-colors duration-fast outline-none",
                   checked
                     ? "border-transparent bg-foreground text-background"
                     : "text-muted-foreground hover:text-foreground",

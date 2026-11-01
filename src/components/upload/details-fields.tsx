@@ -166,7 +166,7 @@ export function DetailsFields({
                     })
                   }
                 />
-                <span className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-sm text-muted-foreground transition-colors duration-(--duration-fast) select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring hover:text-foreground peer-checked:hover:text-background">
+                <span className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-sm text-muted-foreground transition-colors duration-fast select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring hover:text-foreground peer-checked:hover:text-background">
                   {checked ? (
                     <CheckIcon className="size-3.5" aria-hidden="true" />
                   ) : null}

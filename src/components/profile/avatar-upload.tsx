@@ -417,9 +417,7 @@ function CropDialog({
             </Button>
           </DialogClose>
           <Button onClick={() => void save()} disabled={saving}>
-            {saving ? (
-              <Loader2Icon className="motion-safe:animate-spin" />
-            ) : null}
+            {saving ? <Loader2Icon className="animate-spin" /> : null}
             Save photo
           </Button>
         </DialogFooter>

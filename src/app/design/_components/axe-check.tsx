@@ -42,7 +42,7 @@ export function AxeCheck() {
           disabled={state === "running"}
         >
           {state === "running" ? (
-            <Loader2Icon className="motion-safe:animate-spin" />
+            <Loader2Icon className="animate-spin" />
           ) : null}
           Run axe on this page
         </Button>

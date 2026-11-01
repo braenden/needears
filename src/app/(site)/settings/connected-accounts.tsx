@@ -304,7 +304,7 @@ export function ConnectedAccounts({
                 {connecting ? (
                   <>
                     <Loader2Icon
-                      className="absolute motion-safe:animate-spin"
+                      className="absolute animate-spin"
                       aria-hidden="true"
                     />
                     <span className="sr-only">Connecting…</span>
@@ -364,9 +364,7 @@ export function ConnectedAccounts({
               disabled={disconnecting}
               onClick={() => void disconnect()}
             >
-              {disconnecting ? (
-                <Loader2Icon className="motion-safe:animate-spin" />
-              ) : null}
+              {disconnecting ? <Loader2Icon className="animate-spin" /> : null}
               Disconnect
             </Button>
           </DialogFooter>

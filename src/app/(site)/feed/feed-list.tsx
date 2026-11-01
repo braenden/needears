@@ -92,9 +92,7 @@ export function FeedList({
         ) : null}
         {hasMore ? (
           <Button variant="outline" onClick={loadMore} disabled={pending}>
-            {pending ? (
-              <Loader2Icon className="motion-safe:animate-spin" />
-            ) : null}
+            {pending ? <Loader2Icon className="animate-spin" /> : null}
             Load more
           </Button>
         ) : (

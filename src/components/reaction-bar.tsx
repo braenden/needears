@@ -66,7 +66,7 @@ export function ReactionBar({
                 signedIn ? onPick?.(pressed ? null : kind) : onSignIn?.()
               }
               className={cn(
-                "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm focus-ring transition-[background-color,border-color,transform] duration-(--duration-fast) outline-none select-none active:scale-95",
+                "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm focus-ring transition-[background-color,border-color,transform] duration-fast outline-none select-none active:scale-95",
                 pressed
                   ? "border-transparent bg-primary-soft text-primary-text"
                   : "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",

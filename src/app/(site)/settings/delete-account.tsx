@@ -148,7 +148,7 @@ export function DeleteAccount({ handle }: { handle: string }) {
                   disabled={typed.trim() !== handle || state === "deleting"}
                 >
                   {state === "deleting" ? (
-                    <Loader2Icon className="motion-safe:animate-spin" />
+                    <Loader2Icon className="animate-spin" />
                   ) : null}
                   Delete everything
                 </Button>

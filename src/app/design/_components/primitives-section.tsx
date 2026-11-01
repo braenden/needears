@@ -65,7 +65,7 @@ export function PrimitivesSection() {
             </Button>
             <Button disabled>Disabled</Button>
             <Button disabled>
-              <Loader2Icon className="motion-safe:animate-spin" /> Sending…
+              <Loader2Icon className="animate-spin" /> Sending…
             </Button>
           </div>
         </ThemePanels>

@@ -238,7 +238,7 @@ export function ProfileExtrasForm({
       ) : null}
       <div>
         <Button type="submit" disabled={saving}>
-          {saving ? <Loader2Icon className="motion-safe:animate-spin" /> : null}
+          {saving ? <Loader2Icon className="animate-spin" /> : null}
           {submitLabel}
         </Button>
       </div>

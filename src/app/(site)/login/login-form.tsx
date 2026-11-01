@@ -140,7 +140,7 @@ export function LoginForm({
               className="h-10"
             >
               {state === "sending" ? (
-                <Loader2Icon className="motion-safe:animate-spin" />
+                <Loader2Icon className="animate-spin" />
               ) : null}
               Email me a sign-in link
             </Button>
@@ -151,10 +151,7 @@ export function LoginForm({
             role="status"
             className="absolute inset-0 flex items-center justify-center gap-2 rounded-xl border bg-card text-sm font-medium"
           >
-            <Loader2Icon
-              className="size-4 motion-safe:animate-spin"
-              aria-hidden="true"
-            />
+            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
             Signing you in…
           </div>
         ) : null}

@@ -333,7 +333,7 @@ export function ProgressBar({
       className="h-1.5 overflow-hidden rounded-full bg-muted"
     >
       <div
-        className="h-full rounded-full bg-primary transition-[width] duration-(--duration-base)"
+        className="h-full rounded-full bg-primary transition-[width] duration-base"
         style={{ width: `${Math.round(value * 100)}%` }}
       />
     </div>
@@ -376,7 +376,7 @@ export function FileStep({
                 />
               ) : index === currentIndex ? (
                 <Loader2Icon
-                  className="size-4 motion-safe:animate-spin"
+                  className="size-4 animate-spin"
                   aria-hidden="true"
                 />
               ) : (
@@ -411,7 +411,7 @@ export function FileStep({
         }}
         data-dragging={dragging || undefined}
         className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors duration-(--duration-fast)",
+          "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors duration-fast",
           "hover:border-[color-mix(in_oklab,var(--border),var(--foreground)_25%)] has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring",
           "data-dragging:border-primary data-dragging:bg-primary-soft",
         )}
@@ -672,7 +672,7 @@ function PublishStep({
           Back
         </Button>
         <Button type="submit" size="lg" disabled={busy}>
-          {busy ? <Loader2Icon className="motion-safe:animate-spin" /> : null}
+          {busy ? <Loader2Icon className="animate-spin" /> : null}
           {state.publishError && state.publishError !== "rate_limited"
             ? "Try again"
             : "Publish"}

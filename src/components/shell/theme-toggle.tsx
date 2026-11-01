@@ -70,7 +70,7 @@ export function ThemeSegments({ className }: { className?: string }) {
             role="radio"
             aria-checked={checked}
             onClick={() => setTheme(value)}
-            className="flex h-9 items-center justify-center gap-1.5 rounded-md text-sm text-muted-foreground focus-ring transition-colors duration-(--duration-fast) outline-none hover:text-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-sm"
+            className="flex h-9 items-center justify-center gap-1.5 rounded-md text-sm text-muted-foreground focus-ring transition-colors duration-fast outline-none hover:text-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-sm"
           >
             <Icon className="size-4" aria-hidden="true" />
             {label}

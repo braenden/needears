@@ -69,7 +69,7 @@ export function MobileMenu({
           <MenuIcon />
         </Button>
       </DialogTrigger>
-      <DialogContent className="top-0 right-0 left-auto h-dvh max-h-none w-[min(20rem,100%)] max-w-none translate-x-0 translate-y-0 content-start rounded-none rounded-l-2xl sm:max-w-none data-open:zoom-in-100 data-open:slide-in-from-right data-closed:zoom-out-100 data-closed:slide-out-to-right">
+      <DialogContent className="top-0 right-0 left-auto h-dvh max-h-none w-[min(20rem,100%)] max-w-none translate-x-0 translate-y-0 content-start rounded-none rounded-l-2xl duration-slow sm:max-w-none data-open:zoom-in-100 data-open:slide-in-from-right data-closed:duration-base data-closed:zoom-out-100 data-closed:slide-out-to-right">
         <DialogTitle className="sr-only">Menu</DialogTitle>
         <DialogDescription className="sr-only">
           Navigation and account

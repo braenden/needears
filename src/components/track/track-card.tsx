@@ -41,7 +41,7 @@ export function TrackCard({
     <article
       aria-labelledby={`track-${track.id}-title`}
       className={cn(
-        "group/card @container relative rounded-xl border bg-card p-3 text-card-foreground transition-colors duration-(--duration-base) hover:border-[color-mix(in_oklab,var(--border),var(--foreground)_18%)] @sm:p-4",
+        "group/card @container relative rounded-xl border bg-card p-3 text-card-foreground transition-colors duration-fast hover:border-[color-mix(in_oklab,var(--border),var(--foreground)_18%)] @sm:p-4",
         className,
       )}
     >
