@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import type { UserIdentity } from "@supabase/supabase-js";
 import { Loader2Icon, MailIcon } from "lucide-react";
@@ -9,7 +10,8 @@ import { toast } from "sonner";
 
 import {
   GoogleGlyph,
-  GoogleIdButton,
+  type GoogleCodeResponse,
+  GSI_SCRIPT,
 } from "@/components/auth/google-id-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { createRawNonce } from "@/lib/auth/google-id";
 import { requestIdentityIntent } from "@/lib/auth/identity-intent";
 import { browserClient } from "@/lib/supabase/lazy";
 
@@ -81,6 +84,20 @@ export function unlinkErrorText(
   return "Couldn't disconnect Google. Try again, or come back in a minute.";
 }
 
+/** What to say when Google's window could not open or Google is missing. */
+export const POPUP_BLOCKED =
+  "Your browser blocked Google's window. Allow pop-ups for this site and try again.";
+export const GOOGLE_UNAVAILABLE =
+  "Google isn't available right now. Try again in a minute.";
+
+/** The error code in one of our API answers, if there is one. */
+async function errorCodeOf(response: Response) {
+  const body = (await response.json().catch(() => null)) as {
+    error?: { code?: string };
+  } | null;
+  return body?.error?.code;
+}
+
 /** Said next to the buttons, before anyone presses them. */
 export const SIGNS_OUT_ELSEWHERE =
   "Connecting or disconnecting Google signs you out on your other devices.";
@@ -103,7 +120,9 @@ export function disconnectText(
  * The ways someone can sign in: the email link and Google. A Google account
  * can be connected (also one with another address) and disconnected again,
  * as long as the email link is still there to sign in with. Connecting
- * needs a recent sign-in, like deleting the account.
+ * needs a recent sign-in, like deleting the account. Connect opens Google's
+ * account chooser in a popup, so the person picks the account every time;
+ * the code it returns goes to our server, which does the linking.
  */
 export function ConnectedAccounts({
   identities,
@@ -115,7 +134,7 @@ export function ConnectedAccounts({
   identities: UserIdentity[];
   /** The account's own address. */
   accountEmail: string | null;
-  /** Without it, Google cannot be connected here. */
+  /** Without it (or without the server's secret), Google cannot be connected here. */
   googleClientId: string | null;
   scriptNonce?: string;
   /** This session signed in recently enough to connect Google. */
@@ -123,6 +142,7 @@ export function ConnectedAccounts({
 }) {
   const router = useRouter();
   const { email, google } = accountsOf(identities);
+  const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -140,22 +160,64 @@ export function ConnectedAccounts({
     return false;
   }
 
-  async function connect(credential: string, rawNonce: string) {
-    if (!(await goAhead("link"))) return true;
-    const { error } = await (
-      await browserClient()
-    ).auth.linkIdentity({
-      provider: "google",
-      token: credential,
-      nonce: rawNonce,
-    });
-    if (error) {
-      toast.error(linkErrorText(error.code));
-      return false;
+  // Opens Google's account chooser. It has to open in the click itself, or
+  // the browser blocks the popup, so the go-ahead is asked for afterwards.
+  function connect() {
+    const oauth2 = window.google?.accounts.oauth2;
+    if (!googleClientId || !oauth2) {
+      toast.error(GOOGLE_UNAVAILABLE);
+      return;
     }
-    toast.success("Google connected.");
-    router.refresh();
-    return true;
+    const state = createRawNonce();
+    oauth2
+      .initCodeClient({
+        client_id: googleClientId,
+        scope: "openid email profile",
+        ux_mode: "popup",
+        select_account: true,
+        state,
+        callback: (response: GoogleCodeResponse) => {
+          if (response.error === "access_denied") return;
+          if (!response.code || response.state !== state) {
+            toast.error(linkErrorText(undefined));
+            return;
+          }
+          void finishConnecting(response.code);
+        },
+        error_callback: (error) => {
+          // Closing the window is a change of mind, not an error.
+          if (error.type === "popup_failed_to_open") toast.error(POPUP_BLOCKED);
+        },
+      })
+      .requestCode();
+  }
+
+  async function finishConnecting(code: string) {
+    setConnecting(true);
+    try {
+      if (!(await goAhead("link"))) return;
+      const response = await fetch("/api/account/google-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (response.ok) {
+        toast.success("Google connected.");
+        router.refresh();
+        return;
+      }
+      const reason = await errorCodeOf(response);
+      if (reason === "reauth_required") {
+        toast("Sign in again to change how you sign in.");
+        router.push(REAUTH_TO_CONNECT);
+        return;
+      }
+      toast.error(linkErrorText(reason));
+    } catch {
+      toast.error(linkErrorText(undefined));
+    } finally {
+      setConnecting(false);
+    }
   }
 
   async function disconnect() {
@@ -184,23 +246,36 @@ export function ConnectedAccounts({
   return (
     <div>
       <ul className="divide-y rounded-xl border">
-        <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+        <li className="flex items-center gap-3 px-4 py-3">
           <MailIcon
             className="size-4 shrink-0 text-muted-foreground"
             aria-hidden="true"
           />
-          <span className="text-sm font-medium">Email</span>
-          <span className="min-w-0 flex-1 truncate text-right text-sm text-muted-foreground">
-            {emailOf(email) ?? "Not set up"}
-          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Email</p>
+            <p className="truncate text-sm text-muted-foreground">
+              {emailOf(email) ?? "Not set up"}
+            </p>
+          </div>
         </li>
         <li className="grid gap-3 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {!google && googleClientId && fresh ? (
+            <Script
+              src={GSI_SCRIPT}
+              nonce={scriptNonce}
+              strategy="afterInteractive"
+            />
+          ) : null}
+          <div className="flex items-center gap-3">
             <GoogleGlyph />
-            <span className="text-sm font-medium">Google</span>
-            <span className="min-w-0 flex-1 truncate text-right text-sm text-muted-foreground">
-              {google ? (emailOf(google) ?? "Connected") : "Not connected"}
-            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Google</p>
+              {google ? (
+                <p className="truncate text-sm text-muted-foreground">
+                  {emailOf(google) ?? "Connected"}
+                </p>
+              ) : null}
+            </div>
             {google ? (
               <Button
                 type="button"
@@ -212,27 +287,40 @@ export function ConnectedAccounts({
               >
                 Disconnect
               </Button>
-            ) : googleClientId && !fresh ? (
-              <Button asChild variant="outline" size="sm">
-                <Link href={REAUTH_TO_CONNECT}>Connect Google</Link>
+            ) : googleClientId && fresh ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="relative"
+                disabled={connecting}
+                aria-busy={connecting || undefined}
+                onClick={connect}
+              >
+                {/* The label keeps its width while busy, so nothing moves. */}
+                <span className={connecting ? "invisible" : undefined}>
+                  Connect
+                </span>
+                {connecting ? (
+                  <>
+                    <Loader2Icon
+                      className="absolute motion-safe:animate-spin"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">Connecting…</span>
+                  </>
+                ) : null}
               </Button>
-            ) : null}
+            ) : googleClientId ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={REAUTH_TO_CONNECT}>Connect</Link>
+              </Button>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                Not connected
+              </span>
+            )}
           </div>
-          {!google && googleClientId && fresh ? (
-            <GoogleIdButton
-              clientId={googleClientId}
-              scriptNonce={scriptNonce}
-              busyLabel="Connecting…"
-              // Google draws its button at most 400 pixels wide.
-              className="max-w-[400px]"
-              onCredential={connect}
-              onUnavailable={() =>
-                toast.error(
-                  "Google isn't available right now. Try again in a minute.",
-                )
-              }
-            />
-          ) : null}
           {!google && googleClientId && !fresh ? (
             <p className="text-sm text-muted-foreground">
               To connect Google, sign in again first. You come straight back

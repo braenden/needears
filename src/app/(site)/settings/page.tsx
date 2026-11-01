@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
 import { googleClientId } from "@/lib/auth/google-client-id";
+import { googleClientSecret } from "@/lib/auth/google-code";
 import { parseLinks } from "@/lib/data/profiles";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
@@ -89,7 +90,9 @@ export default async function SettingsPage() {
                 ? claims.claims.email
                 : null
             }
-            googleClientId={googleClientId()}
+            // Connecting swaps Google's code on our server, which needs
+            // the client secret as well.
+            googleClientId={googleClientSecret() ? googleClientId() : null}
             scriptNonce={(await headers()).get("x-nonce") ?? undefined}
             fresh={isFreshSession(claims?.claims.amr, REAUTH_WINDOW_MS)}
           />
