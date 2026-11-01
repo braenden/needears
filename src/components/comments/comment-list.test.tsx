@@ -283,5 +283,7 @@ describe("CommentList on a busy track", () => {
     );
     const list = within(screen.getByRole("tabpanel")).getAllByRole("list")[0]!;
     expect(within(list).getAllByRole("listitem")).toHaveLength(36);
+    // Drawn, but not marked: the list has no "playing now" line.
+    expect(list.querySelector("[aria-current]")).toBeNull();
   });
 });

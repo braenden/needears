@@ -145,6 +145,10 @@ export function CommentList({
   ownerId?: string;
   /** Badges per author id, shown as small icons next to the name. */
   authorBadges?: Record<string, BadgeKind[]>;
+  /**
+   * The comment playing or picked on the waveform. Not marked in the list;
+   * only drawn, however far down it is.
+   */
   activeCommentId?: string | null;
   defaultFilter?: CommentFilter;
   defaultSort?: CommentSort;
@@ -299,7 +303,6 @@ export function CommentList({
                         viewer={viewer}
                         fromOwner={!!ownerId && comment.author_id === ownerId}
                         ownerId={ownerId}
-                        active={comment.id === activeCommentId}
                         newCommentIds={newCommentIds}
                         onJump={onJump}
                         onToggleHelpful={onToggleHelpful}
@@ -337,7 +340,6 @@ function CommentItem({
   viewer,
   fromOwner,
   ownerId,
-  active,
   newCommentIds,
   onJump,
   onToggleHelpful,
@@ -351,7 +353,6 @@ function CommentItem({
   viewer: Viewer;
   fromOwner: boolean;
   ownerId?: string;
-  active: boolean;
   newCommentIds: string[];
   onJump?: (comment: Comment) => void;
   onToggleHelpful?: (comment: Comment, helpful: boolean) => void;
@@ -370,13 +371,10 @@ function CommentItem({
   const profileHref = `/u/${comment.author.handle}`;
   return (
     <li
-      aria-current={active ? "true" : undefined}
       className={cn(
-        "relative flex gap-3 py-4 transition-colors duration-base",
+        "relative flex gap-3 py-4",
         newCommentIds.includes(comment.id) &&
           "-mx-3 animate-comment-in rounded-lg px-3",
-        active &&
-          "before:absolute before:inset-y-2 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary",
       )}
     >
       {/* The name next to it is the link for keyboard and screen readers. */}
