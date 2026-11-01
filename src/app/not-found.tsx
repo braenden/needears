@@ -15,7 +15,7 @@ export default async function NotFound() {
       unread={viewer?.unread ?? 0}
       showSearch
     >
-      <div className="mx-auto w-full max-w-3xl px-4 py-16">
+      <div className="mx-auto w-full max-w-lg px-4 py-16 sm:py-24">
         <h1 className="sr-only">Page not found</h1>
         <EmptyState
           title="We can't find that page."

@@ -18,10 +18,10 @@ export default async function WelcomePage({
   const next = url.pathname === "/" ? "/feed" : url.pathname + url.search;
   if (!viewer) redirect(`/login?next=${encodeURIComponent("/welcome")}`);
   return (
-    // A narrow form in the page column, so the heading starts on the same
-    // edge as on every other page.
-    <div className="mx-auto w-full max-w-3xl px-4 py-16">
-      <div className="max-w-sm">
+    // One short task: a narrow block in the middle of the page, as sign-in
+    // pages usually are.
+    <div className="w-full px-4 py-16 sm:py-24">
+      <div className="mx-auto max-w-sm">
         <h1 className="font-display text-3xl font-bold tracking-tight">
           Pick a username
         </h1>

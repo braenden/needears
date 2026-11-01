@@ -29,10 +29,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     params.reauth === "1" || params.reauth === "connect" ? params.reauth : null;
   if (!reauth && (await getViewer())) redirect(next === "/" ? "/feed" : next);
   return (
-    // A narrow form in the page column, so the heading starts on the same
-    // edge as on every other page.
-    <div className="mx-auto w-full max-w-3xl px-4 py-16">
-      <div className="max-w-sm">
+    // One short task: a narrow block in the middle of the page, as sign-in
+    // pages usually are.
+    <div className="w-full px-4 py-16 sm:py-24">
+      <div className="mx-auto max-w-sm">
         <h1 className="font-display text-3xl font-bold tracking-tight">
           {reauth ? "Sign in again" : "Sign in to Need Ears"}
         </h1>
