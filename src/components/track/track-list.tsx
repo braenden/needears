@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import {
+  fadedSeek,
+  fadeInPlay,
+  fadeOutPause,
+  setListenerVolume,
+} from "@/lib/audio/fade";
 import { freshAudioUrl } from "@/app/actions/media";
 import { useSharedAudio } from "@/components/player/shared-audio";
 import { useListenVolume } from "@/hooks/use-volume";
@@ -50,7 +57,7 @@ export function TrackList({
   // The same volume as the track page's player.
   const volume = useListenVolume();
   useEffect(() => {
-    if (playingId) shared.get().volume = volume;
+    if (playingId) setListenerVolume(shared.get(), volume);
   }, [shared, playingId, volume]);
 
   useEffect(() => {
@@ -72,8 +79,16 @@ export function TrackList({
   async function play(track: TrackSummary, at?: number) {
     const audio = shared.get();
     if (playingId === track.id) {
-      if (audio.paused) void audio.play();
-      else audio.pause();
+      // The button changes at once; the sound fades in or out (25 ms, so
+      // it does not click). A pause still fading out has not paused yet,
+      // so there is no play event to wait for.
+      if (audio.paused || !isPlaying) {
+        setIsPlaying(true);
+        void fadeInPlay(audio).catch(() => setIsPlaying(false));
+      } else {
+        setIsPlaying(false);
+        void fadeOutPause(audio);
+      }
       return;
     }
     let url = tracks.find((t) => t.id === track.id)?.audioUrl ?? null;
@@ -90,10 +105,11 @@ export function TrackList({
     else if (at === undefined && cued?.id === track.id) at = cued.at;
     setCued(null);
     starting.current = null;
-    audio.pause();
+    // Whatever plays now fades out first, instead of stopping with a click.
+    if (!audio.paused) await fadeOutPause(audio);
     shared.claim(owner, { id: track.id, slug: track.slug });
     audio.muted = false;
-    audio.volume = volume;
+    setListenerVolume(audio, volume);
     audio.src = url;
     audio.ontimeupdate = () =>
       setProgress(audio.duration ? audio.currentTime / audio.duration : 0);
@@ -121,7 +137,7 @@ export function TrackList({
       );
     }
     try {
-      await audio.play();
+      await fadeInPlay(audio);
     } catch {
       setPlayingId(null);
     }
@@ -135,7 +151,8 @@ export function TrackList({
     }
     const audio = shared.get();
     const duration = audio.duration || track.duration_ms / 1000;
-    audio.currentTime = Math.min(at, 0.999) * duration;
+    // Playing, it fades around the jump; paused, it just moves.
+    void fadedSeek(audio, Math.min(at, 0.999) * duration);
     setProgress(at);
   }
 
@@ -152,9 +169,16 @@ export function TrackList({
       return;
     }
     const duration = audio.duration || track.duration_ms / 1000;
-    audio.currentTime = Math.min(at, 0.999) * duration;
+    const seconds = Math.min(at, 0.999) * duration;
     setProgress(at);
-    if (audio.paused) void audio.play();
+    if (audio.paused || !isPlaying) {
+      // Paused: jump in silence, then fade in from there.
+      audio.currentTime = seconds;
+      setIsPlaying(true);
+      void fadeInPlay(audio).catch(() => setIsPlaying(false));
+    } else {
+      void fadedSeek(audio, seconds);
+    }
   }
 
   return (

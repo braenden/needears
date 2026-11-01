@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
+import { fadeOutPause } from "@/lib/audio/fade";
+
 /**
  * One audio element for the whole site, so a track playing in the feed keeps
  * playing when someone opens its page. Players borrow it: whoever plays
@@ -65,11 +67,11 @@ export class SharedAudio {
     if (this.track && pathname === `/t/${this.track.slug}`) {
       this.waiting ??= setTimeout(() => {
         this.waiting = null;
-        if (!this.owner) this.element?.pause();
+        if (!this.owner && this.element) void fadeOutPause(this.element);
       }, CLAIM_WAIT_MS);
       return;
     }
-    this.element.pause();
+    void fadeOutPause(this.element);
   }
 }
 

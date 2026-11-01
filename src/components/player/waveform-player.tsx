@@ -30,6 +30,12 @@ import { cn } from "@/lib/utils";
 import type { Comment, VersionedComment } from "@/types/view";
 
 import { MiniWaveform } from "@/components/track/mini-waveform";
+import {
+  fadedSeek,
+  fadeInPlay,
+  fadeOutPause,
+  setListenerVolume,
+} from "@/lib/audio/fade";
 
 import { CommentMarkers } from "./comment-markers";
 import { PlayPauseIcon } from "./play-pause-icon";
@@ -206,7 +212,8 @@ export function WaveformPlayer({
     mediaRef.current = media;
   }, [onTimeChange, keepPosition, muted, volume, media]);
   useEffect(() => {
-    wsRef.current?.setVolume(volume);
+    const media = wsRef.current?.getMediaElement();
+    if (media) setListenerVolume(media, volume);
   }, [volume]);
 
   const status: Status = !audioUrl
@@ -254,7 +261,7 @@ export function WaveformPlayer({
       });
       wsRef.current = ws;
       setDrawn(true);
-      ws.setVolume(volumeRef.current);
+      setListenerVolume(ws.getMediaElement(), volumeRef.current);
       ws.setMuted(mutedRef.current);
       let lastSecond = -1;
       const report = (seconds: number) => {
@@ -269,7 +276,7 @@ export function WaveformPlayer({
         if (!carried || !ws) return;
         handoffRef.current = null;
         ws.setTime(Math.min(carried.time, durationMs / 1000));
-        if (carried.playing) void ws.play();
+        if (carried.playing) void fadeInPlay(ws.getMediaElement());
       };
       if (!audioUrl) handoff();
       ws.on("ready", () => {
@@ -327,7 +334,9 @@ export function WaveformPlayer({
   const seekTo = useCallback(
     (ms: number) => {
       const clamped = Math.min(Math.max(0, ms), durationMs);
-      wsRef.current?.setTime(clamped / 1000);
+      // Playing, the sound fades around the jump so it does not click.
+      const media = wsRef.current?.getMediaElement();
+      if (media) void fadedSeek(media, clamped / 1000);
       const whole = Math.floor(clamped / 1000) * 1000;
       setCurrentMs(whole);
       onTimeChangeRef.current?.(whole);
@@ -335,10 +344,26 @@ export function WaveformPlayer({
     [durationMs],
   );
 
+  // The button changes at once; the sound fades in or out over a few
+  // milliseconds, so starting and stopping do not click.
+  const play = useCallback(() => {
+    const media = wsRef.current?.getMediaElement();
+    if (!media) return;
+    setPlaying(true);
+    void fadeInPlay(media).catch(() => setPlaying(false));
+  }, []);
+  const pause = useCallback(() => {
+    const media = wsRef.current?.getMediaElement();
+    if (!media) return;
+    setPlaying(false);
+    void fadeOutPause(media);
+  }, []);
+
   const togglePlay = useCallback(() => {
     if (shownStatus !== "ready") return;
-    void wsRef.current?.playPause();
-  }, [shownStatus]);
+    if (playing) pause();
+    else play();
+  }, [shownStatus, playing, play, pause]);
 
   const toggleMute = useCallback(() => {
     const ws = wsRef.current;
@@ -352,10 +377,10 @@ export function WaveformPlayer({
     ref,
     () => ({
       seekTo,
-      play: () => void wsRef.current?.play(),
-      pause: () => wsRef.current?.pause(),
+      play,
+      pause,
     }),
-    [seekTo],
+    [seekTo, play, pause],
   );
 
   const handleKey = useCallback(
