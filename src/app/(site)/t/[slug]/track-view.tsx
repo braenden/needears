@@ -138,14 +138,20 @@ export function TrackView({
   );
   const countPlay = usePlayCounter(track.id, track.duration_ms);
   // The site's shared audio element. When the feed was playing this track,
-  // the page carries on from the same address, without starting over.
+  // the page takes it over and carries on from the same address, without
+  // starting over. Otherwise the page has a player of its own, and whatever
+  // the feed played stops.
   const shared = useSharedAudio();
   const [audioOwner] = useState(() => ({}));
   const [carriedSrc] = useState(() => shared.playingSrc(track.id));
+  // The feed's address until the page renews it.
+  const [firstAudioUrl] = useState(audioUrl);
+  const carrying = !!carriedSrc && audioUrl === firstAudioUrl;
   useEffect(() => {
+    if (!carriedSrc) return;
     shared.claim(audioOwner, { id: track.id, slug: track.slug });
     return () => shared.release(audioOwner);
-  }, [shared, audioOwner, track.id, track.slug]);
+  }, [shared, audioOwner, carriedSrc, track.id, track.slug]);
   const [reporting, setReporting] = useState<
     { type: "track" } | { type: "comment"; id: string } | null
   >(null);
@@ -161,7 +167,11 @@ export function TrackView({
     durationMs: current?.duration_ms ?? track.duration_ms,
     peaks: current?.peaks ?? track.peaks,
     // The latest version's URL is refreshed when it expires.
-    audioUrl: isLatest ? (carriedSrc ?? audioUrl) : (current?.audioUrl ?? null),
+    audioUrl: isLatest
+      ? carrying
+        ? carriedSrc
+        : audioUrl
+      : (current?.audioUrl ?? null),
   };
   const measured = versions
     .map((v) => v.loudness)
@@ -488,7 +498,7 @@ export function TrackView({
           currentVersionId={versioned ? current?.id : undefined}
           versionNumbers={versioned ? versionNumbers : undefined}
           gainDb={gainDb}
-          media={() => shared.get()}
+          media={carriedSrc ? () => shared.get() : undefined}
           rangeSelect
           range={range}
           onRangeChange={setRange}

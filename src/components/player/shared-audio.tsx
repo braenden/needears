@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 export class SharedAudio {
   private element: HTMLAudioElement | null = null;
   private owner: object | null = null;
+  private waiting: ReturnType<typeof setTimeout> | null = null;
   /** The track in the element and its page, while one is loaded. */
   track: { id: string; slug: string } | null = null;
 
@@ -37,6 +38,10 @@ export class SharedAudio {
   }
 
   claim(owner: object, track: { id: string; slug: string }) {
+    if (this.waiting) clearTimeout(this.waiting);
+    this.waiting = null;
+    // Another track: what was playing stops.
+    if (this.track && this.track.id !== track.id) this.element?.pause();
     this.owner = owner;
     this.track = track;
   }
@@ -50,13 +55,26 @@ export class SharedAudio {
     setTimeout(() => this.settle(window.location.pathname), 0);
   }
 
-  /** Called when the page changes: stop anything nobody holds, unless on its page. */
+  /**
+   * Called when the page changes: stop anything nobody holds. On the track's
+   * own page it plays on for a moment, and stops unless that page takes it
+   * over (it may not, if the track is no longer there).
+   */
   settle(pathname: string) {
     if (this.owner || !this.element || this.element.paused) return;
-    if (this.track && pathname === `/t/${this.track.slug}`) return;
+    if (this.track && pathname === `/t/${this.track.slug}`) {
+      this.waiting ??= setTimeout(() => {
+        this.waiting = null;
+        if (!this.owner) this.element?.pause();
+      }, CLAIM_WAIT_MS);
+      return;
+    }
     this.element.pause();
   }
 }
+
+/** How long the track's page has to take over what the feed was playing. */
+export const CLAIM_WAIT_MS = 4000;
 
 const Context = createContext<SharedAudio | null>(null);
 
