@@ -47,6 +47,21 @@ export async function signInWithMagicLink(
   await page.getByRole("button", { name: "Email me a sign-in link" }).click();
   await expect(page.getByText("Check your email.")).toBeVisible();
   await page.goto(await magicLinkFor(email, sentAfter));
+  await pageIn(page);
+}
+
+/**
+ * Waits until the page has fully arrived: the loading skeleton is gone and
+ * the streamed page has replaced it. Until then the page can briefly hold
+ * the streamed copy too, hidden, which trips up strict locators.
+ */
+export async function pageIn(page: Page) {
+  await page.waitForFunction(
+    () =>
+      !document.querySelector('[hidden][id^="S:"]') &&
+      !document.querySelector('main [role="status"][aria-label="Loading"]') &&
+      !document.querySelector('main [role="status"][aria-label="Searching"]'),
+  );
 }
 
 /** Opens the track's "More" menu and picks an item, once the page is ready. */

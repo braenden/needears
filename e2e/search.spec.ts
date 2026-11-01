@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { pageIn } from "./helpers";
 
 // Search from the top bar, signed out, against the seed data.
 test.describe("search", () => {
@@ -31,14 +32,17 @@ test.describe("search", () => {
     page,
   }) => {
     await page.goto("/search?q=jonas");
+    await pageIn(page);
     await expect(
       page.getByRole("link", { name: /Jonas Berg/ }).first(),
     ).toHaveAttribute("href", "/u/jonas");
 
     await page.goto("/search?q=ab");
+    await pageIn(page);
     await expect(page.getByText(/Type at least 3 characters/)).toBeVisible();
 
     await page.goto("/search?q=zzzqqqxxx");
+    await pageIn(page);
     await expect(page.getByText(/Nothing found for/)).toBeVisible();
   });
 });

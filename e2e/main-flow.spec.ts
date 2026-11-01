@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInWithMagicLink, testWav, trackMenu } from "./helpers";
+import { signInWithMagicLink, testWav, trackMenu, pageIn } from "./helpers";
 
 // The main flow, with two people:
 // a new producer who signs up, uploads and later deletes the account, and the
@@ -93,6 +93,7 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
 
   await test.step("the producer marks it Helpful and reports it", async () => {
     await owner.goto(trackPath);
+    await pageIn(owner);
     await expect(
       owner.getByRole("button", { name: `Comment by ${jonas.name} at 0:05` }),
     ).toBeVisible();
@@ -130,6 +131,7 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
 
     // Stored, and the link stays the same.
     await owner.goto(trackPath);
+    await pageIn(owner);
     await expect(
       owner.getByRole("heading", { name: `${title} v2` }),
     ).toBeVisible();

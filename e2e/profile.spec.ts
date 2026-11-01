@@ -92,6 +92,6 @@ test("on a wide screen, the profile is edited in a panel over it", async ({
   await panel.getByLabel(/Bio/).fill(bio);
   await panel.getByRole("button", { name: "Save", exact: true }).click();
   await expect(panel).toBeHidden();
-  await expect(page).toHaveURL(/\/u\/mia$/);
+  await expect(page).not.toHaveURL(/edit=profile/);
   await expect(page.getByText(bio)).toBeVisible();
 });

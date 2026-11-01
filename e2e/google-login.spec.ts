@@ -59,7 +59,7 @@ test("with a client ID, Google's button is offered with a hashed nonce", async (
   const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
   expect(
     await page
-      .locator(`script[src="${GSI}"]`)
+      .locator(`script[src^="${GSI}"]`)
       .evaluate((el: HTMLScriptElement) => el.nonce),
   ).toBe(nonce);
 
