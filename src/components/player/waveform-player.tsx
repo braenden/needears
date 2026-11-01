@@ -591,8 +591,9 @@ export function WaveformPlayer({
             >
               {muted || listenVolume === 0 ? <VolumeXIcon /> : <Volume2Icon />}
             </Button>
-            {/* Phones set the volume with their own buttons (and iOS
-                ignores it), so the slider is for wider screens. */}
+            {/* Phones and tablets set the volume with their own buttons
+                (and iOS and iPadOS ignore it), so the slider is for wide
+                screens with a mouse or trackpad. */}
             <input
               type="range"
               data-volume=""
@@ -606,7 +607,7 @@ export function WaveformPlayer({
               }}
               aria-label="Volume"
               aria-valuetext={`${muted ? 0 : Math.round(listenVolume * 100)}%`}
-              className="hidden h-1 w-20 cursor-pointer accent-(--primary) @sm:block"
+              className="hidden h-1 w-20 cursor-pointer accent-(--primary) fine:@sm:block"
             />
             <Button
               type="button"

@@ -279,6 +279,12 @@
   }
 }
 
+/* Toasts come and go on our own timing. */
+[data-sonner-toast].cn-toast {
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-out-soft);
+}
+
 /*
  * Reduced motion: nothing moves or grows, things only fade, and quickly.
  * Spinners and the progress bar keep going, since they tell that something

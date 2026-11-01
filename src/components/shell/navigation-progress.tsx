@@ -49,6 +49,21 @@ export function NavigationProgress() {
     setPhase((current) => (current === "loading" ? "done" : "idle"));
   }
 
+  // And a new page fades in, quickly (a fade is fine with reduced motion
+  // too). Not on the first load, and not when only the query changes (a
+  // tab, a panel): the page is the same.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    document.getElementById("main")?.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 120,
+      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+    });
+  }, [pathname]);
+
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
       if (!destination(event)) return;
