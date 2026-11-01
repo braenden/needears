@@ -12,7 +12,7 @@ const now = async (page: Page) =>
 test.describe("with a mouse and the keyboard", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("click and drag play from that spot, keys move it", async ({ page }) => {
+  test("a click plays from that spot, keys move it", async ({ page }) => {
     await page.goto("/feed?tab=latest");
     // Retried until the page has hydrated.
     await bar(page).scrollIntoViewIfNeeded();
@@ -25,13 +25,14 @@ test.describe("with a mouse and the keyboard", () => {
     }).toPass();
     expect(await now(page)).toBeGreaterThanOrEqual(8);
 
-    // Drag back towards the start.
+    // Nothing follows the pointer: hovering adds nothing to the bar.
+    const hover = (await bar(page).boundingBox())!;
+    await page.mouse.move(hover.x + hover.width * 0.3, hover.y + 10);
+    await expect(bar(page).locator("span")).toHaveCount(0);
+
+    // A second click elsewhere plays from there; nothing drags.
     const box = (await bar(page).boundingBox())!;
-    const y = box.y + box.height / 2;
-    await page.mouse.move(box.x + box.width * 0.6, y);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.1, y, { steps: 5 });
-    await page.mouse.up();
+    await page.mouse.click(box.x + box.width * 0.1, box.y + box.height / 2);
     await expect.poll(() => now(page)).toBeLessThanOrEqual(4);
 
     // Paused, the keys move the playhead without starting it, and Space
@@ -145,4 +146,43 @@ test("keys on a card that is not playing pick where Play starts", async ({
     card(page).getByRole("button", { name: /^Pause Night bus/ }),
   ).toBeVisible();
   expect(await now(page)).toBeGreaterThanOrEqual(13);
+});
+
+test("a swipe over a card's waveform scrolls the page and plays nothing", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 375, height: 812 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+  await page.goto("/feed?tab=latest");
+  await bar(page).scrollIntoViewIfNeeded();
+  const box = (await bar(page).boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  const before = await page.evaluate(() => window.scrollY);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x, y }],
+  });
+  for (let i = 1; i <= 8; i++) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: x + i * 4, y: y - i * 25 }],
+    });
+  }
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(before);
+  await expect(
+    card(page).getByRole("button", { name: /^Play Night bus/ }),
+  ).toBeVisible();
+  await context.close();
 });

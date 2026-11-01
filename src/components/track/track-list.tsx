@@ -39,7 +39,7 @@ export function TrackList({
   const [owner] = useState(() => ({}));
   const loadedAt = useRef(0);
   // A track being started from its waveform, and the latest spot asked
-  // for while its address loads (a drag asks many times).
+  // for while its address loads (another click can come in meanwhile).
   const starting = useRef<{ id: string; at: number } | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -84,8 +84,8 @@ export function TrackList({
       toast.error("This track was removed or is hidden.");
       return;
     }
-    // Where a drag has got to by now, if it started this track, or where
-    // the keys left it.
+    // The latest spot clicked while this track was starting, or where the
+    // keys left it.
     if (starting.current?.id === track.id) at = starting.current.at;
     else if (at === undefined && cued?.id === track.id) at = cued.at;
     setCued(null);
