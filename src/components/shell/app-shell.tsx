@@ -91,7 +91,8 @@ function HeaderSearch({
   const pathname = usePathname();
   const params = useSearchParams();
   const onResults = pathname === action;
-  const query = onResults ? (params.get("q") ?? "") : "";
+  // The results page reads at most 100 characters too.
+  const query = onResults ? (params.get("q") ?? "").slice(0, 100) : "";
   return (
     <SearchField
       key={query}

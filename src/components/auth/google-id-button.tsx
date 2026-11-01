@@ -288,6 +288,8 @@ export function GoogleIdButton({
         ref={mount}
         data-testid="google-button"
         aria-disabled={disabled || undefined}
+        // Out of reach for the mouse and the keyboard while disabled.
+        inert={disabled || undefined}
         className={cn(
           "flex h-full w-full items-center [color-scheme:light]",
           disabled && "pointer-events-none opacity-50",
