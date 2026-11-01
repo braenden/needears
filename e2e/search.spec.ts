@@ -18,6 +18,9 @@ test.describe("search", () => {
     await page.keyboard.type("night");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/search\?q=night$/);
+    // One box on the results page, and it still holds the search.
+    await expect(page.getByRole("searchbox")).toHaveCount(1);
+    await expect(box).toHaveValue("night");
     await expect(page.getByRole("link", { name: /Night bus/ })).toHaveAttribute(
       "href",
       "/t/night-bus-seed0002",
@@ -37,5 +40,22 @@ test.describe("search", () => {
 
     await page.goto("/search?q=zzzqqqxxx");
     await expect(page.getByText(/Nothing found for/)).toBeVisible();
+  });
+});
+
+test.describe("search on a phone", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("the search icon opens a box ready to type in", async ({ page }) => {
+    await page.goto("/feed");
+    await page.getByRole("link", { name: "Search" }).click();
+    await expect(page).toHaveURL(/\/search$/);
+    const box = page
+      .getByRole("search", { name: "Search tracks and people" })
+      .getByRole("searchbox");
+    await expect(box).toBeFocused();
+    await expect(
+      page.getByText(/Type at least 3 characters and press Enter/),
+    ).toBeVisible();
   });
 });

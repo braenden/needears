@@ -80,8 +80,9 @@ export function SearchResults({
   if (q.length < SEARCH_MIN_LENGTH) {
     return (
       <p className={cn("text-sm text-muted-foreground", className)}>
-        Type at least {SEARCH_MIN_LENGTH} characters to search tracks and
-        people.
+        {q
+          ? `Type at least ${SEARCH_MIN_LENGTH} characters to search tracks and people.`
+          : `Type at least ${SEARCH_MIN_LENGTH} characters and press Enter to search tracks and people.`}
       </p>
     );
   }

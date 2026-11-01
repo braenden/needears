@@ -1,8 +1,9 @@
 "use client";
 
+import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { BellIcon, MenuIcon, PlusIcon, SearchIcon } from "lucide-react";
 
 import { Logo } from "@/components/brand/logo";
@@ -72,6 +73,36 @@ export type HeaderProps = {
   searchAction?: string;
 };
 
+const SEARCH_CLASSES = "ml-auto hidden w-full max-w-64 @min-[40rem]:block";
+
+/**
+ * The search box in the top bar. On the results page it holds the search,
+ * so there is only one box to change it in, and it is ready to type in
+ * when nothing has been searched yet.
+ */
+function HeaderSearch({
+  action,
+  ...props
+}: {
+  shortcut: boolean;
+  action: string;
+  className: string;
+}) {
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const onResults = pathname === action;
+  const query = onResults ? (params.get("q") ?? "") : "";
+  return (
+    <SearchField
+      key={query}
+      defaultValue={query}
+      autoFocus={onResults && !query}
+      action={action}
+      {...props}
+    />
+  );
+}
+
 /**
  * Top bar. Wide: logo, nav, upload, bell, theme, avatar menu. Narrow (below
  * 640 pixels, a container query so it also works inside the /design phone
@@ -116,11 +147,21 @@ export function SiteHeader({
         </nav>
 
         {showSearch ? (
-          <SearchField
-            shortcut={searchShortcut}
-            action={searchAction}
-            className="ml-auto hidden w-full max-w-64 @min-[40rem]:block"
-          />
+          <Suspense
+            fallback={
+              <SearchField
+                shortcut={searchShortcut}
+                action={searchAction}
+                className={SEARCH_CLASSES}
+              />
+            }
+          >
+            <HeaderSearch
+              shortcut={searchShortcut}
+              action={searchAction}
+              className={SEARCH_CLASSES}
+            />
+          </Suspense>
         ) : null}
 
         <div
