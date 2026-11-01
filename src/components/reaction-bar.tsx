@@ -33,6 +33,7 @@ export function ReactionBar({
   onPick,
   onSignIn,
   shareUrl,
+  actions,
   className,
 }: {
   counts: Record<ReactionKind, number>;
@@ -44,6 +45,8 @@ export function ReactionBar({
   onSignIn?: () => void;
   /** When set, a Copy link button is shown. */
   shareUrl?: string;
+  /** More buttons at the end of the row, such as a menu. */
+  actions?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -102,6 +105,7 @@ export function ReactionBar({
           Copy link
         </Button>
       ) : null}
+      {actions}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInWithMagicLink, testWav } from "./helpers";
+import { signInWithMagicLink, testWav, trackMenu } from "./helpers";
 
 // A producer uploads a track and a second version with a note, switches
 // between them, and leaves a comment on the first one, which stays there.
@@ -36,7 +36,7 @@ test("new version, picker, A/B and comments per version", async ({ page }) => {
 
   await test.step("uploads v2 with what changed", async () => {
     await page.goto(trackPath);
-    await page.getByRole("button", { name: "Upload a new version" }).click();
+    await trackMenu(page, "Upload a new version");
     const dialog = page.getByRole("dialog");
     await dialog.locator('input[type="file"]').setInputFiles({
       name: "v2.wav",

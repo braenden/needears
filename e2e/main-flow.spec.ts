@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInWithMagicLink, testWav } from "./helpers";
+import { signInWithMagicLink, testWav, trackMenu } from "./helpers";
 
 // The main flow, with two people:
 // a new producer who signs up, uploads and later deletes the account, and the
@@ -121,7 +121,7 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
   });
 
   await test.step("the producer edits the details after publishing", async () => {
-    await owner.getByRole("button", { name: "Edit details" }).click();
+    await trackMenu(owner, "Edit details");
     const dialog = owner.getByRole("dialog");
     await dialog.getByLabel("Title").fill(`${title} v2`);
     await dialog.getByLabel(/Description/).fill("Second pass on the drums.");

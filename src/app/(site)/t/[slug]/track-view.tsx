@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOffIcon, PencilIcon, UploadIcon } from "lucide-react";
+import {
+  EllipsisIcon,
+  EyeOffIcon,
+  FlagIcon,
+  PencilIcon,
+  UploadIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -38,11 +44,18 @@ import { ReferenceLink } from "@/components/track/reference-link";
 import { VersionPicker } from "@/components/versions/version-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Details } from "@/components/upload/upload-state";
 import type { BadgeKind } from "@/components/profile/badges";
 import type { PlayableVersion } from "@/lib/data/tracks";
 import { FEEDBACK_WANT_LABELS, LEVEL_DISPLAY_LABELS } from "@/config/labels";
 import { siteUrl } from "@/config/site";
+import { VERSIONS_MAX } from "@/config/versions";
 import { usePlayCounter } from "@/hooks/use-play-counter";
 import { shareReactionCounts } from "@/hooks/use-reaction-counts";
 import { matchGainDb } from "@/lib/audio/loudness";
@@ -67,13 +80,8 @@ const COMMENT_COLUMNS =
 const NewVersion = dynamic(
   () => import("./new-version").then((m) => m.NewVersion),
   {
+    // Opened from the track's menu, as a dialog over the page.
     ssr: false,
-    // Same size as the real button, so nothing moves when it loads.
-    loading: () => (
-      <Button variant="outline" size="sm" disabled>
-        <UploadIcon /> Upload a new version
-      </Button>
-    ),
   },
 );
 
@@ -136,6 +144,7 @@ export function TrackView({
   const [filter, setFilter] = useState<CommentFilter>(initialFilter);
   const [showResolved, setShowResolved] = useState(initialShowResolved);
   const [editing, setEditing] = useState(false);
+  const [addingVersion, setAddingVersion] = useState(false);
   const [range, setRange] = useState<TimeRange | null>(null);
   const latest = versions[versions.length - 1];
   const [versionId, setVersionId] = useState(latest?.id ?? null);
@@ -558,6 +567,56 @@ export function TrackView({
         shareUrl={shareUrl}
         onSignIn={signIn}
         onPick={pickReaction}
+        actions={
+          // Everything else about the track, in one place: the owner's
+          // changes, or a report for anyone else signed in.
+          (isOwner && genres) || (viewer && !isOwner) ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="More for this track"
+                  className="touch-hit rounded-full"
+                >
+                  <EllipsisIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-52">
+                {isOwner ? (
+                  <>
+                    <DropdownMenuItem onSelect={() => setEditing(true)}>
+                      <PencilIcon /> Edit details
+                    </DropdownMenuItem>
+                    {track.status === "live" ? (
+                      <DropdownMenuItem
+                        disabled={versions.length >= VERSIONS_MAX}
+                        onSelect={() => setAddingVersion(true)}
+                      >
+                        <UploadIcon />
+                        <span className="grid">
+                          Upload a new version
+                          {versions.length >= VERSIONS_MAX ? (
+                            <span className="text-xs text-muted-foreground">
+                              A track can have up to {VERSIONS_MAX} versions.
+                            </span>
+                          ) : null}
+                        </span>
+                      </DropdownMenuItem>
+                    ) : null}
+                  </>
+                ) : (
+                  <DropdownMenuItem
+                    onSelect={() => setReporting({ type: "track" })}
+                  >
+                    <FlagIcon /> Report track
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null
+        }
       />
 
       <section aria-label="About this track" className="mt-6 grid gap-3">
@@ -596,54 +655,40 @@ export function TrackView({
             ))}
           </ul>
         ) : null}
-        {isOwner && genres ? (
-          <div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="-ml-3 text-muted-foreground"
-              onClick={() => setEditing(true)}
-            >
-              <PencilIcon /> Edit details
-            </Button>
-            <EditTrackDialog
-              track={track}
-              genres={genres}
-              open={editing}
-              onOpenChange={setEditing}
-              onSave={saveDetails}
-            />
-            {track.status === "live" ? (
-              <div className="mt-2">
-                <NewVersion
-                  trackId={track.id}
-                  trackTitle={track.title}
-                  versionCount={versions.length}
-                  onPublished={(version) => {
-                    setPreviousVersionId(current?.id ?? null);
-                    setVersionId(version.id);
-                    router.refresh();
-                  }}
-                />
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {viewer && !isOwner ? (
-          <div>
-            <ReportDialog
-              target="track"
-              trigger={undefined}
-              open={reporting?.type === "track"}
-              onOpenChange={(open) =>
-                setReporting(open ? { type: "track" } : null)
-              }
-              onSubmit={sendReport}
-            />
-          </div>
-        ) : null}
       </section>
+
+      {/* Opened from the menu next to the reactions. */}
+      {isOwner && genres ? (
+        <EditTrackDialog
+          track={track}
+          genres={genres}
+          open={editing}
+          onOpenChange={setEditing}
+          onSave={saveDetails}
+        />
+      ) : null}
+      {addingVersion ? (
+        <NewVersion
+          trackId={track.id}
+          trackTitle={track.title}
+          versionCount={versions.length}
+          onClose={() => setAddingVersion(false)}
+          onPublished={(version) => {
+            setPreviousVersionId(current?.id ?? null);
+            setVersionId(version.id);
+            router.refresh();
+          }}
+        />
+      ) : null}
+      {viewer && !isOwner ? (
+        <ReportDialog
+          target="track"
+          trigger={null}
+          open={reporting?.type === "track"}
+          onOpenChange={(open) => setReporting(open ? { type: "track" } : null)}
+          onSubmit={sendReport}
+        />
+      ) : null}
 
       <section aria-labelledby="comments-heading" className="mt-10">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

@@ -49,6 +49,14 @@ export async function signInWithMagicLink(
   await page.goto(await magicLinkFor(email, sentAfter));
 }
 
+/** Opens the track's "More" menu and picks an item, once the page is ready. */
+export async function trackMenu(page: Page, item: string) {
+  await expect(async () => {
+    await page.getByRole("button", { name: "More for this track" }).click();
+    await page.getByRole("menuitem", { name: item }).click({ timeout: 2000 });
+  }).toPass();
+}
+
 /**
  * A mono 16 bit wav: a 220 Hz tone that swells every second, so the waveform
  * has some shape. 8 seconds is about 700 KB.
