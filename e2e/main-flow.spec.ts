@@ -88,6 +88,7 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
     // the count on the page after a reload is the real check.
     expect((await counted).ok()).toBe(true);
     await listener.reload();
+    await pageIn(listener);
     await expect(listener.getByText("1 play", { exact: true })).toBeVisible();
   });
 
