@@ -83,11 +83,11 @@ test("after a magic link, the login page marks email as last used", async ({
   await page.route(`${GSI}**`, (route) =>
     route.fulfill({ contentType: "text/javascript", body: fakeGsi }),
   );
-  // Signs in on the server with Google set up, so the badge can show there
+  // Signs in on the server with Google set up, so the hint can show there
   // (the browser keeps it per origin).
   const sentAfter = Date.now() - 1_000;
   await page.goto(`${GOOGLE_URL}/login?next=%2Ffeed`);
-  await expect(page.getByText("Last used")).toHaveCount(0);
+  await expect(page.getByText(/last time/)).toHaveCount(0);
   await page.getByLabel("Email", { exact: true }).fill("jonas@example.com");
   await page.getByRole("button", { name: "Email me a sign-in link" }).click();
   await expect(page.getByText("Check your email.")).toBeVisible();
@@ -96,11 +96,9 @@ test("after a magic link, the login page marks email as last used", async ({
 
   // Signed in already, so ask to sign in again to see the form.
   await page.goto(`${GOOGLE_URL}/login?reauth=1`);
-  const form = page
-    .locator("form")
-    .filter({ hasText: "Email me a sign-in link" });
-  await expect(form.getByText("Last used")).toBeVisible();
-  await expect(page.getByText("Last used")).toHaveCount(1);
+  await expect(
+    page.getByText("You signed in with email last time."),
+  ).toBeVisible();
 });
 
 test("Google gets the full width after a client-side navigation", async ({

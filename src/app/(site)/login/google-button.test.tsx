@@ -138,27 +138,57 @@ describe("LoginForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("marks the method used last, only when there is a choice", async () => {
+  it("says which way was used last, only when there is a choice", async () => {
     localStorage.setItem("needears:last-login", "email");
     const { unmount } = render(<LoginForm next="/" googleClientId="id.apps" />);
-    expect(screen.getByText("Last used")).toBeInTheDocument();
+    expect(
+      screen.getByText("You signed in with email last time."),
+    ).toBeInTheDocument();
     await waitFor(() => expect(renderButton).toHaveBeenCalled());
     unmount();
 
     render(<LoginForm next="/" googleClientId={null} />);
-    expect(screen.queryByText("Last used")).toBeNull();
+    expect(screen.queryByText(/last time/)).toBeNull();
     localStorage.clear();
   });
 
-  it("marks Google on the edge of its button", async () => {
+  it("says so outside Google's button when Google was used last", async () => {
     localStorage.setItem("needears:last-login", "google");
     render(<LoginForm next="/" googleClientId="id.apps" />);
-    const badge = screen.getByText("Last used");
+    const hint = screen.getByText("You signed in with Google last time.");
     expect(
-      badge.parentElement?.querySelector('[data-testid="google-button"]'),
-    ).not.toBeNull();
+      screen.getByTestId("google-button").parentElement?.contains(hint),
+    ).toBe(false);
     await waitFor(() => expect(renderButton).toHaveBeenCalled());
     localStorage.clear();
+  });
+
+  it("shows one message in place of both ways in while signing in", async () => {
+    let finish: (value: unknown) => void = () => {};
+    signInWithIdToken.mockReturnValue(new Promise((r) => (finish = r)));
+    render(<LoginForm next="/" googleClientId="id.apps" />);
+    await waitFor(() => expect(configs).toHaveLength(1));
+    configs[0]!.callback({ credential: "id-token" });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Signing you in…",
+    );
+    // Both buttons are out of sight, and nothing is drawn over Google's.
+    expect(
+      screen.queryByRole("button", { name: "Email me a sign-in link" }),
+    ).toBeNull();
+    expect(
+      screen
+        .getByTestId("google-button")
+        .parentElement?.contains(screen.getByRole("status")),
+    ).toBe(false);
+
+    // Supabase refuses: both come back, and Google's button gets a new nonce.
+    finish({ data: { user: null }, error: { message: "nope" } });
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(
+      screen.getByRole("button", { name: "Email me a sign-in link" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(configs).toHaveLength(2));
   });
 
   it("draws the button again when Google draws it too narrow", async () => {
