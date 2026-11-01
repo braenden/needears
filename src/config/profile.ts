@@ -18,15 +18,35 @@ export const AVATAR_SIZE_PX = 512;
 // or by the daily cleanup.
 export const AVATAR_FILES_MAX = 3;
 
-// A link may point to one of these hosts or a subdomain of it.
-export const profileLinkHosts = [
-  "bandcamp.com",
-  "instagram.com",
-  "soundcloud.com",
-  "spotify.com",
-  "tiktok.com",
-  "youtube.com",
+// The services a profile link or a reference track may point to: one of
+// these hosts or a subdomain of it. The names are what the forms show.
+export const linkHosts = [
+  { host: "soundcloud.com", name: "SoundCloud" },
+  { host: "bandcamp.com", name: "Bandcamp" },
+  { host: "spotify.com", name: "Spotify" },
+  { host: "music.apple.com", name: "Apple Music" },
+  { host: "youtube.com", name: "YouTube" },
+  { host: "youtu.be", name: "YouTube" },
+  { host: "instagram.com", name: "Instagram" },
+  { host: "tiktok.com", name: "TikTok" },
+  { host: "x.com", name: "X" },
+  { host: "twitter.com", name: "X" },
+  { host: "facebook.com", name: "Facebook" },
+  { host: "threads.net", name: "Threads" },
+  { host: "bsky.app", name: "Bluesky" },
+  { host: "mixcloud.com", name: "Mixcloud" },
+  { host: "audiomack.com", name: "Audiomack" },
+  { host: "beatport.com", name: "Beatport" },
+  { host: "tidal.com", name: "Tidal" },
+  { host: "deezer.com", name: "Deezer" },
+  { host: "twitch.tv", name: "Twitch" },
+  { host: "patreon.com", name: "Patreon" },
 ] as const;
+
+export const profileLinkHosts = linkHosts.map((h) => h.host);
+
+// Each service once, in the order above, for "Links can go to ...".
+export const linkServiceNames = [...new Set(linkHosts.map((h) => h.name))];
 
 // Control characters and text direction marks, which can disguise a link.
 // The database rejects the same ones in labels and URLs.

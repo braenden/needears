@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   HostIcon,
   hostOf,
-  LINK_HOSTS,
+  LINK_SERVICE_NAMES,
   LINK_LABEL_MAX,
   linkError,
   LINKS_MAX,
@@ -158,7 +158,7 @@ export function ProfileExtrasForm({
           <span className="font-normal text-muted-foreground">(optional)</span>
         </legend>
         <p className="text-xs text-muted-foreground">
-          Up to {LINKS_MAX}, to {LINK_HOSTS.map((h) => h.name).join(", ")}.
+          Up to {LINKS_MAX}, to {LINK_SERVICE_NAMES.join(", ")}.
         </p>
         {links.length > 0 ? (
           <ul className="grid gap-2">
