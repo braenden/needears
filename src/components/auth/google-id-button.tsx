@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createRawNonce, hashNonce } from "@/lib/auth/google-id";
 
-const GSI_SCRIPT = "https://accounts.google.com/gsi/client";
+export const GSI_SCRIPT = "https://accounts.google.com/gsi/client";
 
 // The parts of Google Identity Services we use.
 type GoogleId = {
@@ -33,9 +33,27 @@ type GoogleId = {
   ) => void;
 };
 
+// The code client, for connecting a Google account in Settings.
+export type GoogleCodeResponse = {
+  code?: string;
+  state?: string;
+  error?: string;
+};
+export type GoogleOAuth2 = {
+  initCodeClient: (config: {
+    client_id: string;
+    scope: string;
+    ux_mode: "popup";
+    select_account: boolean;
+    state: string;
+    callback: (response: GoogleCodeResponse) => void;
+    error_callback?: (error: { type?: string }) => void;
+  }) => { requestCode: () => void };
+};
+
 declare global {
   interface Window {
-    google?: { accounts: { id: GoogleId } };
+    google?: { accounts: { id: GoogleId; oauth2?: GoogleOAuth2 } };
   }
 }
 
@@ -102,11 +120,10 @@ function paintButton(parent: HTMLElement) {
 }
 
 /**
- * Google's own "Continue with Google" button, for signing in or for
- * connecting a Google account. The script loads with the page's CSP nonce;
- * until it has drawn the button, a neutral box of the same size holds the
- * place so nothing moves. It is redrawn when the column changes width or
- * the theme changes. Every attempt gets a fresh nonce: Google gets its
+ * Google's own "Continue with Google" button, for signing in. The script
+ * loads with the page's CSP nonce; until it has drawn the button, a neutral
+ * box of the same size holds the place so nothing moves. It is redrawn when
+ * the column changes width or the theme changes. Every attempt gets a fresh nonce: Google gets its
  * hash, and `onCredential` gets the raw value with the ID token.
  */
 export function GoogleIdButton({

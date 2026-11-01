@@ -11,36 +11,66 @@ vi.mock("sonner", () => ({ toast }));
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 const auth = vi.hoisted(() => ({
-  linkIdentity: vi.fn(),
   unlinkIdentity: vi.fn(),
 }));
 vi.mock("@/lib/supabase/lazy", () => ({
   browserClient: async () => ({ auth }),
 }));
-// Google's button needs Google; a stand-in hands over a token when pressed.
-const outcome = vi.hoisted(() => ({ done: null as boolean | null }));
+vi.mock("next/script", () => ({ default: () => null }));
 vi.mock("@/components/auth/google-id-button", () => ({
   GoogleGlyph: () => null,
-  GoogleIdButton: ({
-    onCredential,
-  }: {
-    onCredential: (token: string, nonce: string) => Promise<boolean>;
-  }) => (
-    <button
-      type="button"
-      onClick={async () => {
-        outcome.done = await onCredential("id-token", "raw-nonce");
-      }}
-    >
-      Google button
-    </button>
-  ),
+  GSI_SCRIPT: "https://accounts.google.com/gsi/client",
 }));
+
+// Google's code client: a stand-in answers the popup the way Google would.
+type CodeConfig = {
+  client_id: string;
+  scope: string;
+  select_account: boolean;
+  state: string;
+  callback: (response: {
+    code?: string;
+    state?: string;
+    error?: string;
+  }) => void;
+  error_callback?: (error: { type?: string }) => void;
+};
+const popup = vi.hoisted(() => ({
+  config: null as CodeConfig | null,
+  answer: "code" as "code" | "wrong-state" | "denied" | "blocked",
+}));
+function installGoogle() {
+  window.google = {
+    accounts: {
+      id: {} as never,
+      oauth2: {
+        initCodeClient: (config) => {
+          popup.config = config as CodeConfig;
+          return {
+            requestCode: () => {
+              const c = popup.config!;
+              if (popup.answer === "blocked")
+                c.error_callback?.({ type: "popup_failed_to_open" });
+              else if (popup.answer === "denied")
+                c.callback({ error: "access_denied", state: c.state });
+              else
+                c.callback({
+                  code: "google-code",
+                  state: popup.answer === "code" ? c.state : "other",
+                });
+            },
+          };
+        },
+      },
+    },
+  };
+}
 
 const {
   ConnectedAccounts,
   disconnectText,
   linkErrorText,
+  POPUP_BLOCKED,
   REAUTH_TO_CONNECT,
   SIGNS_OUT_ELSEWHERE,
   unlinkErrorText,
@@ -70,92 +100,134 @@ const card = (
   />
 );
 
-// POST /api/account/identity-intent
-const intent = vi.fn();
-const intentAnswers = {
+// POST /api/account/identity-intent, then POST /api/account/google-link.
+const answers = {
   ok: () => new Response(null, { status: 204 }),
-  reauth: () => Response.json({ error: "reauth_required" }, { status: 403 }),
+  reauth: () =>
+    Response.json({ error: { code: "reauth_required" } }, { status: 403 }),
+  taken: () =>
+    Response.json(
+      { error: { code: "identity_already_exists" } },
+      { status: 422 },
+    ),
   broken: () => new Response(null, { status: 500 }),
 };
+const server = vi.fn();
+const routes = { intent: answers.ok, link: answers.ok };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  outcome.done = null;
-  intent.mockImplementation(async () => intentAnswers.ok());
-  vi.stubGlobal("fetch", intent);
+  popup.config = null;
+  popup.answer = "code";
+  routes.intent = answers.ok;
+  routes.link = answers.ok;
+  server.mockImplementation(async (url: string) =>
+    url === "/api/account/identity-intent" ? routes.intent() : routes.link(),
+  );
+  vi.stubGlobal("fetch", server);
+  installGoogle();
 });
 
-const intentBody = () =>
-  JSON.parse((intent.mock.calls[0]![1] as RequestInit).body as string);
+const calls = () =>
+  server.mock.calls.map(([url, init]) => [
+    url,
+    JSON.parse((init as RequestInit).body as string),
+  ]);
 
 describe("connecting Google", () => {
-  it("links the ID token and nonce from Google's button", async () => {
-    auth.linkIdentity.mockResolvedValue({ data: {}, error: null });
+  it("opens Google's account chooser and sends the code to our server", async () => {
     const user = userEvent.setup();
     render(card([email]));
     expect(screen.getByText("nora@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Not connected")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Google button" }));
-    await waitFor(() => expect(outcome.done).toBe(true));
-    expect(intent.mock.calls[0]![0]).toBe("/api/account/identity-intent");
-    expect(intentBody()).toEqual({ action: "link", provider: "google" });
-    expect(auth.linkIdentity).toHaveBeenCalledWith({
-      provider: "google",
-      token: "id-token",
-      nonce: "raw-nonce",
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    expect(popup.config).toMatchObject({
+      client_id: "id.apps",
+      scope: "openid email profile",
+      select_account: true,
     });
-    expect(toast.success).toHaveBeenCalledWith("Google connected.");
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Google connected."),
+    );
+    expect(calls()).toEqual([
+      ["/api/account/identity-intent", { action: "link", provider: "google" }],
+      ["/api/account/google-link", { code: "google-code" }],
+    ]);
     expect(router.refresh).toHaveBeenCalled();
   });
 
   it("explains a Google account that belongs to someone else", async () => {
-    auth.linkIdentity.mockResolvedValue({
-      data: {},
-      error: { code: "identity_already_exists" },
-    });
+    routes.link = answers.taken;
     const user = userEvent.setup();
     render(card([email]));
-    await user.click(screen.getByRole("button", { name: "Google button" }));
-    await waitFor(() => expect(outcome.done).toBe(false));
-    expect(toast.error).toHaveBeenCalledWith(
-      "That Google account already belongs to another profile.",
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "That Google account already belongs to another profile.",
+      ),
     );
     expect(toast.success).not.toHaveBeenCalled();
   });
 
+  it("ignores an answer that was not for this click", async () => {
+    popup.answer = "wrong-state";
+    const user = userEvent.setup();
+    render(card([email]));
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    expect(server).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(linkErrorText(undefined));
+  });
+
+  it("says nothing when the person cancels in Google's window", async () => {
+    popup.answer = "denied";
+    const user = userEvent.setup();
+    render(card([email]));
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    expect(server).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("explains a blocked popup", async () => {
+    popup.answer = "blocked";
+    const user = userEvent.setup();
+    render(card([email]));
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    expect(toast.error).toHaveBeenCalledWith(POPUP_BLOCKED);
+  });
+
   it("asks for a fresh sign-in first when the last one is old", () => {
     render(card([email], { fresh: false }));
-    expect(screen.queryByRole("button", { name: "Google button" })).toBeNull();
-    expect(
-      screen.getByRole("link", { name: "Connect Google" }),
-    ).toHaveAttribute("href", REAUTH_TO_CONNECT);
+    expect(screen.getByRole("link", { name: "Connect" })).toHaveAttribute(
+      "href",
+      REAUTH_TO_CONNECT,
+    );
     expect(screen.getByText(/sign in again first/)).toBeInTheDocument();
   });
 
   it("sends people to sign in again when the server says so", async () => {
-    intent.mockImplementation(async () => intentAnswers.reauth());
+    routes.intent = answers.reauth;
     const user = userEvent.setup();
     render(card([email]));
-    await user.click(screen.getByRole("button", { name: "Google button" }));
-    await waitFor(() => expect(outcome.done).toBe(true));
-    expect(auth.linkIdentity).not.toHaveBeenCalled();
-    expect(router.push).toHaveBeenCalledWith(REAUTH_TO_CONNECT);
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith(REAUTH_TO_CONNECT),
+    );
+    expect(server).toHaveBeenCalledTimes(1);
   });
 
   it("does not link when the server cannot give the go-ahead", async () => {
-    intent.mockImplementation(async () => intentAnswers.broken());
+    routes.intent = answers.broken;
     const user = userEvent.setup();
     render(card([email]));
-    await user.click(screen.getByRole("button", { name: "Google button" }));
+    await user.click(screen.getByRole("button", { name: "Connect" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
-    expect(auth.linkIdentity).not.toHaveBeenCalled();
+    expect(server).toHaveBeenCalledTimes(1);
   });
 
-  it("offers nothing to connect when Google sign-in is not set up", () => {
+  it("offers nothing to connect when Google is not set up", () => {
     render(card([email], { googleClientId: null }));
     expect(screen.getByText("Not connected")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Google button" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Connect Google" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Connect" })).toBeNull();
   });
 });
 
@@ -175,7 +247,12 @@ describe("disconnecting Google", () => {
     await waitFor(() =>
       expect(auth.unlinkIdentity).toHaveBeenCalledWith(google),
     );
-    expect(intentBody()).toEqual({ action: "unlink", provider: "google" });
+    expect(calls()).toEqual([
+      [
+        "/api/account/identity-intent",
+        { action: "unlink", provider: "google" },
+      ],
+    ]);
     expect(toast.success).toHaveBeenCalledWith("Google disconnected.");
     expect(router.refresh).toHaveBeenCalled();
   });

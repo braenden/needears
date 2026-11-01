@@ -4,16 +4,30 @@ import { magicLinkFor, signInWithMagicLink } from "./helpers";
 
 // Connected accounts in Settings, for someone who signs in with the email
 // link. Google's popup cannot run in CI, so its script is replaced by a
-// stand-in, and linking the token is covered by unit tests.
+// stand-in that answers with a code, and swapping and linking the code is
+// covered by unit tests.
 const fakeGsi = `
-  window.google = { accounts: { id: {
-    initialize: () => {},
-    renderButton: (parent) => {
-      const button = document.createElement("button");
-      button.textContent = "Sign in with Google";
-      parent.appendChild(button);
+  window.google = { accounts: {
+    id: {
+      initialize: () => {},
+      renderButton: (parent) => {
+        const button = document.createElement("button");
+        button.textContent = "Sign in with Google";
+        parent.appendChild(button);
+      },
     },
-  } } };
+    oauth2: {
+      initCodeClient: (config) => ({
+        requestCode: () => {
+          window.codeClient = {
+            scope: config.scope,
+            select_account: config.select_account,
+          };
+          config.callback({ code: "e2e-code", state: config.state });
+        },
+      }),
+    },
+  } };
 `;
 
 test("without Google set up, the card only lists the email link", async ({
@@ -36,7 +50,9 @@ test("without Google set up, the card only lists the email link", async ({
   );
 });
 
-test("right after signing in, Google's button connects", async ({ page }) => {
+test("right after signing in, Connect opens Google's account chooser", async ({
+  page,
+}) => {
   await page.route("https://accounts.google.com/gsi/client**", (route) =>
     route.fulfill({ contentType: "text/javascript", body: fakeGsi }),
   );
@@ -50,9 +66,33 @@ test("right after signing in, Google's button connects", async ({ page }) => {
 
   const card = page.getByRole("region", { name: "Connected accounts" });
   await expect(card.getByText("mia@example.com")).toBeVisible();
+  // Not Google's own button, which would suggest an account.
   await expect(
     card.getByRole("button", { name: "Sign in with Google" }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+
+  // This server's address is not the site's, so our account routes would
+  // refuse it; what the page sends them is checked instead.
+  const sent: unknown[] = [];
+  for (const path of ["identity-intent", "google-link"])
+    await page.route(`**/api/account/${path}`, async (route) => {
+      sent.push(route.request().postDataJSON());
+      await route.fulfill({ status: 204 });
+    });
+  await card.getByRole("button", { name: "Connect" }).click();
+  await expect(page.getByText("Google connected.")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { codeClient: unknown }).codeClient,
+    ),
+  ).toEqual({
+    scope: "openid email profile",
+    select_account: true,
+  });
+  expect(sent).toEqual([
+    { action: "link", provider: "google" },
+    { code: "e2e-code" },
+  ]);
 });
 
 test("signing in again to connect Google offers only the email link", async ({

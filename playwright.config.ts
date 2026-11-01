@@ -39,7 +39,10 @@ export default defineConfig({
           url: `${GOOGLE_URL}/api/health`,
           reuseExistingServer: !process.env.CI,
           timeout: 60_000,
-          env: { NEXT_PUBLIC_GOOGLE_CLIENT_ID: E2E_GOOGLE_CLIENT_ID },
+          env: {
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID: E2E_GOOGLE_CLIENT_ID,
+            GOOGLE_CLIENT_SECRET: "e2e-secret",
+          },
         },
       ],
 });
