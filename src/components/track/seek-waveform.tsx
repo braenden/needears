@@ -15,20 +15,27 @@ const DRAG_PX = 6;
 
 /**
  * The card's waveform as a seek bar: click or tap a spot to play from
- * there, drag to scrub, or use the arrow keys, Home and End. Vertical
- * swipes still scroll the page.
+ * there, or drag to scrub. The arrow keys, Home and End move the playhead
+ * without starting it; Space or Enter plays. Vertical swipes still scroll
+ * the page.
  */
 export function SeekWaveform({
   track,
   progress,
   onSeek,
+  onMove,
+  onToggle,
   className,
 }: {
   track: Pick<TrackSummary, "title" | "peaks" | "duration_ms">;
   /** 0 to 1, how far the track has played. */
   progress: number;
-  /** A spot from 0 to 1. */
+  /** Play from a spot, 0 to 1: a click, a tap or a drag. */
   onSeek: (at: number) => void;
+  /** Move the playhead without starting it: the keys. */
+  onMove: (at: number) => void;
+  /** Space or Enter: play or pause. */
+  onToggle: () => void;
   className?: string;
 }) {
   const bar = useRef<HTMLDivElement>(null);
@@ -84,6 +91,12 @@ export function SeekWaveform({
         press.current = null;
       }}
       onKeyDown={(event) => {
+        // Like any slider: keys move, Space or Enter plays.
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          onToggle();
+          return;
+        }
         const keys: Record<string, number> = {
           ArrowRight: now + STEP_S,
           ArrowUp: now + STEP_S,
@@ -97,7 +110,7 @@ export function SeekWaveform({
         const target = keys[event.key];
         if (target === undefined) return;
         event.preventDefault();
-        onSeek(Math.min(1, Math.max(0, target / seconds)));
+        onMove(Math.min(1, Math.max(0, target / seconds)));
       }}
     >
       <MiniWaveform

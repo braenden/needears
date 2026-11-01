@@ -12,7 +12,7 @@ const now = async (page: Page) =>
 test.describe("with a mouse and the keyboard", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("click, drag and keys play from that spot", async ({ page }) => {
+  test("click and drag play from that spot, keys move it", async ({ page }) => {
     await page.goto("/feed?tab=latest");
     // Retried until the page has hydrated.
     await bar(page).scrollIntoViewIfNeeded();
@@ -34,12 +34,25 @@ test.describe("with a mouse and the keyboard", () => {
     await page.mouse.up();
     await expect.poll(() => now(page)).toBeLessThanOrEqual(4);
 
+    // Paused, the keys move the playhead without starting it, and Space
+    // or Enter plays, like any slider.
+    await card(page)
+      .getByRole("button", { name: /^Pause Night bus/ })
+      .click();
     await bar(page).focus();
     await page.keyboard.press("Home");
-    await expect.poll(() => now(page)).toBeLessThanOrEqual(1);
+    await expect.poll(() => now(page)).toBe(0);
     await page.keyboard.press("ArrowRight");
-    await expect.poll(() => now(page)).toBeGreaterThanOrEqual(5);
+    await expect.poll(() => now(page)).toBe(5);
     await expect(bar(page)).toHaveAttribute("aria-valuetext", /of 18 seconds/);
+    await expect(
+      card(page).getByRole("button", { name: /^Play Night bus/ }),
+    ).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(
+      card(page).getByRole("button", { name: /^Pause Night bus/ }),
+    ).toBeVisible();
+    expect(await now(page)).toBeGreaterThanOrEqual(5);
   });
 
   test("the comment count opens the track at its comments", async ({
@@ -107,3 +120,29 @@ async function expectCommentsAtTop(page: Page) {
     )
     .toBe(true);
 }
+
+test("keys on a card that is not playing pick where Play starts", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/feed?tab=latest");
+  await bar(page).scrollIntoViewIfNeeded();
+  await expect(async () => {
+    await bar(page).focus();
+    await page.keyboard.press("End");
+    await page.keyboard.press("ArrowLeft");
+    await expect(bar(page)).toHaveAttribute("aria-valuenow", "13", {
+      timeout: 1000,
+    });
+  }).toPass();
+  await expect(
+    card(page).getByRole("button", { name: /^Play Night bus/ }),
+  ).toBeVisible();
+  await card(page)
+    .getByRole("button", { name: /^Play Night bus/ })
+    .click();
+  await expect(
+    card(page).getByRole("button", { name: /^Pause Night bus/ }),
+  ).toBeVisible();
+  expect(await now(page)).toBeGreaterThanOrEqual(13);
+});

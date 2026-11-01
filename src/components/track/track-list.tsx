@@ -41,6 +41,9 @@ export function TrackList({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  // A spot picked with the keys on a track that is not loaded: shown on its
+  // card, and where Play starts it.
+  const [cued, setCued] = useState<{ id: string; at: number } | null>(null);
   // The same volume as the track page's player.
   const volume = useListenVolume();
   useEffect(() => {
@@ -78,8 +81,11 @@ export function TrackList({
       toast.error("This track was removed or is hidden.");
       return;
     }
-    // Where a drag has got to by now, if it started this track.
+    // Where a drag has got to by now, if it started this track, or where
+    // the keys left it.
     if (starting.current?.id === track.id) at = starting.current.at;
+    else if (at === undefined && cued?.id === track.id) at = cued.at;
+    setCued(null);
     starting.current = null;
     audio.pause();
     shared.claim(owner, { id: track.id, slug: track.slug });
@@ -118,6 +124,18 @@ export function TrackList({
     }
   }
 
+  /** Moves the playhead to `at` (0 to 1) without starting it. */
+  function cue(track: TrackSummary, at: number) {
+    if (playingId !== track.id) {
+      setCued({ id: track.id, at });
+      return;
+    }
+    const audio = shared.get();
+    const duration = audio.duration || track.duration_ms / 1000;
+    audio.currentTime = Math.min(at, 0.999) * duration;
+    setProgress(at);
+  }
+
   /** Plays from `at` (0 to 1): the waveform on a card is a seek bar. */
   function seek(track: TrackSummary, at: number) {
     const audio = shared.get();
@@ -143,9 +161,16 @@ export function TrackList({
           <TrackCard
             track={track}
             playing={playingId === track.id && isPlaying}
-            progress={playingId === track.id ? progress : 0}
+            progress={
+              playingId === track.id
+                ? progress
+                : cued?.id === track.id
+                  ? cued.at
+                  : 0
+            }
             onPlay={(t) => void play(t)}
             onSeek={seek}
+            onCue={cue}
             showOwner={showOwner}
           />
         </li>

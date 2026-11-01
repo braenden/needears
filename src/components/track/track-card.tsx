@@ -24,6 +24,7 @@ export function TrackCard({
   progress = 0,
   onPlay,
   onSeek,
+  onCue,
   showOwner = true,
   className,
 }: {
@@ -33,6 +34,8 @@ export function TrackCard({
   onPlay?: (track: Track) => void;
   /** Play from a spot (0 to 1): the waveform becomes a seek bar. */
   onSeek?: (track: Track, at: number) => void;
+  /** Move the playhead (0 to 1) without playing, from the keyboard. */
+  onCue?: (track: Track, at: number) => void;
   /** Off where every track is by the same person, like on a profile. */
   showOwner?: boolean;
   className?: string;
@@ -130,6 +133,8 @@ export function TrackCard({
           track={track}
           progress={progress}
           onSeek={(at) => onSeek(track, at)}
+          onMove={(at) => (onCue ?? onSeek)(track, at)}
+          onToggle={() => onPlay?.(track)}
           className="mt-3"
         />
       ) : (
