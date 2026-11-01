@@ -13,7 +13,9 @@ const buttonVariants = cva(
         outline:
           "border-border bg-transparent text-foreground hover:bg-accent aria-expanded:bg-accent",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-accent aria-expanded:bg-accent",
+          // Accent is too close to secondary to show, so it mixes in the
+          // text color like the primary button does.
+          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_12%)] aria-expanded:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_12%)]",
         ghost:
           "text-foreground hover:bg-accent aria-expanded:bg-accent aria-pressed:bg-accent",
         destructive:

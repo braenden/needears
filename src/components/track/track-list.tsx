@@ -22,6 +22,7 @@ export function TrackList({
   tracks,
   label,
   showOwner = true,
+  showNeedsEars = true,
   className,
 }: {
   tracks: PlayableTrack[];
@@ -29,6 +30,8 @@ export function TrackList({
   label: string;
   /** Off where every track is by the same person, like on a profile. */
   showOwner?: boolean;
+  /** Off where every track needs ears anyway (that tab of the feed). */
+  showNeedsEars?: boolean;
   className?: string;
 }) {
   const shared = useSharedAudio();
@@ -172,6 +175,7 @@ export function TrackList({
             onSeek={seek}
             onCue={cue}
             showOwner={showOwner}
+            showNeedsEars={showNeedsEars}
           />
         </li>
       ))}

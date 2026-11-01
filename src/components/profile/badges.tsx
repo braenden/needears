@@ -1,6 +1,7 @@
 import {
-  EarIcon,
   LockIcon,
+  type LucideIcon,
+  MessageSquarePlusIcon,
   Music2Icon,
   SparklesIcon,
   StarIcon,
@@ -21,12 +22,13 @@ const goldenAt =
 
 export const BADGES: Record<
   BadgeKind,
-  { name: string; how: string; Icon: typeof EarIcon }
+  { name: string; how: string; Icon: LucideIcon }
 > = {
   first_ears: {
     name: "First ears",
     how: "Left the first comment on a track nobody else had commented on.",
-    Icon: EarIcon,
+    // Not an ear: that is the levels' icon, often right next to it.
+    Icon: MessageSquarePlusIcon,
   },
   finisher: {
     name: "Finisher",

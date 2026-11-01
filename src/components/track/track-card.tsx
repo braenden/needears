@@ -26,6 +26,7 @@ export function TrackCard({
   onSeek,
   onCue,
   showOwner = true,
+  showNeedsEars = true,
   className,
 }: {
   track: Track;
@@ -38,6 +39,8 @@ export function TrackCard({
   onCue?: (track: Track, at: number) => void;
   /** Off where every track is by the same person, like on a profile. */
   showOwner?: boolean;
+  /** Off where every track needs ears anyway. */
+  showNeedsEars?: boolean;
   className?: string;
 }) {
   const owner = displayNameOf(track.owner);
@@ -77,7 +80,7 @@ export function TrackCard({
             </h3>
             {/* Until the artist marks someone's comment Helpful or three
                 people have commented; then nothing. */}
-            {track.needs_ears ? (
+            {showNeedsEars && track.needs_ears ? (
               <Badge variant="solid" className="shrink-0">
                 Needs ears
               </Badge>

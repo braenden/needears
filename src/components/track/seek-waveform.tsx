@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
-import { formatTimeSpoken } from "@/lib/time";
+import { formatTime, formatTimeSpoken } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import type { TrackSummary } from "@/types/view";
 
@@ -42,6 +42,8 @@ export function SeekWaveform({
   const press = useRef<{ x: number; touch: boolean; dragging: boolean } | null>(
     null,
   );
+  // With a mouse: where the pointer is, for a light fill and the time.
+  const [hoverAt, setHoverAt] = useState<number | null>(null);
   const seconds = track.duration_ms / 1000;
   const now = Math.round(progress * seconds);
 
@@ -61,7 +63,7 @@ export function SeekWaveform({
       aria-valuenow={now}
       aria-valuetext={`${formatTimeSpoken(now * 1000)} of ${formatTimeSpoken(track.duration_ms)}`}
       className={cn(
-        "cursor-pointer touch-pan-y rounded-md focus-ring outline-none select-none",
+        "relative cursor-pointer touch-pan-y rounded-md focus-ring outline-none select-none",
         className,
       )}
       onPointerDown={(event) => {
@@ -73,6 +75,7 @@ export function SeekWaveform({
         if (!touch) onSeek(at(event.clientX));
       }}
       onPointerMove={(event) => {
+        if (event.pointerType === "mouse") setHoverAt(at(event.clientX));
         const current = press.current;
         if (!current) return;
         if (!current.dragging) {
@@ -86,6 +89,7 @@ export function SeekWaveform({
         press.current = null;
         if (current?.touch) onSeek(at(event.clientX));
       }}
+      onPointerLeave={() => setHoverAt(null)}
       // The page took the gesture (a scroll): nothing to play.
       onPointerCancel={() => {
         press.current = null;
@@ -118,6 +122,25 @@ export function SeekWaveform({
         progress={progress}
         className="pointer-events-none h-10 @sm:h-12"
       />
+      {hoverAt !== null ? (
+        <>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 left-0 rounded-l-md bg-foreground/10"
+            style={{ width: `${hoverAt * 100}%` }}
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-6 -translate-x-1/2 rounded-sm bg-foreground px-1.5 py-0.5 text-[11px] leading-none text-background"
+            style={{
+              left: `clamp(1.25rem, ${hoverAt * 100}%, calc(100% - 1.25rem))`,
+            }}
+            data-numeric
+          >
+            {formatTime(hoverAt * track.duration_ms)}
+          </span>
+        </>
+      ) : null}
     </div>
   );
 }

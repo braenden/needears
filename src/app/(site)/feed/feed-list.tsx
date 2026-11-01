@@ -77,7 +77,13 @@ export function FeedList({
 
   return (
     <>
-      <TrackList tracks={tracks} label={label} className="grid gap-3" />
+      <TrackList
+        tracks={tracks}
+        label={label}
+        // In the Needs ears tab every track needs ears: no badge to repeat.
+        showNeedsEars={tab !== "needs-ears"}
+        className="grid gap-3"
+      />
       {pending ? (
         <div className="mt-3 grid gap-3">
           <TrackCardSkeleton />
