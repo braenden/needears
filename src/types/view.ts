@@ -43,7 +43,10 @@ export type TrackSummary = Pick<
   | "play_count"
   | "published_at"
   | "feedback_wants"
+  | "level"
 > & {
+  /** How many versions, where loaded (cards). 1 if never replaced. */
+  version_count?: number;
   reaction_counts: ReactionCounts;
   genre: Genre;
   owner: ProfileSummary;

@@ -19,8 +19,10 @@ export function rankLeaders<T extends { helpful: number }>(
 
 /**
  * The most helpful ears this week (Monday to Sunday, Oslo time), and when
- * the list starts over. An empty list if it cannot be read: the feed
- * matters more than the list next to it.
+ * the list starts over. An empty list if it cannot be read. Not shown
+ * anywhere right now; kept for a page of its own.
+ *
+ * @public
  */
 export async function getWeeklyLeaders(): Promise<{
   leaders: WeeklyLeader[];

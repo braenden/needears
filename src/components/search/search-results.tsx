@@ -163,9 +163,11 @@ export function SearchResults({
                         className="size-3.5"
                         aria-hidden="true"
                       />
-                      {track.comment_count}
+                      {track.listener_comment_count}
                       <span className="sr-only">
-                        {track.comment_count === 1 ? " comment" : " comments"}
+                        {track.listener_comment_count === 1
+                          ? " comment"
+                          : " comments"}
                       </span>
                     </span>
                     <time data-numeric className="hidden @sm:inline">

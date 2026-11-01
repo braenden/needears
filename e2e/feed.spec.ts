@@ -1,22 +1,15 @@
 import { expect, test } from "@playwright/test";
 
-// The weekly list on the feed and badges next to names in the comments,
-// both from the seed data, signed out.
-test.describe("weekly list and badges", () => {
+// The feed's layout, and badges next to names in the comments, from the
+// seed data, signed out.
+test.describe("feed layout and badges", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("the feed has the weekly list in its side column", async ({ page }) => {
+  test("the feed is all tracks, without a weekly list", async ({ page }) => {
     await page.goto("/feed");
-    const week = page.getByRole("complementary", { name: "This week" });
-    await expect(week.getByText("Most helpful ears this week")).toBeVisible();
-    // Which names are on it depends on the day the seed ran, so either
-    // someone links to a profile or the empty state invites a comment.
-    await expect(
-      week
-        .getByRole("link", { name: /.+/ })
-        .first()
-        .or(week.getByText(/Nobody has been marked Helpful yet this week/)),
-    ).toBeVisible();
+    await expect(page.locator("main article").first()).toBeVisible();
+    await expect(page.getByText("Most helpful ears this week")).toHaveCount(0);
+    await expect(page.getByRole("complementary")).toHaveCount(0);
   });
 
   test("the tracks are centered under the header and start at the same place on every tab", async ({
@@ -35,22 +28,10 @@ test.describe("weekly list and badges", () => {
     expect(new Set(tops).size).toBe(1);
   });
 
-  test("on a phone the weekly list is a row above the tracks", async ({
-    page,
-  }) => {
+  test("on a phone the feed does not scroll sideways", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/feed");
-    await expect(
-      page.getByRole("complementary", { name: "This week" }),
-    ).toBeHidden();
-    // Shown once someone is on it this week, which depends on the day the
-    // seed ran.
-    const heading = page.getByText("Most helpful ears this week");
-    if ((await heading.count()) > 0) {
-      const row = await heading.first().boundingBox();
-      const track = await page.locator("main article").first().boundingBox();
-      expect(row!.y).toBeLessThan(track!.y);
-    }
+    await expect(page.locator("main article").first()).toBeVisible();
     const width = await page.evaluate(
       () => document.documentElement.scrollWidth,
     );
