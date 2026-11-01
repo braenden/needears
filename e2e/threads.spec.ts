@@ -62,12 +62,12 @@ test("reply, resolve, Show resolved in the URL and the reply notice", async ({
   await test.step("Jonas sees the reply under Notifications", async () => {
     await jonas.goto("/notifications");
     await expect(
-      jonas.getByText(/replied to your comment on/).first(),
+      jonas.getByText(/replied (\d+ times )?to your comments? on/).first(),
     ).toBeVisible();
     // The whole row opens the track, not only its title.
     const row = jonas
       .getByRole("listitem")
-      .filter({ hasText: /replied to your comment on/ })
+      .filter({ hasText: /replied (\d+ times )?to your comments? on/ })
       .first();
     const box = (await row.boundingBox())!;
     await jonas.mouse.click(box.x + box.width - 20, box.y + box.height - 10);
