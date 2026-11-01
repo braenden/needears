@@ -10,6 +10,18 @@ import { TrackPageDemo } from "./track-page-demo";
 import { Example, Section } from "./section";
 
 const never = () => new Promise<never>(() => {});
+
+// A busy track: 40 comments, bunched where people tend to comment (the
+// drop, the break), so the markers group and the density stripe shows.
+const busy = Array.from({ length: 40 }, (_, i) => {
+  const base = comments[i % comments.length]!;
+  const spot = [0.2, 0.45, 0.78][i % 3]! * nightBus.duration_ms;
+  return {
+    ...base,
+    id: `busy-${i}`,
+    time_ms: Math.round(spot + (i % 7) * 2_500),
+  };
+});
 const ok = async () => ({ ok: true as const });
 
 export function PlayerSection() {
@@ -38,6 +50,17 @@ export function PlayerSection() {
             peaks={nightBus.peaks}
             comments={comments}
             forceStatus="loading"
+          />
+        </Example>
+        <Example
+          title="Busy track, 40 comments"
+          note="Markers closer than 24 pixels share a number; tap it to jump and list them. Above 30 comments a stripe shows where they bunch up."
+        >
+          <WaveformPlayer
+            title={nightBus.title}
+            durationMs={nightBus.duration_ms}
+            peaks={nightBus.peaks}
+            comments={busy}
           />
         </Example>
         <Example title="Audio failed to load">
