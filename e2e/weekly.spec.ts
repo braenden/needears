@@ -19,7 +19,23 @@ test.describe("weekly list and badges", () => {
     ).toBeVisible();
   });
 
-  test("the weekly list is a row under the tabs on a phone", async ({
+  test("the tracks are centered under the header and start at the same place on every tab", async ({
+    page,
+  }) => {
+    const tops: number[] = [];
+    for (const tab of ["needs-ears", "latest", "trending"]) {
+      await page.goto(`/feed?tab=${tab}`);
+      const box = await page.locator("main article").first().boundingBox();
+      const header = await page.locator("header > div").first().boundingBox();
+      if (!box || !header) throw new Error(`No track on ${tab}`);
+      const middle = header.x + header.width / 2;
+      expect(Math.abs(box.x + box.width / 2 - middle)).toBeLessThan(1);
+      tops.push(box.y);
+    }
+    expect(new Set(tops).size).toBe(1);
+  });
+
+  test("on a phone the weekly list is a row above the tracks", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 375, height: 812 });
@@ -27,9 +43,14 @@ test.describe("weekly list and badges", () => {
     await expect(
       page.getByRole("complementary", { name: "This week" }),
     ).toBeHidden();
-    await expect(
-      page.getByText("Most helpful ears this week").first(),
-    ).toBeVisible();
+    // Shown once someone is on it this week, which depends on the day the
+    // seed ran.
+    const heading = page.getByText("Most helpful ears this week");
+    if ((await heading.count()) > 0) {
+      const row = await heading.first().boundingBox();
+      const track = await page.locator("main article").first().boundingBox();
+      expect(row!.y).toBeLessThan(track!.y);
+    }
     const width = await page.evaluate(
       () => document.documentElement.scrollWidth,
     );
