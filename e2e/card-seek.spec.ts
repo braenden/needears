@@ -53,7 +53,11 @@ test.describe("with a mouse and the keyboard", () => {
     await expect(
       card(page).getByRole("button", { name: /^Pause Night bus/ }),
     ).toBeVisible();
-    expect(await now(page)).toBeGreaterThanOrEqual(5);
+    // Plays on from 5 seconds: from the start it could not get there this
+    // quickly. Polled, since the first reading can come before the seek.
+    await expect
+      .poll(() => now(page), { timeout: 2000 })
+      .toBeGreaterThanOrEqual(5);
   });
 
   test("the comment count opens the track at its comments", async ({
