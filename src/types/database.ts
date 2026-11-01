@@ -747,16 +747,6 @@ export type Database = {
         Args: { p_object: string; p_user: string };
         Returns: boolean;
       };
-      email_batch: {
-        Args: { p_daily_budget?: number; p_limit?: number };
-        Returns: {
-          email: string;
-          items: Json;
-          queue_ids: number[];
-          total: number;
-          user_id: string;
-        }[];
-      };
       feed_latest: {
         Args: { p_genre?: string; p_page?: number; p_page_size?: number };
         Returns: {
