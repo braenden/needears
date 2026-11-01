@@ -104,7 +104,10 @@ export function testWav(seconds = 8, sampleRate = 44_100) {
 /**
  * Records the largest single change of any audio element's volume while it
  * plays (changes while paused cannot be heard). A fade moves in small
- * steps; a cut jumps from 1 to 0. Call before the page loads.
+ * steps; a cut jumps from 1 to 0. Stopping a playing element (pause, a new
+ * source, a reload) counts as a jump from its volume to silence, so a stop
+ * after a fade counts nothing and a hard stop counts its full volume. Call
+ * before the page loads.
  */
 export async function watchVolumeSteps(page: Page) {
   await page.addInitScript(() => {
@@ -114,6 +117,31 @@ export async function watchVolumeSteps(page: Page) {
     )!;
     const w = window as unknown as { __jump: number };
     w.__jump = 0;
+    const proto = HTMLMediaElement.prototype;
+    const stopped = (element: HTMLMediaElement) => {
+      if (!element.paused) w.__jump = Math.max(w.__jump, element.volume);
+    };
+    const pause = proto.pause;
+    proto.pause = function (this: HTMLMediaElement) {
+      stopped(this);
+      return pause.call(this);
+    };
+    const load = proto.load;
+    proto.load = function (this: HTMLMediaElement) {
+      stopped(this);
+      return load.call(this);
+    };
+    const src = Object.getOwnPropertyDescriptor(proto, "src")!;
+    Object.defineProperty(proto, "src", {
+      configurable: true,
+      get() {
+        return src.get!.call(this);
+      },
+      set(value: string) {
+        stopped(this as HTMLMediaElement);
+        src.set!.call(this, value);
+      },
+    });
     Object.defineProperty(HTMLMediaElement.prototype, "volume", {
       configurable: true,
       get() {
