@@ -213,10 +213,14 @@ export function WaveformPlayer({
     if (!container || !root) return;
     let cancelled = false;
     let ws: WaveSurfer | null = null;
+    let borrowed: HTMLAudioElement | null = null;
 
     void import("wavesurfer.js").then(({ default: WaveSurferLib }) => {
       if (cancelled) return;
-      const element = mediaRef.current?.();
+      // Borrowed only with an address to play: without one, wavesurfer would
+      // play whatever the element still holds.
+      const element = audioUrl ? mediaRef.current?.() : undefined;
+      borrowed = element ?? null;
       ws = WaveSurferLib.create({
         ...(element ? { media: element } : {}),
         container,
@@ -268,8 +272,8 @@ export function WaveformPlayer({
       ws.on("finish", () => setPlaying(false));
       ws.on("timeupdate", report);
       ws.on("interaction", report);
-      // Already playing when this player came: show where it is.
-      if (element && !element.paused) {
+      // Already playing this source when this player came: show where it is.
+      if (element && !element.paused && element.src === audioUrl) {
         setPlaying(true);
         report(element.currentTime);
       }
@@ -284,6 +288,9 @@ export function WaveformPlayer({
         };
       }
       ws?.destroy();
+      // wavesurfer leaves an element it did not make playing; stop it like
+      // its own (keepPosition carries the playing on to the new source).
+      borrowed?.pause();
       wsRef.current = null;
     };
   }, [peaks, durationMs, audioUrl, height, attempt, rangeSelect]);
