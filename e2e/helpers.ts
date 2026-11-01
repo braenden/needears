@@ -100,3 +100,41 @@ export function testWav(seconds = 8, sampleRate = 44_100) {
   }
   return buffer;
 }
+
+/**
+ * Records the largest single change of any audio element's volume while it
+ * plays (changes while paused cannot be heard). A fade moves in small
+ * steps; a cut jumps from 1 to 0. Call before the page loads.
+ */
+export async function watchVolumeSteps(page: Page) {
+  await page.addInitScript(() => {
+    const volume = Object.getOwnPropertyDescriptor(
+      HTMLMediaElement.prototype,
+      "volume",
+    )!;
+    const w = window as unknown as { __jump: number };
+    w.__jump = 0;
+    Object.defineProperty(HTMLMediaElement.prototype, "volume", {
+      configurable: true,
+      get() {
+        return volume.get!.call(this);
+      },
+      set(value: number) {
+        const before = volume.get!.call(this) as number;
+        volume.set!.call(this, value);
+        if (!(this as HTMLMediaElement).paused)
+          w.__jump = Math.max(w.__jump, Math.abs(value - before));
+      },
+    });
+  });
+}
+
+/** The largest volume step while `action` plays out (see watchVolumeSteps). */
+export async function largestStep(page: Page, action: () => Promise<void>) {
+  await page.evaluate(() => {
+    (window as unknown as { __jump: number }).__jump = 0;
+  });
+  await action();
+  await page.waitForTimeout(800);
+  return page.evaluate(() => (window as unknown as { __jump: number }).__jump);
+}

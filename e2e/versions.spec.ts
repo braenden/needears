@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { signInWithMagicLink, testWav, trackMenu } from "./helpers";
+import {
+  largestStep,
+  signInWithMagicLink,
+  testWav,
+  trackMenu,
+  watchVolumeSteps,
+} from "./helpers";
 
 // A producer uploads a track and a second version with a note, switches
 // between them, and leaves a comment on the first one, which stays there.
@@ -9,6 +15,7 @@ const onFirst = `The intro on v1 drags a little ${handle}`;
 
 test("new version, picker, A/B and comments per version", async ({ page }) => {
   let trackPath = "";
+  await watchVolumeSteps(page);
 
   await test.step("a producer uploads a track", async () => {
     await signInWithMagicLink(page, `${handle}@example.com`, "/upload");
@@ -58,6 +65,23 @@ test("new version, picker, A/B and comments per version", async ({ page }) => {
     await expect(page.getByRole("radio", { name: /v1/ })).toBeChecked();
     await page.getByRole("button", { name: /A\/B/ }).click();
     await expect(page.getByRole("radio", { name: /v2/ })).toBeChecked();
+  });
+
+  await test.step("switching while playing fades instead of cutting", async () => {
+    await page.getByRole("radio", { name: /v2/ }).click();
+    const play = page.getByRole("button", { name: "Play", exact: true });
+    const pause = page.getByRole("button", { name: "Pause", exact: true });
+    await play.click();
+    await expect(pause).toBeVisible();
+    await page.waitForTimeout(1000);
+    const step = await largestStep(page, () =>
+      page.getByRole("radio", { name: /v1/ }).click(),
+    );
+    expect(step).toBeLessThan(0.35);
+    // It plays on, on the other version.
+    await expect(page.getByRole("radio", { name: /v1/ })).toBeChecked();
+    await expect(pause).toBeVisible();
+    await pause.click();
   });
 
   await test.step("a comment on v1 stays on v1", async () => {

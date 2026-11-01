@@ -194,6 +194,18 @@ export async function fadeOutPause(element: HTMLMediaElement) {
   apply(element, state);
 }
 
+/**
+ * Fades to silence and keeps playing, so the position runs on: for
+ * switching to another source at the same spot. The new source fades in
+ * when it plays (fadeInPlay).
+ */
+export async function fadeToSilence(element: HTMLMediaElement) {
+  const state = stateOf(element);
+  ++state.seq;
+  if (element.paused || !fadeNow(element)) return;
+  await ramp(element, state, 0);
+}
+
 function seeked(element: HTMLMediaElement) {
   return new Promise<void>((resolve) => {
     const done = () => {

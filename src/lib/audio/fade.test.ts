@@ -6,6 +6,7 @@ import {
   fadedSeek,
   fadeInPlay,
   fadeOutPause,
+  fadeToSilence,
   setListenerVolume,
 } from "./fade";
 
@@ -197,5 +198,24 @@ describe("before the track has loaded", () => {
     audio.currentTime = 0;
     audio.fire("loadedmetadata");
     expect(audio.currentTime).toBe(12.6);
+  });
+});
+
+describe("switching sources", () => {
+  it("fades to silence and plays on, then the new source fades in", async () => {
+    const audio = fakeAudio();
+    setListenerVolume(asMedia(audio), 0.8);
+    audio.paused = false;
+    const out = fadeToSilence(asMedia(audio));
+    await settle(FADE_MS + 20);
+    await out;
+    expect(audio.volume).toBe(0);
+    expect(audio.pause).not.toHaveBeenCalled();
+    // The new source: the element stops while it loads, then plays.
+    audio.paused = true;
+    const back = fadeInPlay(asMedia(audio));
+    await settle(FADE_MS + 20);
+    await back;
+    expect(audio.volume).toBe(0.8);
   });
 });

@@ -1,5 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
-import { pageIn } from "./helpers";
+import { expect, test } from "@playwright/test";
+import { largestStep, pageIn, watchVolumeSteps } from "./helpers";
 
 // Play, pause and seek fade the volume, so the sound does not click. A
 // hook on the element's volume records the largest single change while
@@ -10,40 +10,10 @@ const MAX_STEP = 0.35;
 test.use({ viewport: { width: 1280, height: 900 } });
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    const volume = Object.getOwnPropertyDescriptor(
-      HTMLMediaElement.prototype,
-      "volume",
-    )!;
-    const w = window as unknown as { __jump: number };
-    w.__jump = 0;
-    Object.defineProperty(HTMLMediaElement.prototype, "volume", {
-      configurable: true,
-      get() {
-        return volume.get!.call(this);
-      },
-      set(value: number) {
-        const before = volume.get!.call(this) as number;
-        volume.set!.call(this, value);
-        // Only what can be heard: changes while it plays.
-        if (!(this as HTMLMediaElement).paused)
-          w.__jump = Math.max(w.__jump, Math.abs(value - before));
-      },
-    });
-  });
+  await watchVolumeSteps(page);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
 });
-
-/** The largest volume step while `action` plays out. */
-async function largestStep(page: Page, action: () => Promise<void>) {
-  await page.evaluate(() => {
-    (window as unknown as { __jump: number }).__jump = 0;
-  });
-  await action();
-  await page.waitForTimeout(800);
-  return page.evaluate(() => (window as unknown as { __jump: number }).__jump);
-}
 
 test("the track page fades on play, pause and seek", async ({ page }) => {
   await page.goto("/t/night-bus-seed0002");

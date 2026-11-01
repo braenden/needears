@@ -184,6 +184,10 @@ export function TrackView({
   const [range, setRange] = useState<TimeRange | null>(null);
   const latest = versions[versions.length - 1];
   const [versionId, setVersionId] = useState(latest?.id ?? null);
+  // The version that sounds. It follows versionId a moment later while
+  // playing, after the sound has faded out, so switching does not click.
+  const [soundVersionId, setSoundVersionId] = useState(versionId);
+  const soundSwitch = useRef(0);
   const [previousVersionId, setPreviousVersionId] = useState<string | null>(
     null,
   );
@@ -213,23 +217,24 @@ export function TrackView({
   // publishing, the latest one plays.
   const versioned = versions.length > 1;
   const current = versions.find((v) => v.id === versionId) ?? latest;
-  const isLatest = !current || current.id === latest?.id;
+  const sounding = versions.find((v) => v.id === soundVersionId) ?? latest;
+  const isLatest = !sounding || sounding.id === latest?.id;
   const playing = {
-    durationMs: current?.duration_ms ?? track.duration_ms,
-    peaks: current?.peaks ?? track.peaks,
+    durationMs: sounding?.duration_ms ?? track.duration_ms,
+    peaks: sounding?.peaks ?? track.peaks,
     // The latest version's URL is refreshed when it expires.
     audioUrl: isLatest
       ? carrying
         ? carriedSrc
         : audioUrl
-      : (current?.audioUrl ?? null),
+      : (sounding?.audioUrl ?? null),
   };
   const measured = versions
     .map((v) => v.loudness)
     .filter((l): l is number => l !== null);
   const gainDb = versioned
     ? matchGainDb(
-        current?.loudness ?? null,
+        sounding?.loudness ?? null,
         measured.length > 0 ? Math.min(...measured) : null,
       )
     : 0;
@@ -510,6 +515,23 @@ export function TrackView({
     setPreviousVersionId(current?.id ?? null);
     setVersionId(id);
     setSelectedId(null);
+    switchSound(id);
+  }
+
+  /**
+   * What plays follows the picked version. While playing, the sound fades
+   * out first and the new version fades in at the same spot, so switching
+   * does not click. The picker and the comments change at once.
+   */
+  function switchSound(id: string) {
+    const mine = ++soundSwitch.current;
+    if (!playerPlaying) {
+      setSoundVersionId(id);
+      return;
+    }
+    void (player.current?.fadeOut() ?? Promise.resolve()).then(() => {
+      if (soundSwitch.current === mine) setSoundVersionId(id);
+    });
   }
 
   function changeShowResolved(next: boolean) {
@@ -761,6 +783,7 @@ export function TrackView({
           onPublished={(version) => {
             setPreviousVersionId(current?.id ?? null);
             setVersionId(version.id);
+            switchSound(version.id);
             router.refresh();
           }}
         />

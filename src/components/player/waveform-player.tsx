@@ -35,6 +35,7 @@ import {
   fadedSeek,
   fadeInPlay,
   fadeOutPause,
+  fadeToSilence,
   setListenerVolume,
 } from "@/lib/audio/fade";
 
@@ -50,6 +51,8 @@ export type WaveformPlayerHandle = {
   seekTo: (ms: number) => void;
   play: () => void;
   pause: () => void;
+  /** Fades to silence and plays on, before switching to another source. */
+  fadeOut: () => Promise<void>;
 };
 
 type Status = "loading" | "ready" | "error";
@@ -387,6 +390,10 @@ export function WaveformPlayer({
       seekTo,
       play,
       pause,
+      fadeOut: async () => {
+        const media = wsRef.current?.getMediaElement();
+        if (media) await fadeToSilence(media);
+      },
     }),
     [seekTo, play, pause],
   );
