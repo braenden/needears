@@ -819,32 +819,36 @@ export function TrackView({
           onSubmit={submit}
           onSignIn={signIn}
         />
-        {elsewhere.length > 0 ? (
-          <div
-            role="note"
-            className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-dashed p-4 text-sm"
-          >
-            <span className="text-muted-foreground">
-              No comments on this version yet.
-            </span>
-            {elsewhere.map(({ version, count }) => (
-              <Button
-                key={version.id}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => pickVersion(version.id)}
-              >
-                {count} {count === 1 ? "comment" : "comments"} on version{" "}
-                {version.version_no}
-              </Button>
-            ))}
-          </div>
-        ) : null}
         <CommentList
           className="mt-6"
           comments={listed}
           newCommentIds={posted}
+          // This version has none, an earlier one has: say where they are,
+          // in place of the usual empty state.
+          emptyAll={
+            elsewhere.length > 0 ? (
+              <div
+                role="note"
+                className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-dashed p-4 text-sm"
+              >
+                <span className="text-muted-foreground">
+                  No comments on this version yet.
+                </span>
+                {elsewhere.map(({ version, count }) => (
+                  <Button
+                    key={version.id}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => pickVersion(version.id)}
+                  >
+                    {count} {count === 1 ? "comment" : "comments"} on version{" "}
+                    {version.version_no}
+                  </Button>
+                ))}
+              </div>
+            ) : undefined
+          }
           viewer={viewerKind}
           ownerId={track.owner_id}
           authorBadges={authorBadges}

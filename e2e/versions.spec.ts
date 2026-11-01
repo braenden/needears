@@ -68,6 +68,9 @@ test("new version, picker, A/B and comments per version", async ({ page }) => {
     await page.getByRole("radio", { name: /v2/ }).click();
     await expect(page.getByText(onFirst)).toBeHidden();
     // v2 has none, so the page says where the comment is.
+    // That note is the only empty state.
+    await expect(page.getByText("Quiet in here.")).toHaveCount(0);
+    await expect(page.getByText("No comments yet.")).toHaveCount(0);
     await page.getByRole("button", { name: "1 comment on version 1" }).click();
     await expect(page.getByRole("radio", { name: /v1/ })).toBeChecked();
     await expect(page.getByText(onFirst)).toBeVisible();

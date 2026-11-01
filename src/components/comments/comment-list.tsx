@@ -113,6 +113,7 @@ const COMMENTS_PAGE = 30;
 export function CommentList({
   comments,
   newCommentIds = [],
+  emptyAll,
   viewer,
   ownerId,
   authorBadges = {},
@@ -140,6 +141,8 @@ export function CommentList({
   comments: ThreadComment[];
   /** Just posted: they come in with a short glow. */
   newCommentIds?: string[];
+  /** In place of the usual empty state of All, such as where else to look. */
+  emptyAll?: React.ReactNode;
   viewer: Viewer;
   /** The track owner. Their comments get an Uploader badge. */
   ownerId?: string;
@@ -285,6 +288,8 @@ export function CommentList({
             <TabsContent key={value} value={value}>
               {loading ? (
                 <CommentListSkeleton />
+              ) : visible.length === 0 && filter === "all" && emptyAll ? (
+                emptyAll
               ) : visible.length === 0 ? (
                 <CommentsEmpty
                   filter={filter}
@@ -717,7 +722,16 @@ function CommentsEmpty({
     <EmptyState
       size="compact"
       title="Quiet in here."
-      body="Be the first to say what you hear. Click the waveform or press C to comment at the current second."
+      body={
+        <>
+          Be the first to say what you hear.{" "}
+          {/* The C key only with a keyboard and mouse. */}
+          <span className="fine:hidden">Tap</span>
+          <span className="hidden fine:inline">Click</span> the waveform
+          <span className="hidden fine:inline"> or press C</span> to comment at
+          the current second.
+        </>
+      }
     />
   );
 }
