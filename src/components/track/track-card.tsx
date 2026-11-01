@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { TrackSummary as Track } from "@/types/view";
 
 import { MiniWaveform } from "./mini-waveform";
+import { ReactionTotal } from "./reaction-total";
 
 /** Tracks with 0 or 1 comments are the ones that need ears. */
 export function needsEars(track: Pick<Track, "comment_count">) {
@@ -33,10 +34,6 @@ export function TrackCard({
   className?: string;
 }) {
   const owner = displayNameOf(track.owner);
-  const reactions = Object.values(track.reaction_counts).reduce(
-    (a, b) => a + b,
-    0,
-  );
   return (
     <article
       aria-labelledby={`track-${track.id}-title`}
@@ -103,11 +100,7 @@ export function TrackCard({
             {track.comment_count === 1 ? "comment" : "comments"}
           </span>
         </span>
-        {reactions > 0 ? (
-          <span data-numeric>
-            {reactions} {reactions === 1 ? "reaction" : "reactions"}
-          </span>
-        ) : null}
+        <ReactionTotal trackId={track.id} counts={track.reaction_counts} />
         {track.play_count > 0 ? (
           <span data-numeric>{formatPlays(track.play_count)}</span>
         ) : null}
