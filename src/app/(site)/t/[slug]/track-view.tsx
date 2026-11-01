@@ -142,6 +142,39 @@ export function TrackView({
   const [mine, setMine] = useState(initialReactions);
   const [counts, setCounts] = useState(track.reaction_counts);
   // Cards for this track elsewhere (the feed kept for going back) follow.
+  const stickyPlayer = useRef<HTMLDivElement>(null);
+  const commentsSection = useRef<HTMLElement>(null);
+  const [commentsOffset, setCommentsOffset] = useState<number | null>(null);
+  useEffect(() => {
+    const player = stickyPlayer.current;
+    if (!player) return;
+    const measure = () => {
+      const sticks = getComputedStyle(player).position === "sticky";
+      // The header is 56 pixels; a little air under whatever sticks.
+      setCommentsOffset(56 + (sticks ? player.offsetHeight : 0) + 16);
+    };
+    measure();
+    const sizes =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+    sizes?.observe(player);
+    window.addEventListener("resize", measure);
+    return () => {
+      sizes?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  // Arriving at #comments: the browser jumped before the page knew how much
+  // sticks at the top, so jump again once it does.
+  const jumpedToComments = useRef(false);
+  useEffect(() => {
+    if (jumpedToComments.current || commentsOffset === null) return;
+    jumpedToComments.current = true;
+    if (window.location.hash !== "#comments") return;
+    commentsSection.current?.scrollIntoView({ block: "start" });
+  }, [commentsOffset]);
+
   useEffect(() => {
     shareReactionCounts(track.id, counts);
   }, [track.id, counts]);
@@ -547,7 +580,10 @@ export function TrackView({
         />
       ) : null}
 
-      <div className="sticky top-14 z-30 -mx-4 mt-6 bg-background/90 px-4 py-2 backdrop-blur-md sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+      <div
+        ref={stickyPlayer}
+        className="sticky top-14 z-30 -mx-4 mt-6 bg-background/90 px-4 py-2 backdrop-blur-md sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none"
+      >
         <WaveformPlayer
           ref={player}
           title={track.title}
@@ -743,7 +779,15 @@ export function TrackView({
         />
       ) : null}
 
-      <section aria-labelledby="comments-heading" className="mt-10">
+      {/* Cards link here (#comments). The heading lands below the header,
+          and on phones below the player that sticks under it too. */}
+      <section
+        ref={commentsSection}
+        id="comments"
+        aria-labelledby="comments-heading"
+        className="mt-10 scroll-mt-20"
+        style={commentsOffset ? { scrollMarginTop: commentsOffset } : undefined}
+      >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2
             id="comments-heading"

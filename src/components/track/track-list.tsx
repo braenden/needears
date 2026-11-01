@@ -35,6 +35,9 @@ export function TrackList({
   // Who this list is, for claiming the shared element.
   const [owner] = useState(() => ({}));
   const loadedAt = useRef(0);
+  // A track being started from its waveform, and the latest spot asked
+  // for while its address loads (a drag asks many times).
+  const starting = useRef<{ id: string; at: number } | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -59,7 +62,8 @@ export function TrackList({
     };
   }, [shared, owner]);
 
-  async function play(track: TrackSummary) {
+  /** Plays or pauses; `at` (0 to 1) starts a track that is not on. */
+  async function play(track: TrackSummary, at?: number) {
     const audio = shared.get();
     if (playingId === track.id) {
       if (audio.paused) void audio.play();
@@ -70,9 +74,13 @@ export function TrackList({
     if (!url || Date.now() - loadedAt.current > STALE_MS)
       url = await freshAudioUrl(track.slug);
     if (!url) {
+      starting.current = null;
       toast.error("This track was removed or is hidden.");
       return;
     }
+    // Where a drag has got to by now, if it started this track.
+    if (starting.current?.id === track.id) at = starting.current.at;
+    starting.current = null;
     audio.pause();
     shared.claim(owner, { id: track.id, slug: track.slug });
     audio.muted = false;
@@ -90,13 +98,42 @@ export function TrackList({
       setPlayingId(null);
       toast.error("We couldn't load the audio.");
     };
-    setProgress(0);
+    setProgress(at ?? 0);
     setPlayingId(track.id);
+    if (at) {
+      // Before the metadata is in, this sets where playing starts.
+      audio.currentTime = at * (track.duration_ms / 1000);
+      audio.addEventListener(
+        "loadedmetadata",
+        () => {
+          audio.currentTime = at * audio.duration;
+        },
+        { once: true },
+      );
+    }
     try {
       await audio.play();
     } catch {
       setPlayingId(null);
     }
+  }
+
+  /** Plays from `at` (0 to 1): the waveform on a card is a seek bar. */
+  function seek(track: TrackSummary, at: number) {
+    const audio = shared.get();
+    if (playingId !== track.id) {
+      if (starting.current?.id === track.id) {
+        starting.current.at = at;
+        return;
+      }
+      starting.current = { id: track.id, at };
+      void play(track, at);
+      return;
+    }
+    const duration = audio.duration || track.duration_ms / 1000;
+    audio.currentTime = Math.min(at, 0.999) * duration;
+    setProgress(at);
+    if (audio.paused) void audio.play();
   }
 
   return (
@@ -108,6 +145,7 @@ export function TrackList({
             playing={playingId === track.id && isPlaying}
             progress={playingId === track.id ? progress : 0}
             onPlay={(t) => void play(t)}
+            onSeek={seek}
             showOwner={showOwner}
           />
         </li>

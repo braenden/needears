@@ -19,7 +19,13 @@ test("a slow navigation shows the progress line until the page is in", async ({
     await route.continue();
   });
 
-  await page.locator("main article").first().getByRole("link").first().click();
+  // The title is the card's link to the track.
+  await page
+    .locator("main article")
+    .first()
+    .getByRole("heading")
+    .getByRole("link")
+    .click();
   await expect(line).toHaveAttribute("data-phase", "loading");
   release();
   await expect(page).toHaveURL(/\/t\//);

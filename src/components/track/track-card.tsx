@@ -15,6 +15,7 @@ import type { TrackSummary as Track } from "@/types/view";
 import { PlayPauseIcon } from "@/components/player/play-pause-icon";
 
 import { MiniWaveform } from "./mini-waveform";
+import { SeekWaveform } from "./seek-waveform";
 import { ReactionTotal } from "./reaction-total";
 
 export function TrackCard({
@@ -22,6 +23,7 @@ export function TrackCard({
   playing = false,
   progress = 0,
   onPlay,
+  onSeek,
   showOwner = true,
   className,
 }: {
@@ -29,6 +31,8 @@ export function TrackCard({
   playing?: boolean;
   progress?: number;
   onPlay?: (track: Track) => void;
+  /** Play from a spot (0 to 1): the waveform becomes a seek bar. */
+  onSeek?: (track: Track, at: number) => void;
   /** Off where every track is by the same person, like on a profile. */
   showOwner?: boolean;
   className?: string;
@@ -38,7 +42,9 @@ export function TrackCard({
     <article
       aria-labelledby={`track-${track.id}-title`}
       className={cn(
-        "group/card @container relative rounded-xl border bg-card p-3 text-card-foreground transition-colors duration-fast hover:border-[color-mix(in_oklab,var(--border),var(--foreground)_18%)] @sm:p-4",
+        // Not a link as a whole: the title, the name and the comment count
+        // are, and the waveform plays from where it is touched.
+        "@container relative rounded-xl border bg-card p-3 text-card-foreground @sm:p-4",
         className,
       )}
     >
@@ -49,7 +55,7 @@ export function TrackCard({
           variant={playing ? "default" : "secondary"}
           onClick={() => onPlay?.(track)}
           aria-label={`${playing ? "Pause" : "Play"} ${track.title}`}
-          className="relative z-10 shrink-0 rounded-full"
+          className="shrink-0 rounded-full"
         >
           <PlayPauseIcon playing={playing} />
         </Button>
@@ -61,7 +67,7 @@ export function TrackCard({
             >
               <Link
                 href={`/t/${track.slug}`}
-                className="line-clamp-2 rounded-xs outline-none after:absolute after:inset-0 after:rounded-xl hover:underline hover:decoration-1 hover:underline-offset-4 focus-visible:after:ring-2 focus-visible:after:ring-ring"
+                className="line-clamp-2 rounded-xs focus-ring outline-none hover:underline hover:decoration-1 hover:underline-offset-4"
               >
                 {track.title}
               </Link>
@@ -78,10 +84,15 @@ export function TrackCard({
             {/* Each dot goes with what follows it, so a line never ends
                 on one. */}
             {showOwner ? (
-              <span className="flex min-w-0 items-center gap-1.5">
+              <Link
+                href={`/u/${track.owner.handle}`}
+                className="group/owner flex min-w-0 items-center gap-1.5 rounded-xs focus-ring outline-none hover:text-foreground"
+              >
                 <UserAvatar profile={track.owner} size="sm" />
-                <span className="truncate">{owner}</span>
-              </span>
+                <span className="truncate group-hover/owner:underline">
+                  {owner}
+                </span>
+              </Link>
             ) : null}
             <span className="flex gap-1.5">
               {showOwner ? <Dot /> : null}
@@ -114,22 +125,36 @@ export function TrackCard({
         </p>
       ) : null}
 
-      <MiniWaveform
-        peaks={track.peaks}
-        progress={progress}
-        className="mt-3 h-10 @sm:h-12"
-      />
+      {onSeek ? (
+        <SeekWaveform
+          track={track}
+          progress={progress}
+          onSeek={(at) => onSeek(track, at)}
+          className="mt-3"
+        />
+      ) : (
+        <MiniWaveform
+          peaks={track.peaks}
+          progress={progress}
+          className="mt-3 h-10 @sm:h-12"
+        />
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
         <time data-numeric>{formatTime(track.duration_ms)}</time>
-        {/* Comments by other people, on every version. */}
-        <span className="flex items-center gap-1" data-numeric>
+        {/* Comments by other people, on every version. Opens the track at
+            its comments. */}
+        <Link
+          href={`/t/${track.slug}#comments`}
+          className="touch-hit flex items-center gap-1 rounded-xs focus-ring outline-none hover:text-foreground hover:underline hover:underline-offset-4"
+          data-numeric
+        >
           <MessageSquareIcon className="size-3.5" aria-hidden="true" />
           {track.listener_comment_count}
           <span className="sr-only">
             {track.listener_comment_count === 1 ? "comment" : "comments"}
           </span>
-        </span>
+        </Link>
         <ReactionTotal trackId={track.id} counts={track.reaction_counts} />
         {track.play_count > 0 ? (
           <span data-numeric>{formatPlays(track.play_count)}</span>
