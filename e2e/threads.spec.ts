@@ -64,6 +64,14 @@ test("reply, resolve, Show resolved in the URL and the reply notice", async ({
     await expect(
       jonas.getByText(/replied to your comment on/).first(),
     ).toBeVisible();
+    // The whole row opens the track, not only its title.
+    const row = jonas
+      .getByRole("listitem")
+      .filter({ hasText: /replied to your comment on/ })
+      .first();
+    const box = (await row.boundingBox())!;
+    await jonas.mouse.click(box.x + box.width - 20, box.y + box.height - 10);
+    await expect(jonas).toHaveURL(/\/t\/night-bus-seed0002/);
   });
 
   await test.step("Jonas switches email and it stays switched", async () => {

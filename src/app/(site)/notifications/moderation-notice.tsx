@@ -81,7 +81,7 @@ export function ModerationNotice({
             linkable ? (
               <Link
                 href={`/t/${track.slug}${at}`}
-                className="font-medium underline-offset-4 hover:underline"
+                className="font-medium underline-offset-4 outline-none after:absolute after:inset-0 hover:underline"
               >
                 {track.title}
               </Link>
@@ -102,9 +102,10 @@ export function ModerationNotice({
         {ownPost ? (
           <p className="mt-1.5 text-muted-foreground">
             Think this is a mistake? Email{" "}
+            {/* Above the row's own link, so it still opens the email. */}
             <a
               href={`mailto:${site.contactEmail}`}
-              className="text-foreground underline underline-offset-4"
+              className="relative z-10 text-foreground underline underline-offset-4"
             >
               {site.contactEmail}
             </a>{" "}
