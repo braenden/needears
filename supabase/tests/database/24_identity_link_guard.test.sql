@@ -4,7 +4,7 @@
 -- owner is emailed at the address from before the change.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(30);
 \ir _helpers.psql
 
 -- alice and carol have confirmed emails; bob's is not confirmed yet.
@@ -253,11 +253,6 @@ select is(
 update public.profiles set email_notifications = false where handle = 'alice';
 update public.email_queue set claimed_at = null;
 set local role service_role;
-select is(
-  (select count(*)::int from public.email_batch(20, 60) where user_id = '11111111-1111-4111-8111-111111111111'),
-  0,
-  'the digest leaves security emails alone'
-);
 select is(
   (select count(*)::int from public.security_email_batch(20, 60) where user_id = '11111111-1111-4111-8111-111111111111'),
   2,

@@ -743,15 +743,9 @@ export type Database = {
         Args: { p_action: string; p_provider: string; p_user: string };
         Returns: undefined;
       };
-      email_batch: {
-        Args: { p_daily_budget?: number; p_limit?: number };
-        Returns: {
-          email: string;
-          items: Json;
-          queue_ids: number[];
-          total: number;
-          user_id: string;
-        }[];
+      discard_upload: {
+        Args: { p_object: string; p_user: string };
+        Returns: boolean;
       };
       feed_latest: {
         Args: { p_genre?: string; p_page?: number; p_page_size?: number };
@@ -853,6 +847,10 @@ export type Database = {
         Args: { p_ids: number[]; p_sends?: number };
         Returns: undefined;
       };
+      mark_upload_verified: {
+        Args: { p_object: string; p_user: string };
+        Returns: boolean;
+      };
       orphaned_upload_objects: {
         Args: { p_limit?: number };
         Returns: {
@@ -919,6 +917,7 @@ export type Database = {
       tags_text: { Args: { p_tags: string[] }; Returns: string };
       track_under_review: { Args: { p_track: string }; Returns: boolean };
       track_upload_allowance: { Args: never; Returns: number };
+      unused_audio_keys: { Args: { p_keys: string[] }; Returns: string[] };
       weekly_helpful_leaders: {
         Args: { p_week_start?: string };
         Returns: {

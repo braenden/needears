@@ -42,7 +42,14 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The R2 tests run against the local S3 compatible stand-in.
+      - run: pnpm r2:start
       - run: pnpm test
+        env:
+          R2_ENDPOINT: http://127.0.0.1:54430
+          R2_ACCESS_KEY_ID: needears-local
+          R2_SECRET_ACCESS_KEY: needears-local-secret
+          R2_BUCKET: needears-audio
 
   build:
     name: Build

@@ -7,6 +7,7 @@ import {
   MAX_DURATION_MS,
   MIN_DURATION_MS,
 } from "@/config/upload";
+import { presignAudioUpload } from "@/lib/storage/r2";
 import { objectKeys } from "@/lib/upload/keys";
 
 const bodySchema = z
@@ -19,13 +20,14 @@ const bodySchema = z
   })
   .strict();
 
-// Step 1 of an upload. Validates what the browser
-// says it is about to upload and returns signed upload URLs for the mp3 and
-// the peaks JSON. The URLs are signed with the user's own session, so the
-// objects are owned by the user, and the storage policies only allow
-// `<user id>/<reserved uuid>.mp3|json`. The bucket enforces the size and the
-// declared MIME type; /api/tracks checks the actual bytes before a track row
-// exists.
+// Step 1 of an upload. Validates what the browser says it is about to
+// upload and returns upload URLs for the mp3 (R2) and the peaks JSON
+// (Storage). Both are for `<user id>/<reserved uuid>`, and reserving fails
+// when the user has no uploads left, so nobody uploads a file the database
+// would then reject. The R2 URL only accepts exactly the declared size as
+// audio/mpeg, once; the peaks URL is signed with the user's own session and
+// the storage policy checks the reservation. /api/tracks checks the actual
+// bytes before a track row exists.
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if (auth instanceof Response) return auth;
@@ -46,9 +48,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Reserves the object id. The storage policies only accept objects with a
-  // valid reservation, and reserving fails when the user has no uploads
-  // left, so nobody uploads a file the database would then reject.
+  // Reserves the object id, for this user only.
   const reserved = await auth.supabase.rpc("reserve_upload", {
     p_track: body.data.trackId?.toLowerCase(),
   });
@@ -57,26 +57,25 @@ export async function POST(request: Request) {
   const objectId = reserved.data;
   const { audioKey, peaksKey } = objectKeys(auth.user.id, objectId);
 
-  const [audio, peaks] = await Promise.all([
-    auth.supabase.storage.from("audio").createSignedUploadUrl(audioKey),
-    auth.supabase.storage.from("peaks").createSignedUploadUrl(peaksKey),
-  ]);
-  if (audio.error || peaks.error) {
-    console.error(
-      "Could not sign upload",
-      audio.error?.message ?? peaks.error?.message,
-    );
+  let audioUrl: string;
+  try {
+    audioUrl = await presignAudioUpload(audioKey, body.data.size);
+  } catch (error) {
+    console.error("Could not sign audio upload", (error as Error).message);
+    return jsonError(500, "sign_failed", "Could not prepare the upload.");
+  }
+  const peaks = await auth.supabase.storage
+    .from("peaks")
+    .createSignedUploadUrl(peaksKey);
+  if (peaks.error) {
+    console.error("Could not sign upload", peaks.error.message);
     return jsonError(500, "sign_failed", "Could not prepare the upload.");
   }
 
   return Response.json(
     {
       objectId,
-      audio: {
-        path: audio.data.path,
-        token: audio.data.token,
-        signedUrl: audio.data.signedUrl,
-      },
+      audio: { path: audioKey, signedUrl: audioUrl },
       peaks: {
         path: peaks.data.path,
         token: peaks.data.token,

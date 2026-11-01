@@ -1,7 +1,7 @@
 -- Tracks: visibility, ownership, storage checks and the upload rate limit.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(21);
 \ir _helpers.psql
 
 create temp table ids as
@@ -84,9 +84,10 @@ select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c1111111-11
 select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c2222222-2222-4222-8222-222222222222');
 select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c3333333-3333-4333-8333-333333333333');
 select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c5555555-5555-4555-8555-555555555555');
--- An object in carol's folder that bob uploaded.
-select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c4444444-4444-4444-8444-444444444444',
-  '22222222-2222-4222-8222-222222222222');
+-- Audio in carol's folder that was never verified in R2.
+select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'c4444444-4444-4444-8444-444444444444', false);
+-- Bob's verified upload, used for a track of carol's.
+select pg_temp.make_objects('22222222-2222-4222-8222-222222222222', 'c6666666-6666-4666-8666-666666666666');
 
 create function pg_temp.insert_track(p_object text)
 returns void
@@ -101,11 +102,18 @@ $$;
 set local role service_role;
 select throws_ok(
   $$ select pg_temp.insert_track('c9999999-9999-4999-8999-999999999999') $$,
-  '22023', 'audio_object_missing', 'a track needs an uploaded audio object'
+  '22023', 'audio_not_verified', 'a track needs reserved audio'
 );
 select throws_ok(
   $$ select pg_temp.insert_track('c4444444-4444-4444-8444-444444444444') $$,
-  '22023', 'audio_object_missing', 'the audio object must belong to the track owner'
+  '22023', 'audio_not_verified', 'the audio must have been verified in R2'
+);
+select throws_ok(
+  $$ insert into public.tracks (owner_id, title, genre_id, duration_ms, audio_key, peaks_key)
+     values ('33333333-3333-4333-8333-333333333333', 'Carol', 1, 5000,
+       '22222222-2222-4222-8222-222222222222/c6666666-6666-4666-8666-666666666666.mp3',
+       '22222222-2222-4222-8222-222222222222/c6666666-6666-4666-8666-666666666666.json') $$,
+  '22023', 'audio_not_verified', 'the audio must be the track owner''s upload'
 );
 select lives_ok(
   $$ select pg_temp.insert_track('c1111111-1111-4111-8111-111111111111');
