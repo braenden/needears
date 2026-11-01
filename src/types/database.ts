@@ -198,13 +198,19 @@ export type Database = {
       };
       link_hosts: {
         Row: {
+          any_subdomain: boolean;
           host: string;
+          subdomains: string[];
         };
         Insert: {
+          any_subdomain?: boolean;
           host: string;
+          subdomains?: string[];
         };
         Update: {
+          any_subdomain?: boolean;
           host?: string;
+          subdomains?: string[];
         };
         Relationships: [];
       };

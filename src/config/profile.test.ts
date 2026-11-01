@@ -16,6 +16,9 @@ describe("isAllowedLinkUrl", () => {
     "https://www.facebook.com/nora",
     "https://youtu.be/abc",
     "https://www.mixcloud.com/nora/",
+    "https://www.threads.com/@nora",
+    "https://nora.bandcamp.com/album/one",
+    "https://listen.tidal.com/artist/1",
   ])("accepts %s", (url) => {
     expect(isAllowedLinkUrl(url)).toBe(true);
   });
@@ -27,6 +30,15 @@ describe("isAllowedLinkUrl", () => {
     "https://notsoundcloud.com/",
     "https://apple.com/nora",
     "https://linktr.ee/nora",
+    "https://l.facebook.com/l.php?u=https://evil.example",
+    "https://lm.facebook.com/x",
+    "https://l.threads.net/?u=https://evil.example",
+    "https://apps.facebook.com/x",
+    "https://id.twitch.tv/oauth2/authorize",
+    "https://www.youtube.com/redirect?q=https://evil.example",
+    "https://x.com/i/redirect?url=https://evil.example",
+    "https://www.facebook.com/dialog/oauth",
+    "https://.x.com/",
     "https://soundcloud.com:8443/",
     "https://user@soundcloud.com/",
     "javascript:alert(1)",

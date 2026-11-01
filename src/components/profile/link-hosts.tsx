@@ -1,5 +1,10 @@
 import { LinkIcon } from "lucide-react";
-import { linkHosts, linkServiceNames } from "@/config/profile";
+import {
+  isAllowedLinkUrl,
+  linkHostFor,
+  linkHosts,
+  linkServiceNames,
+} from "@/config/profile";
 
 /** Hosts a profile can link to, from src/config/profile.ts. */
 export const LINK_HOSTS = linkHosts;
@@ -14,7 +19,7 @@ export const LINK_LABEL_MAX = 40;
 
 export type ProfileLink = { label: string; url: string };
 
-/** The allowed host a URL belongs to, subdomains included (artist.bandcamp.com). */
+/** The allowed host a URL belongs to, by the rules in src/config/profile.ts. */
 export function hostOf(url: string): LinkHost | null {
   let parsed: URL;
   try {
@@ -22,11 +27,7 @@ export function hostOf(url: string): LinkHost | null {
   } catch {
     return null;
   }
-  const hostname = parsed.hostname.toLowerCase();
-  const match = LINK_HOSTS.find(
-    ({ host }) => hostname === host || hostname.endsWith(`.${host}`),
-  );
-  return match?.host ?? null;
+  return linkHostFor(parsed.hostname)?.host ?? null;
 }
 
 export function hostName(host: LinkHost) {
@@ -38,7 +39,7 @@ export function linkError(link: ProfileLink): string | null {
   const url = link.url.trim();
   if (!url) return "Add a link.";
   if (!/^https:\/\//i.test(url)) return "Links start with https://.";
-  if (!hostOf(url)) {
+  if (!hostOf(url) || !isAllowedLinkUrl(url)) {
     return `Links can go to ${LINK_SERVICE_NAMES.join(", ")}.`;
   }
   if (link.label.length > LINK_LABEL_MAX) {
