@@ -2,7 +2,7 @@ import {
   HostIcon,
   hostName,
   hostOf,
-  LINK_HOSTS,
+  LINK_SERVICE_NAMES,
 } from "@/components/profile/link-hosts";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +12,7 @@ export function referenceError(url: string): string | null {
   if (!value) return null;
   if (!/^https:\/\//i.test(value)) return "Links start with https://.";
   if (!hostOf(value)) {
-    return `Reference tracks can link to ${LINK_HOSTS.map((h) => h.name).join(", ")}.`;
+    return `Reference tracks can link to ${LINK_SERVICE_NAMES.join(", ")}.`;
   }
   return null;
 }
