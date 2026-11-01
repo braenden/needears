@@ -111,6 +111,7 @@ export default async function ProfilePage({
             <TrackList
               tracks={tracks}
               label={`Tracks by ${name}`}
+              showOwner={false}
               className="grid gap-3"
             />
           ) : isOwn ? (

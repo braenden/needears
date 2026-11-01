@@ -21,11 +21,14 @@ const STALE_MS = 50 * 60 * 1000;
 export function TrackList({
   tracks,
   label,
+  showOwner = true,
   className,
 }: {
   tracks: PlayableTrack[];
   /** Accessible name of the list. */
   label: string;
+  /** Off where every track is by the same person, like on a profile. */
+  showOwner?: boolean;
   className?: string;
 }) {
   const shared = useSharedAudio();
@@ -105,6 +108,7 @@ export function TrackList({
             playing={playingId === track.id && isPlaying}
             progress={playingId === track.id ? progress : 0}
             onPlay={(t) => void play(t)}
+            showOwner={showOwner}
           />
         </li>
       ))}

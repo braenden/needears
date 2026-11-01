@@ -25,12 +25,15 @@ export function TrackCard({
   playing = false,
   progress = 0,
   onPlay,
+  showOwner = true,
   className,
 }: {
   track: Track;
   playing?: boolean;
   progress?: number;
   onPlay?: (track: Track) => void;
+  /** Off where every track is by the same person, like on a profile. */
+  showOwner?: boolean;
   className?: string;
 }) {
   const owner = displayNameOf(track.owner);
@@ -77,10 +80,12 @@ export function TrackCard({
             ) : null}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
-            <span className="flex min-w-0 items-center gap-1.5">
-              <UserAvatar profile={track.owner} size="sm" />
-              <span className="truncate">{owner}</span>
-            </span>
+            {showOwner ? (
+              <span className="flex min-w-0 items-center gap-1.5">
+                <UserAvatar profile={track.owner} size="sm" />
+                <span className="truncate">{owner}</span>
+              </span>
+            ) : null}
             <span>{track.genre.name}</span>
           </div>
         </div>
