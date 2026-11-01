@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Loader2Icon, PlusIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -64,12 +64,15 @@ export function ProfileEditor({
   initial,
   onSave,
   onCancel,
+  onDirtyChange,
   className,
 }: {
   initial: ProfileFields;
   onSave: (fields: ProfileFields) => Promise<ProfileSaveResult>;
   /** Shows a Cancel button. */
   onCancel?: () => void;
+  /** True while there are changes that are not saved. */
+  onDirtyChange?: (dirty: boolean) => void;
   className?: string;
 }) {
   const id = useId();
@@ -80,6 +83,23 @@ export function ProfileEditor({
   const [workingOn, setWorkingOn] = useState(initial.workingOn);
   const [daw, setDaw] = useState(initial.daw);
   const [links, setLinks] = useState<ProfileLink[]>(initial.links);
+  // Saved values count as clean, so a successful save resets it.
+  const [saved, setSaved] = useState(initial);
+  const dirty =
+    displayName !== saved.displayName ||
+    handle !== saved.handle ||
+    bio !== saved.bio ||
+    workingOn !== saved.workingOn ||
+    daw !== saved.daw ||
+    JSON.stringify(links.map((l) => l.url)) !==
+      JSON.stringify(saved.links.map((l) => l.url));
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  }, [onDirtyChange]);
+  useEffect(() => {
+    onDirtyChangeRef.current?.(dirty);
+  }, [dirty]);
   const [linkErrors, setLinkErrors] = useState<(string | null)[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -114,17 +134,26 @@ export function ProfileEditor({
     setError(null);
     setSaving(true);
     try {
-      const result = await onSave({
+      const next = {
         displayName: displayName.trim() || cleanHandle,
         handle: cleanHandle,
         bio: bio.trim(),
         workingOn: workingOn.trim(),
         daw: daw.trim(),
         links: cleaned,
-      });
+      };
+      const result = await onSave(next);
       if (!result.ok && result.field === "handle") setHandleError(result.error);
       else if (!result.ok) setError(result.error);
-      else setLinks(cleaned);
+      else {
+        setDisplayName(next.displayName);
+        setHandle(next.handle);
+        setBio(next.bio);
+        setWorkingOn(next.workingOn);
+        setDaw(next.daw);
+        setLinks(cleaned);
+        setSaved(next);
+      }
     } catch {
       setError("Something broke on our side. Try again in a minute.");
     }

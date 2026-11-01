@@ -32,11 +32,14 @@ export function EditProfile({
   editable,
   onSaved,
   onCancel,
+  onDirtyChange,
 }: {
   editable: EditableProfile;
   /** After a save, with the handle it was saved under. */
   onSaved: (handle: string) => void;
   onCancel: () => void;
+  /** True while there are changes that are not saved. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { userId, profile, avatarKey, googleAvatar, fields } = editable;
 
@@ -95,7 +98,12 @@ export function EditProfile({
         avatarKey={avatarKey}
         googleAvatar={googleAvatar}
       />
-      <ProfileEditor initial={fields} onSave={save} onCancel={onCancel} />
+      <ProfileEditor
+        initial={fields}
+        onSave={save}
+        onCancel={onCancel}
+        onDirtyChange={onDirtyChange}
+      />
     </div>
   );
 }
