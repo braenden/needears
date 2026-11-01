@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cache } from "react";
 import { displayNameOf } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { TrackList } from "@/components/track/track-list";
@@ -12,16 +11,14 @@ import {
   getCommentsBy,
   getEditableProfile,
   getFeedbackRecord,
-  getProfileByHandle,
   getProfileStats,
 } from "@/lib/data/profiles";
 import { getTracksByOwner } from "@/lib/data/tracks";
 import { getViewer } from "@/lib/data/viewer";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { loadProfile } from "./load";
 import { OwnProfileHeader } from "./own-profile-header";
-
-const loadProfile = cache(getProfileByHandle);
 
 export async function generateMetadata({
   params,

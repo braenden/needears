@@ -149,6 +149,22 @@ const COMMENT_COLUMNS =
 
 // Everything the track page needs, read as the visitor, so RLS decides what
 // they see. Null when the track does not exist or is not visible to them.
+/**
+ * Whether the track page exists for this person, without loading it: the
+ * same rows getTrackPage would find (row level security decides who sees
+ * hidden tracks), and not deleted.
+ */
+export async function trackPageExists(slug: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tracks")
+    .select("status")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw new Error(`Track failed: ${error.code}`);
+  return !!data && data.status !== "deleted";
+}
+
 export async function getTrackPage(
   slug: string,
 ): Promise<TrackPageData | null> {
