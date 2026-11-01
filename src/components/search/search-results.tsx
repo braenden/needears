@@ -13,7 +13,14 @@ import { SEARCH_MIN_LENGTH } from "@/config/limits";
 
 export type TrackHit = Pick<
   TrackSummary,
-  "id" | "slug" | "title" | "duration_ms" | "comment_count" | "genre" | "owner"
+  | "id"
+  | "slug"
+  | "title"
+  | "duration_ms"
+  | "comment_count"
+  | "listener_comment_count"
+  | "genre"
+  | "owner"
 >;
 
 /** Splits text around case-insensitive matches of the query, for <mark>. */

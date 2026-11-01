@@ -41,7 +41,7 @@ export async function searchAll(query: string): Promise<SearchOutcome> {
       ? supabase
           .from("tracks")
           .select(
-            "id, slug, title, duration_ms, comment_count, genre:genres(slug, name), owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)",
+            "id, slug, title, duration_ms, comment_count, listener_comment_count, genre:genres(slug, name), owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)",
           )
           .in("id", trackIds)
       : Promise.resolve({ data: [], error: null }),
