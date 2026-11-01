@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 import { PlayPauseIcon } from "./play-pause-icon";
 
 /**
- * The track page's player in one slim line, under the header on phones
- * once the full player has scrolled away: play or pause, the time, and a
- * thin progress line with a tick for each timed comment. Tapping the line
- * goes back up to the full player. Laid over the page, so it showing up
- * moves nothing.
+ * The track page's player in one slim line under the header, once the
+ * full player has scrolled away: play or pause, the time, and a thin
+ * progress line with a tick for each timed comment. Tapping the title goes
+ * back up to the full player. Full width on phones, in the page column on
+ * wider screens. Laid over the page, so it showing up moves nothing.
  */
 export function MiniPlayerBar({
   title,
@@ -40,11 +40,11 @@ export function MiniPlayerBar({
       aria-hidden={!visible || undefined}
       inert={!visible || undefined}
       className={cn(
-        "fixed inset-x-0 top-14 z-30 h-16 border-b bg-background transition-opacity duration-fast sm:hidden",
+        "fixed inset-x-0 top-14 z-30 h-16 border-b bg-background transition-opacity duration-fast",
         visible ? "opacity-100" : "pointer-events-none opacity-0",
       )}
     >
-      <div className="flex h-full items-center gap-3 px-4">
+      <div className="relative mx-auto flex h-full max-w-3xl items-center gap-3 px-4">
         <Button
           type="button"
           size="icon-lg"
@@ -66,22 +66,22 @@ export function MiniPlayerBar({
           </span>
           <span className="sr-only">Show the full player</span>
         </button>
-      </div>
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-1 bg-muted"
-      >
         <div
-          className="h-full bg-primary"
-          style={{ width: `${progress * 100}%` }}
-        />
-        {markerTimes.map((ms, i) => (
-          <span
-            key={i}
-            className="absolute -top-0.5 h-2 w-px bg-foreground/60"
-            style={{ left: `${(ms / durationMs) * 100}%` }}
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-1 bg-muted sm:inset-x-4"
+        >
+          <div
+            className="h-full bg-primary"
+            style={{ width: `${progress * 100}%` }}
           />
-        ))}
+          {markerTimes.map((ms, i) => (
+            <span
+              key={i}
+              className="absolute -top-0.5 h-2 w-px bg-foreground/60"
+              style={{ left: `${(ms / durationMs) * 100}%` }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

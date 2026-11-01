@@ -99,7 +99,8 @@ export function SearchField({
       {shortcut && !value && !focused ? (
         <kbd
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded-xs border bg-background px-1.5 font-sans text-xs text-muted-foreground"
+          // Only with a keyboard and mouse, like the other key hints.
+          className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded-xs border bg-background px-1.5 font-sans text-xs text-muted-foreground fine:block"
         >
           /
         </kbd>

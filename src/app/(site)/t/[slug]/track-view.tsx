@@ -792,13 +792,13 @@ export function TrackView({
         }
       />
 
-      {/* Cards link here (#comments). The heading lands below the header,
-          and on phones below the slim player bar too (64 pixels). */}
+      {/* Cards link here (#comments). The heading lands below the header
+          and the slim player bar (56 and 64 pixels). */}
       <section
         ref={commentsSection}
         id="comments"
         aria-labelledby="comments-heading"
-        className="mt-10 scroll-mt-[8.5rem] sm:scroll-mt-20"
+        className="mt-10 scroll-mt-[8.5rem]"
       >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2
