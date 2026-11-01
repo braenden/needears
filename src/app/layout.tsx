@@ -30,8 +30,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Matches the dark background, the default theme.
-  themeColor: "#171513",
+  // themeColor follows the chosen theme, so ThemeProvider sets it.
   colorScheme: "dark light",
 };
 
