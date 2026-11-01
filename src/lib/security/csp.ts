@@ -6,8 +6,10 @@
 // and wavesurfer.js set style attributes and inject <style> tags, which a
 // nonce cannot cover; the risk from injected CSS is small next to scripts.
 //
-// Audio and peaks come from Supabase Storage through signed URLs, so the
-// Supabase origin is allowed for fetch and media. Images are limited to
+// Audio comes from the R2 bucket through presigned URLs, so the R2 origin
+// is allowed for media, and for fetch (the player reads the file, and the
+// upload PUTs to it). Peaks and avatars are uploaded to Supabase Storage,
+// so the Supabase origin is allowed for fetch. Images are limited to
 // our own origin, Supabase and Google avatars, so an avatar URL on any
 // other host does not load (a mitigation for issue 007).
 //
@@ -31,11 +33,13 @@ export function buildCsp({
   supabaseOrigin,
   isDev,
   upgradeInsecure,
+  audioOrigin = null,
   sentryOrigin = null,
   googleSignIn = false,
 }: {
   nonce: string;
   supabaseOrigin: string;
+  audioOrigin?: string | null;
   isDev: boolean;
   upgradeInsecure: boolean;
   sentryOrigin?: string | null;
@@ -61,10 +65,11 @@ export function buildCsp({
       GOOGLE_AVATAR_ORIGIN,
     ],
     "font-src": ["'self'"],
-    "media-src": ["'self'", "blob:", supabaseOrigin],
+    "media-src": ["'self'", "blob:", ...(audioOrigin ? [audioOrigin] : [])],
     "connect-src": [
       "'self'",
       supabaseOrigin,
+      ...(audioOrigin ? [audioOrigin] : []),
       ...(sentryOrigin ? [sentryOrigin] : []),
       ...gsi(""),
       // Hot reload in development.

@@ -1,7 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreBinaries": ["supabase", "ffmpeg"],
-  "entry": ["src/lib/supabase/client.ts", "src/config/*.ts"],
+  "entry": [
+    "src/lib/supabase/client.ts",
+    "src/config/*.ts",
+    "scripts/copy-audio-to-r2.mjs"
+  ],
   "ignore": ["src/types/database.ts"],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {

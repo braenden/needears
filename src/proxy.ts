@@ -18,6 +18,7 @@ export async function proxy(request: NextRequest) {
     supabaseOrigin: new URL(
       process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost",
     ).origin,
+    audioOrigin: audioOrigin(),
     isDev: process.env.NODE_ENV === "development",
     upgradeInsecure: siteUrl.startsWith("https://"),
     sentryOrigin: sentryOrigin(),
@@ -29,6 +30,18 @@ export async function proxy(request: NextRequest) {
   const response = await updateSession(request);
   response.headers.set(CSP_HEADER, csp);
   return response;
+}
+
+// The origin presigned audio URLs point to (src/lib/storage/r2.ts uses path
+// style URLs on the endpoint itself).
+function audioOrigin(): string | null {
+  const endpoint = process.env.R2_ENDPOINT;
+  if (!endpoint) return null;
+  try {
+    return new URL(endpoint).origin;
+  } catch {
+    return null;
+  }
 }
 
 export const config = {

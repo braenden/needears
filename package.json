@@ -19,11 +19,14 @@
     "db:types": "supabase gen types typescript --local --schema public > src/types/database.ts && prettier --write src/types/database.ts",
     "db:config": "node --no-warnings scripts/gen-reputation-sql.mjs",
     "seed:audio": "node scripts/generate-seed-audio.mjs",
+    "r2:start": "node scripts/local-r2.mjs",
     "test:e2e": "playwright test",
     "test:lighthouse": "pnpm dlx @lhci/cli@0.15.1 autorun",
     "readme:gif": "node scripts/record-readme-gif.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1134.0",
+    "@aws-sdk/s3-request-presigner": "3.1134.0",
     "@breezystack/lamejs": "1.2.7",
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",

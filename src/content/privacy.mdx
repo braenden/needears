@@ -38,15 +38,16 @@ Your profile (username, display name, avatar, bio, reputation and when you joine
 
 ## Where it is stored, and who handles it
 
-| Provider | What for                            | Where                          |
-| -------- | ----------------------------------- | ------------------------------ |
-| Supabase | Database, sign-in, audio storage    | Stockholm, Sweden              |
-| Vercel   | Hosting the website                 | Frankfurt, Germany             |
-| Google   | "Sign in with Google"               | Wherever Google operates       |
-| Resend   | Sending sign-in links               | United States                  |
-| Sentry   | Error reports when something breaks | Frankfurt, Germany (EU region) |
+| Provider   | What for                                          | Where                          |
+| ---------- | ------------------------------------------------- | ------------------------------ |
+| Supabase   | Database, sign-in, profile pictures               | Stockholm, Sweden              |
+| Cloudflare | Storing and playing track audio                   | European Union                 |
+| Vercel     | Hosting the website                               | Frankfurt, Germany             |
+| Google     | "Sign in with Google"                             | Wherever Google operates       |
+| Resend     | Sending sign-in links and account security emails | United States                  |
+| Sentry     | Error reports when something breaks               | Frankfurt, Germany (EU region) |
 
-These companies process data for us under their data processing terms. Vercel and Resend are US companies, and the data they handle for us (your email address for sign-in links, and technical request logs) can be transferred to the United States. Those transfers rely on the EU Standard Contractual Clauses. Your tracks, comments and profile stay in Supabase in Stockholm.
+These companies process data for us under their data processing terms. Vercel, Cloudflare and Resend are US companies, and the data they handle for us (your email address for sign-in links, and technical request logs, including the IP address your browser uses when it plays a track) can be transferred to the United States. Those transfers rely on the EU Standard Contractual Clauses. Your comments and profile stay in Supabase in Stockholm, and the audio of your tracks is stored by Cloudflare in the EU.
 
 ## Cookies
 

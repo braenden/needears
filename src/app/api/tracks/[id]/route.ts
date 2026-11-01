@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/api/auth";
 import { databaseError, jsonError } from "@/lib/api/http";
+import { removeAudio } from "@/lib/storage/r2";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Deletes a track and the audio and peaks of all its versions. Users have no delete grant on
@@ -73,15 +74,17 @@ export async function DELETE(
   if (!deleted.data) return jsonError(404, "not_found", "No such track.");
 
   const files = [deleted.data, ...versions.data];
-  const [audio, peaks] = await Promise.all([
-    service.storage
-      .from("audio")
-      .remove([...new Set(files.map((f) => f.audio_key))]),
+  const audioKeys = [...new Set(files.map((f) => f.audio_key))];
+  // Audio is in R2; tracks from before the move also have a copy in the old
+  // Storage bucket.
+  const [audio, legacyAudio, peaks] = await Promise.all([
+    removeAudio(audioKeys),
+    service.storage.from("audio").remove(audioKeys),
     service.storage
       .from("peaks")
       .remove([...new Set(files.map((f) => f.peaks_key))]),
   ]);
-  if (audio.error || peaks.error) {
+  if (!audio || legacyAudio.error || peaks.error) {
     console.error("Track deleted but objects remain", id);
   }
 

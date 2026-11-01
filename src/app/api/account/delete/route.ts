@@ -2,13 +2,14 @@ import { z } from "zod";
 import { requireUser } from "@/lib/api/auth";
 import { BodyError, jsonError, readJson } from "@/lib/api/http";
 import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
+import { listAudio, removeAudio } from "@/lib/storage/r2";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const bodySchema = z.object({ confirm: z.string() }).strict();
 
-// Deletes the account and everything in it: storage objects first, then the
-// auth user. Every table references the profile with `on delete cascade`,
+// Deletes the account and everything in it: audio in R2 and storage
+// objects first, then the auth user. Every table references the profile with `on delete cascade`,
 // so tracks, comments, reactions, notifications and upload IPs go with it.
 // Reports the user filed stay, without the reporter and their text, so
 // content they reported keeps its record (verified by
@@ -59,6 +60,14 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+  if (!(await removeAudioFolder(auth.user.id))) {
+    return jsonError(
+      500,
+      "delete_failed",
+      "Could not delete your files. Try again.",
+    );
+  }
+  // "audio" is the old Storage bucket, from before the audio moved to R2.
   for (const bucket of ["audio", "peaks", "avatars"] as const) {
     const removed = await removeFolder(admin, bucket, auth.user.id);
     if (!removed)
@@ -107,6 +116,19 @@ async function removeFolder(
       .from(bucket)
       .remove(listed.data.map((object) => `${userId}/${object.name}`));
     if (removed.error) return false;
+  }
+  return false;
+}
+
+// Removes everything under `<user id>/` in R2. Lists again after each round,
+// since removing while paging could skip objects. The cap keeps a
+// misbehaving list or delete from looping until timeout.
+async function removeAudioFolder(userId: string): Promise<boolean> {
+  for (let round = 0; round < 100; round++) {
+    const page = await listAudio({ userId });
+    if (!page) return false;
+    if (page.objects.length === 0) return true;
+    if (!(await removeAudio(page.objects.map((o) => o.key)))) return false;
   }
   return false;
 }

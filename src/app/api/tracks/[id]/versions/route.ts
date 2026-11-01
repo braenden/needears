@@ -7,6 +7,7 @@ import {
 } from "@/config/versions";
 import { requireUser } from "@/lib/api/auth";
 import { BodyError, databaseError, jsonError, readJson } from "@/lib/api/http";
+import { removeAudio } from "@/lib/storage/r2";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { objectKeys } from "@/lib/upload/keys";
 import { verifyUpload } from "@/lib/upload/verify";
@@ -66,9 +67,14 @@ export async function POST(
   const keys = objectKeys(auth.user.id, input.objectId);
   const admin = createAdminClient();
 
-  const verified = await verifyUpload(admin, keys, input.durationMs);
+  const verified = await verifyUpload(
+    admin,
+    { userId: auth.user.id, objectId: input.objectId },
+    input.durationMs,
+  );
   if (!verified.ok) {
-    await removeUnusedObjects(admin, keys);
+    if (verified.retry) return jsonError(503, verified.code, verified.message);
+    await removeUnusedObjects(admin, input.objectId, auth.user.id, keys);
     return jsonError(422, verified.code, verified.message);
   }
 
@@ -89,7 +95,8 @@ export async function POST(
     .single();
 
   if (inserted.error) {
-    if (inserted.error.code !== "23505") await removeUnusedObjects(admin, keys);
+    if (inserted.error.code !== "23505")
+      await removeUnusedObjects(admin, input.objectId, auth.user.id, keys);
     return databaseError(inserted.error);
   }
 
@@ -99,17 +106,27 @@ export async function POST(
   );
 }
 
+// Removes a rejected upload. Discarding the reservation first, under a row
+// lock, means no request still in flight can turn it into a track (the
+// insert triggers need it), so the files are never deleted under a track
+// that was just created. When the reservation is already gone (used by a
+// track, or expired), nothing is removed here; the cleanup cron handles
+// what nothing uses.
 async function removeUnusedObjects(
   admin: ReturnType<typeof createAdminClient>,
+  objectId: string,
+  userId: string,
   keys: { audioKey: string; peaksKey: string },
 ) {
-  const used = await admin
-    .from("track_versions")
-    .select("id", { count: "exact", head: true })
-    .eq("audio_key", keys.audioKey);
-  if (used.error || (used.count ?? 0) > 0) return;
-  await Promise.all([
-    admin.storage.from("audio").remove([keys.audioKey]),
+  const discarded = await admin.rpc("discard_upload", {
+    p_user: userId,
+    p_object: objectId,
+  });
+  if (discarded.error || !discarded.data) return;
+  const [audio, peaks] = await Promise.all([
+    removeAudio([keys.audioKey]),
     admin.storage.from("peaks").remove([keys.peaksKey]),
   ]);
+  if (!audio || peaks.error)
+    console.error("Could not remove a rejected upload");
 }

@@ -5,9 +5,10 @@ import { supabaseAnonKey } from "@/lib/supabase/env";
 // upload both objects, then register the track.
 
 type SignedTarget = { path: string; token: string; signedUrl: string };
+type AudioTarget = { path: string; signedUrl: string };
 export type SignResponse = {
   objectId: string;
-  audio: SignedTarget;
+  audio: AudioTarget;
   peaks: SignedTarget;
 };
 
@@ -92,31 +93,58 @@ export function createVersion(
   );
 }
 
-// PUT to a signed upload URL with progress. Storage checks the declared
-// type against the bucket's allowlist and the size against its limit.
-export function putSigned(
-  target: SignedTarget,
+// PUT with progress. `headers` must match what the URL was signed for.
+function put(
+  url: string,
   body: Blob,
-  contentType: typeof AUDIO_MIME | typeof PEAKS_MIME,
+  headers: Record<string, string>,
   onProgress?: (progress: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", target.signedUrl);
-    xhr.setRequestHeader("apikey", supabaseAnonKey());
-    xhr.setRequestHeader("Content-Type", contentType);
-    xhr.setRequestHeader("x-upsert", "false");
+    xhr.open("PUT", url);
+    for (const [name, value] of Object.entries(headers))
+      xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress?.(event.loaded / event.total);
     };
     xhr.onload = () =>
       xhr.status >= 200 && xhr.status < 300
         ? resolve()
-        : reject(new UploadError(xhr.status === 413 ? "rejected" : "unknown"));
+        : reject(
+            new UploadError(
+              [403, 412, 413].includes(xhr.status) ? "rejected" : "unknown",
+            ),
+          );
     xhr.onerror = () => reject(new UploadError("upload_interrupted"));
     xhr.onabort = () => reject(new UploadError("upload_interrupted"));
     xhr.send(body);
   });
+}
+
+// The peaks JSON, to a Storage signed upload URL. Storage checks the type
+// against the bucket's allowlist and the size against its limit.
+export function putPeaks(target: SignedTarget, body: Blob): Promise<void> {
+  return put(target.signedUrl, body, {
+    apikey: supabaseAnonKey(),
+    "Content-Type": PEAKS_MIME,
+    "x-upsert": "false",
+  });
+}
+
+// The mp3, to a presigned R2 URL that only takes this size as audio/mpeg
+// and never replaces a file that is already there.
+export function putAudio(
+  target: AudioTarget,
+  body: Blob,
+  onProgress?: (progress: number) => void,
+): Promise<void> {
+  return put(
+    target.signedUrl,
+    body,
+    { "Content-Type": AUDIO_MIME, "If-None-Match": "*" },
+    onProgress,
+  );
 }
 
 // "You can upload 3 tracks per day." from the rate limit trigger.

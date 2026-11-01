@@ -93,17 +93,17 @@ select is(
 set local role service_role;
 select throws_ok(
   $$ select pg_temp.add_version('e0000000-0000-4000-8000-0000000000ff') $$,
-  '22023', 'audio_object_missing', 'a version needs uploaded files'
+  '22023', 'audio_not_verified', 'a version needs uploaded files'
 );
 reset role;
-insert into storage.objects (bucket_id, name, owner_id)
-values
-  ('audio', '33333333-3333-4333-8333-333333333333/e0000000-0000-4000-8000-0000000000ee.mp3', '33333333-3333-4333-8333-333333333333'),
-  ('peaks', '33333333-3333-4333-8333-333333333333/e0000000-0000-4000-8000-0000000000ee.json', '33333333-3333-4333-8333-333333333333');
+-- Verified once, but the reservation has expired.
+select pg_temp.make_objects('33333333-3333-4333-8333-333333333333', 'e0000000-0000-4000-8000-0000000000ee');
+update private.upload_reservations set expires_at = now() - interval '1 minute'
+where object_id = 'e0000000-0000-4000-8000-0000000000ee';
 set local role service_role;
 select throws_ok(
   $$ select pg_temp.add_version('e0000000-0000-4000-8000-0000000000ee') $$,
-  '22023', 'upload_expired', 'a version needs a valid reservation'
+  '22023', 'audio_not_verified', 'a version needs a valid reservation'
 );
 select throws_ok(
   $$ select pg_temp.add_version('e0000000-0000-4000-8000-0000000000ee', (select other_track from ids)) $$,

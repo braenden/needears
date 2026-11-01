@@ -15,6 +15,7 @@ You need Node 24 (see `.nvmrc`), pnpm (`corepack enable`), Docker and the [Supab
 ```bash
 pnpm install
 supabase start
+pnpm r2:start                # local stand-in for the R2 audio bucket
 cp .env.example .env.local   # fill in the keys printed by `supabase status`
 pnpm dev
 ```

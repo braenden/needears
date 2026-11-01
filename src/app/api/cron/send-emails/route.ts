@@ -1,13 +1,8 @@
 import { createHash } from "node:crypto";
-import {
-  EMAILS_PER_DAY,
-  EMAILS_PER_RUN,
-  SECURITY_EMAIL_RESERVE,
-} from "@/config/email";
+import { EMAILS_PER_DAY, EMAILS_PER_RUN } from "@/config/email";
 import { site, siteUrl } from "@/config/site";
 import { isCronRequest } from "@/lib/api/cron";
 import { jsonError } from "@/lib/api/http";
-import { renderDigest, type DigestItem } from "@/lib/email/digest";
 import {
   renderSecurityEmail,
   type SecurityKind,
@@ -15,10 +10,10 @@ import {
 } from "@/lib/email/security";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Sends account security emails (a sign in method added or removed), then
-// one email per person with the comments, replies and Helpful marks they
-// have not been emailed about, within the hourly and daily limits in
-// src/config/email.ts. Called every hour with
+// Sends account security emails (a sign in method added or removed, the
+// email address changed), within the hourly and daily limits in
+// src/config/email.ts. Comments, replies and Helpful marks are not emailed;
+// they are notifications on the site only. Called every hour with
 // `Authorization: Bearer $CRON_SECRET`.
 export async function GET(request: Request) {
   if (!isCronRequest(request))
@@ -90,8 +85,6 @@ export async function GET(request: Request) {
     sent += 1;
   }
 
-  // Account security first: a sign in method added or removed. Its own
-  // errors do not keep the digest from going out, and the other way round.
   try {
     const security = await admin.rpc("security_email_batch", {
       p_limit: EMAILS_PER_RUN,
@@ -110,29 +103,6 @@ export async function GET(request: Request) {
     }
   } catch (error) {
     console.error("Security emails failed", error);
-  }
-
-  // The digest asks for its batch after the security emails, so they count
-  // toward the same daily budget, and it leaves a reserve for them.
-  try {
-    if (!providerDown) {
-      const batch = await admin.rpc("email_batch", {
-        p_limit: EMAILS_PER_RUN,
-        p_daily_budget: EMAILS_PER_DAY - SECURITY_EMAIL_RESERVE,
-      });
-      if (batch.error) throw new Error(batch.error.code);
-      for (const row of batch.data) {
-        if (providerDown) break;
-        const email = renderDigest(
-          row.items as unknown as DigestItem[],
-          row.total,
-          base,
-        );
-        await deliver([row.email], row.queue_ids, email);
-      }
-    }
-  } catch (error) {
-    console.error("Digest emails failed", error);
   }
 
   return Response.json(

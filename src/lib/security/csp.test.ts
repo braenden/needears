@@ -32,13 +32,24 @@ describe("buildCsp", () => {
     expect(directive(csp, "base-uri")).toBe("'self'");
   });
 
-  it("allows audio and fetches from Supabase only", () => {
+  it("allows fetches from Supabase only", () => {
     const csp = buildCsp(base);
-    expect(directive(csp, "media-src")).toBe(
-      "'self' blob: https://xyz.supabase.co",
-    );
+    expect(directive(csp, "media-src")).toBe("'self' blob:");
     expect(directive(csp, "connect-src")).toBe(
       "'self' https://xyz.supabase.co",
+    );
+  });
+
+  it("allows audio and uploads from the R2 origin", () => {
+    const csp = buildCsp({
+      ...base,
+      audioOrigin: "https://acc.eu.r2.cloudflarestorage.com",
+    });
+    expect(directive(csp, "media-src")).toBe(
+      "'self' blob: https://acc.eu.r2.cloudflarestorage.com",
+    );
+    expect(directive(csp, "connect-src")).toBe(
+      "'self' https://xyz.supabase.co https://acc.eu.r2.cloudflarestorage.com",
     );
   });
 

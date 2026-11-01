@@ -1,11 +1,6 @@
 import type { UploadPipeline } from "@/components/upload/upload-wizard";
 import type { VersionPipeline } from "@/components/versions/new-version-dialog";
-import {
-  AUDIO_MAX_BYTES,
-  AUDIO_MIME,
-  PEAKS_MIME,
-  PEAKS_POINTS,
-} from "@/config/upload";
+import { AUDIO_MAX_BYTES, PEAKS_MIME, PEAKS_POINTS } from "@/config/upload";
 import { type Decoded, DecodeError, decodeAudio } from "@/lib/audio/decode";
 import { encodeMp3 } from "@/lib/audio/encode";
 import { measureLoudness } from "@/lib/audio/loudness";
@@ -18,7 +13,8 @@ import {
   createTrack,
   createVersion,
   parseRateLimit,
-  putSigned,
+  putAudio,
+  putPeaks,
   signUpload,
   UploadError,
 } from "./client";
@@ -133,14 +129,11 @@ function createAudioWork() {
       onProgress(0.02);
       const signed = await signUpload(audio.size, durationMs, trackId);
       onProgress(0.05);
-      await putSigned(
+      await putPeaks(
         signed.peaks,
         new Blob([JSON.stringify(peaks)], { type: PEAKS_MIME }),
-        PEAKS_MIME,
       );
-      await putSigned(signed.audio, audio, AUDIO_MIME, (p) =>
-        onProgress(0.05 + p * 0.85),
-      );
+      await putAudio(signed.audio, audio, (p) => onProgress(0.05 + p * 0.85));
       onProgress(0.92);
       return { objectId: signed.objectId, durationMs, loudness };
     },
