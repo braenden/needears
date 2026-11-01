@@ -122,7 +122,7 @@ export function SiteHeader({
   const uploading = pathname === "/upload";
 
   return (
-    <header className="@container sticky top-0 z-40 border-b bg-background/85 backdrop-blur-md">
+    <header className="@container sticky top-0 z-40 border-b bg-background">
       {/* Wide: three zones, with the search in the middle on the same axis
           as the page column below. Narrow: logo left, buttons right. */}
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @min-[40rem]:grid @min-[40rem]:grid-cols-[1fr_minmax(0,30rem)_1fr] @min-[40rem]:gap-6">

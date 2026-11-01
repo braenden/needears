@@ -88,6 +88,8 @@ export type WaveformPlayerProps = {
   media?: () => HTMLAudioElement;
   /** Fires once per second while playing and on every seek. */
   onTimeChange?: (ms: number) => void;
+  /** Fires when playing starts or stops. */
+  onPlayingChange?: (playing: boolean) => void;
   onMarkerSelect?: (comment: Comment) => void;
   /** C key: comment at the current second. */
   onCommentHere?: (ms: number) => void;
@@ -153,6 +155,7 @@ export function WaveformPlayer({
   gainDb = 0,
   media,
   onTimeChange,
+  onPlayingChange,
   onMarkerSelect,
   onCommentHere,
   keyboardScope = "focus",
@@ -172,6 +175,13 @@ export function WaveformPlayer({
   const [drawn, setDrawn] = useState(false);
   const [errorUrl, setErrorUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  const onPlayingChangeRef = useRef(onPlayingChange);
+  useEffect(() => {
+    onPlayingChangeRef.current = onPlayingChange;
+  }, [onPlayingChange]);
+  useEffect(() => {
+    onPlayingChangeRef.current?.(playing);
+  }, [playing]);
   const [muted, setMuted] = useState(false);
   const [currentMs, setCurrentMs] = useState(initialTimeMs);
   const initialTimeRef = useRef(initialTimeMs);

@@ -27,6 +27,7 @@ import {
 } from "@/components/comments/comment-list";
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
+import { MiniPlayerBar } from "@/components/player/mini-player-bar";
 import { useSharedAudio } from "@/components/player/shared-audio";
 import {
   type TimeRange,
@@ -142,38 +143,35 @@ export function TrackView({
   const [mine, setMine] = useState(initialReactions);
   const [counts, setCounts] = useState(track.reaction_counts);
   // Cards for this track elsewhere (the feed kept for going back) follow.
-  const stickyPlayer = useRef<HTMLDivElement>(null);
-  const commentsSection = useRef<HTMLElement>(null);
-  const [commentsOffset, setCommentsOffset] = useState<number | null>(null);
+  const fullPlayer = useRef<HTMLDivElement>(null);
+  const [playerPlaying, setPlayerPlaying] = useState(false);
+  // On phones a slim bar takes over once the full player has scrolled up
+  // out of sight.
+  const [scrolledPast, setScrolledPast] = useState(false);
   useEffect(() => {
-    const player = stickyPlayer.current;
-    if (!player) return;
-    const measure = () => {
-      const sticks = getComputedStyle(player).position === "sticky";
-      // The header is 56 pixels; a little air under whatever sticks.
-      setCommentsOffset(56 + (sticks ? player.offsetHeight : 0) + 16);
-    };
-    measure();
-    const sizes =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(measure);
-    sizes?.observe(player);
-    window.addEventListener("resize", measure);
-    return () => {
-      sizes?.disconnect();
-      window.removeEventListener("resize", measure);
-    };
+    const target = fullPlayer.current;
+    if (!target || typeof IntersectionObserver === "undefined") return;
+    const watch = new IntersectionObserver(
+      ([entry]) =>
+        setScrolledPast(
+          !!entry && !entry.isIntersecting && entry.boundingClientRect.top < 0,
+        ),
+      // Below the 56 pixel header.
+      { rootMargin: "-56px 0px 0px 0px" },
+    );
+    watch.observe(target);
+    return () => watch.disconnect();
   }, []);
-  // Arriving at #comments: the browser jumped before the page knew how much
-  // sticks at the top, so jump again once it does.
-  const jumpedToComments = useRef(false);
+  // Arriving at #comments from a card: the jump to it can happen before
+  // the page is in (while the skeleton shows), so jump once more now.
+  const commentsSection = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (jumpedToComments.current || commentsOffset === null) return;
-    jumpedToComments.current = true;
     if (window.location.hash !== "#comments") return;
-    commentsSection.current?.scrollIntoView({ block: "start" });
-  }, [commentsOffset]);
+    const frame = requestAnimationFrame(() =>
+      commentsSection.current?.scrollIntoView({ block: "start" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     shareReactionCounts(track.id, counts);
@@ -580,10 +578,7 @@ export function TrackView({
         />
       ) : null}
 
-      <div
-        ref={stickyPlayer}
-        className="sticky top-14 z-30 -mx-4 mt-6 bg-background/90 px-4 py-2 backdrop-blur-md sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none"
-      >
+      <div ref={fullPlayer} className="mt-6 scroll-mt-20">
         <WaveformPlayer
           ref={player}
           title={track.title}
@@ -602,6 +597,7 @@ export function TrackView({
           comments={topLevel}
           activeCommentId={activeId}
           keyboardScope="global"
+          onPlayingChange={setPlayerPlaying}
           onTimeChange={(ms) => {
             setTimeMs(ms);
             setSelectedId(null);
@@ -779,14 +775,30 @@ export function TrackView({
         />
       ) : null}
 
+      <MiniPlayerBar
+        title={track.title}
+        visible={scrolledPast}
+        playing={playerPlaying}
+        timeMs={timeMs}
+        durationMs={playing.durationMs}
+        markerTimes={topLevel
+          .filter((c) => onVersion(c) && c.time_ms !== null)
+          .map((c) => c.time_ms!)}
+        onToggle={() =>
+          playerPlaying ? player.current?.pause() : player.current?.play()
+        }
+        onExpand={() =>
+          fullPlayer.current?.scrollIntoView({ behavior: "smooth" })
+        }
+      />
+
       {/* Cards link here (#comments). The heading lands below the header,
-          and on phones below the player that sticks under it too. */}
+          and on phones below the slim player bar too (64 pixels). */}
       <section
         ref={commentsSection}
         id="comments"
         aria-labelledby="comments-heading"
-        className="mt-10 scroll-mt-20"
-        style={commentsOffset ? { scrollMarginTop: commentsOffset } : undefined}
+        className="mt-10 scroll-mt-[8.5rem] sm:scroll-mt-20"
       >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2
