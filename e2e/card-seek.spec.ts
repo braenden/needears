@@ -200,3 +200,28 @@ test("a swipe over a card's waveform scrolls the page and plays nothing", async 
   ).toBeVisible();
   await context.close();
 });
+
+test("a click on the waveform right after Play is not lost", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/u/nora");
+  await bar(page).scrollIntoViewIfNeeded();
+  // Wait for the page to hydrate: the slider is focusable then.
+  await expect(async () => {
+    await bar(page).focus();
+    await expect(bar(page)).toBeFocused({ timeout: 500 });
+  }).toPass();
+  await card(page)
+    .getByRole("button", { name: /^Play Night bus/ })
+    .click();
+  await page.waitForTimeout(100);
+  const box = (await bar(page).boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.7, box.y + box.height / 2);
+  // Night bus is 18 seconds: about 12.6 seconds in, not from the start.
+  await expect.poll(() => now(page)).toBeGreaterThanOrEqual(12);
+  expect(await now(page)).toBeLessThanOrEqual(15);
+  await expect(
+    card(page).getByRole("button", { name: /^Pause Night bus/ }),
+  ).toBeVisible();
+});

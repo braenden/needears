@@ -45,9 +45,14 @@ export function TrackList({
   // Who this list is, for claiming the shared element.
   const [owner] = useState(() => ({}));
   const loadedAt = useRef(0);
-  // A track being started from its waveform, and the latest spot asked
-  // for while its address loads (another click can come in meanwhile).
-  const starting = useRef<{ id: string; at: number } | null>(null);
+  // A track being started (by Play or its waveform) until its source is
+  // set, and the latest spot asked for meanwhile: clicks can come in while
+  // its address loads. Undefined is the start.
+  const starting = useRef<{ id: string; at?: number } | null>(null);
+  // What is loaded and whether it should be playing, read by handlers that
+  // run before the next render (a click right after Play).
+  const loadedRef = useRef<string | null>(null);
+  const wantsToPlay = useRef(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -78,64 +83,88 @@ export function TrackList({
   /** Plays or pauses; `at` (0 to 1) starts a track that is not on. */
   async function play(track: TrackSummary, at?: number) {
     const audio = shared.get();
-    if (playingId === track.id) {
-      // The button changes at once; the sound fades in or out (25 ms, so
-      // it does not click). A pause still fading out has not paused yet,
-      // so there is no play event to wait for.
+    if (loadedRef.current === track.id) {
       // The fade first, the button as a transition after it, so a render
-      // cannot hold up the fade.
-      if (audio.paused || !isPlaying) {
-        void fadeInPlay(audio).catch(() => setIsPlaying(false));
+      // cannot hold up the fade. A pause still fading out has not paused
+      // yet, so the intent decides, not the element.
+      if (!wantsToPlay.current) {
+        wantsToPlay.current = true;
+        void fadeInPlay(audio).catch(() => {
+          wantsToPlay.current = false;
+          setIsPlaying(false);
+        });
         startTransition(() => setIsPlaying(true));
       } else {
+        wantsToPlay.current = false;
         void fadeOutPause(audio);
         startTransition(() => setIsPlaying(false));
       }
       return;
     }
+    // Already on its way: a second press while it loads changes nothing.
+    if (starting.current?.id === track.id) return;
+    starting.current = {
+      id: track.id,
+      at: at ?? (cued?.id === track.id ? cued.at : undefined),
+    };
     let url = tracks.find((t) => t.id === track.id)?.audioUrl ?? null;
     if (!url || Date.now() - loadedAt.current > STALE_MS)
       url = await freshAudioUrl(track.slug);
+    if (starting.current?.id !== track.id) return; // another track since
     if (!url) {
       starting.current = null;
       toast.error("This track was removed or is hidden.");
       return;
     }
-    // The latest spot clicked while this track was starting, or where the
-    // keys left it.
-    if (starting.current?.id === track.id) at = starting.current.at;
-    else if (at === undefined && cued?.id === track.id) at = cued.at;
     setCued(null);
-    starting.current = null;
     // Whatever plays now fades out first, instead of stopping with a click.
     if (!audio.paused) await fadeOutPause(audio);
+    if (starting.current?.id !== track.id) return;
     shared.claim(owner, { id: track.id, slug: track.slug });
     audio.muted = false;
     setListenerVolume(audio, volume);
     audio.src = url;
+    // The latest spot asked for while it loaded. From here on, clicks seek
+    // the element directly.
+    const startAt = starting.current.at;
+    starting.current = null;
+    loadedRef.current = track.id;
+    wantsToPlay.current = true;
     audio.ontimeupdate = () =>
       startTransition(() =>
         setProgress(audio.duration ? audio.currentTime / audio.duration : 0),
       );
-    audio.onplay = () => startTransition(() => setIsPlaying(true));
-    audio.onpause = () => startTransition(() => setIsPlaying(false));
+    audio.onplay = () => {
+      wantsToPlay.current = true;
+      startTransition(() => setIsPlaying(true));
+    };
+    audio.onpause = () => {
+      wantsToPlay.current = false;
+      startTransition(() => setIsPlaying(false));
+    };
     audio.onended = () => {
+      loadedRef.current = null;
+      wantsToPlay.current = false;
       setPlayingId(null);
       setProgress(0);
     };
     audio.onerror = () => {
+      loadedRef.current = null;
+      wantsToPlay.current = false;
       setPlayingId(null);
       toast.error("We couldn't load the audio.");
     };
-    setProgress(at ?? 0);
+    setProgress(startAt ?? 0);
     setPlayingId(track.id);
-    if (at) {
+    if (startAt) {
       // Before the metadata is in, this sets where playing starts.
-      audio.currentTime = at * (track.duration_ms / 1000);
+      audio.currentTime = startAt * (track.duration_ms / 1000);
       audio.addEventListener(
         "loadedmetadata",
         () => {
-          audio.currentTime = at * audio.duration;
+          // Unless a click has moved it since.
+          if (audio.currentTime < 0.5)
+            audio.currentTime = startAt * audio.duration;
         },
         { once: true },
       );
@@ -143,13 +172,19 @@ export function TrackList({
     try {
       await fadeInPlay(audio);
     } catch {
+      loadedRef.current = null;
+      wantsToPlay.current = false;
       setPlayingId(null);
     }
   }
 
   /** Moves the playhead to `at` (0 to 1) without starting it. */
   function cue(track: TrackSummary, at: number) {
-    if (playingId !== track.id) {
+    if (starting.current?.id === track.id) {
+      starting.current.at = at;
+      return;
+    }
+    if (loadedRef.current !== track.id) {
       setCued({ id: track.id, at });
       return;
     }
@@ -162,22 +197,27 @@ export function TrackList({
 
   /** Plays from `at` (0 to 1): the waveform on a card is a seek bar. */
   function seek(track: TrackSummary, at: number) {
-    const audio = shared.get();
-    if (playingId !== track.id) {
-      if (starting.current?.id === track.id) {
-        starting.current.at = at;
-        return;
-      }
-      starting.current = { id: track.id, at };
+    // Still loading (from Play or an earlier click): it starts here.
+    if (starting.current?.id === track.id) {
+      starting.current.at = at;
+      startTransition(() => setProgress(at));
+      return;
+    }
+    if (loadedRef.current !== track.id) {
       void play(track, at);
       return;
     }
+    const audio = shared.get();
     const duration = audio.duration || track.duration_ms / 1000;
     const seconds = Math.min(at, 0.999) * duration;
-    if (audio.paused || !isPlaying) {
+    if (audio.paused || !wantsToPlay.current) {
       // Paused: jump in silence, then fade in from there.
       audio.currentTime = seconds;
-      void fadeInPlay(audio).catch(() => setIsPlaying(false));
+      wantsToPlay.current = true;
+      void fadeInPlay(audio).catch(() => {
+        wantsToPlay.current = false;
+        setIsPlaying(false);
+      });
       startTransition(() => {
         setIsPlaying(true);
         setProgress(at);
