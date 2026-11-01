@@ -8,12 +8,6 @@ import {
   AvatarUpload,
   type AvatarSaveResult,
 } from "@/components/profile/avatar-upload";
-import {
-  type ProfileExtras,
-  ProfileExtrasForm,
-  type ProfileExtrasResult,
-} from "@/components/profile/profile-extras-form";
-import { hostName, hostOf } from "@/components/profile/link-hosts";
 import { browserClient } from "@/lib/supabase/lazy";
 import type { Profile } from "@/types/view";
 
@@ -102,60 +96,6 @@ export function PhotoSettings({
       hasUploadedPhoto={!!shown}
       onSave={savePhoto}
       onRemove={() => void removePhoto()}
-    />
-  );
-}
-
-/** What you are working on, your DAW and links. */
-export function ExtrasSettings({
-  userId,
-  initial,
-}: {
-  userId: string;
-  initial: ProfileExtras;
-}) {
-  const router = useRouter();
-
-  async function saveExtras(
-    extras: ProfileExtras,
-  ): Promise<ProfileExtrasResult> {
-    const { error } = await (
-      await browserClient()
-    )
-      .from("profiles")
-      .update({
-        working_on: extras.workingOn,
-        daw: extras.daw,
-        // The label is optional in the form but required in the database,
-        // so an empty one becomes the service name ("SoundCloud").
-        links: extras.links.map((link) => {
-          const host = hostOf(link.url);
-          return {
-            url: link.url,
-            label: link.label.trim() || (host ? hostName(host) : "Link"),
-          };
-        }),
-      })
-      .eq("id", userId);
-    if (error) {
-      return {
-        ok: false,
-        error:
-          error.code === "22023"
-            ? "One of the links isn't allowed. Use a full https link to one of the sites listed."
-            : "Couldn't save. Try again, or come back in a minute.",
-      };
-    }
-    toast.success("Profile saved.");
-    router.refresh();
-    return { ok: true };
-  }
-
-  return (
-    <ProfileExtrasForm
-      initial={initial}
-      onSave={saveExtras}
-      submitLabel="Save"
     />
   );
 }

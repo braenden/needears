@@ -1,8 +1,9 @@
 "use client";
 
+import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { BellIcon, MenuIcon, PlusIcon, SearchIcon } from "lucide-react";
 
 import { Logo } from "@/components/brand/logo";
@@ -25,7 +26,7 @@ const MobileMenu = dynamic(() => import("./menus").then((m) => m.MobileMenu), {
     <Button
       variant="ghost"
       size="icon"
-      className="@3xl:hidden"
+      className="touch-hit @min-[40rem]:hidden"
       aria-label="Menu"
       disabled
     >
@@ -40,7 +41,7 @@ const UserMenu = dynamic(() => import("./menus").then((m) => m.UserMenu), {
     <Button
       variant="ghost"
       size="icon"
-      className="rounded-full"
+      className="touch-hit rounded-full"
       aria-label="Account menu"
       disabled
     >
@@ -72,10 +73,41 @@ export type HeaderProps = {
   searchAction?: string;
 };
 
+const SEARCH_CLASSES = "hidden w-full @min-[40rem]:block";
+
 /**
- * Top bar. Wide: logo, nav, upload, bell, theme, avatar menu. Narrow (container
- * query, so it also works inside the /design phone frame): logo, upload,
- * menu button that opens the rest in a sheet.
+ * The search box in the top bar. On the results page it holds the search,
+ * so there is only one box to change it in, and it is ready to type in
+ * when nothing has been searched yet.
+ */
+function HeaderSearch({
+  action,
+  ...props
+}: {
+  shortcut: boolean;
+  action: string;
+  className: string;
+}) {
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const onResults = pathname === action;
+  // The results page reads at most 100 characters too.
+  const query = onResults ? (params.get("q") ?? "").slice(0, 100) : "";
+  return (
+    <SearchField
+      key={query}
+      defaultValue={query}
+      autoFocus={onResults && !query}
+      action={action}
+      {...props}
+    />
+  );
+}
+
+/**
+ * Top bar. Wide: logo, nav, upload, bell, theme, avatar menu. Narrow (below
+ * 640 pixels, a container query so it also works inside the /design phone
+ * frame): logo, upload, bell, menu button that opens the rest in a sheet.
  */
 export function SiteHeader({
   user,
@@ -87,93 +119,138 @@ export function SiteHeader({
   searchAction = "/search",
 }: HeaderProps) {
   const pathname = usePathname();
+  const uploading = pathname === "/upload";
 
   return (
-    <header className="@container sticky top-0 z-40 border-b bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @3xl:gap-6">
-        <Link
-          href="/"
-          className="-ml-1 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Logo />
-        </Link>
+    <header className="@container sticky top-0 z-40 border-b bg-background">
+      {/* Wide: three zones, with the search in the middle on the same axis
+          as the page column below. Narrow: logo left, buttons right. */}
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @min-[40rem]:grid @min-[40rem]:grid-cols-[1fr_minmax(0,30rem)_1fr] @min-[40rem]:gap-6">
+        <div className="flex items-center gap-6">
+          <Link
+            href="/"
+            className="-ml-1 shrink-0 rounded-md p-1 focus-ring outline-none"
+          >
+            <Logo />
+          </Link>
 
-        <nav aria-label={navLabel} className="hidden @3xl:block">
-          <ul className="flex items-center gap-1">
-            {NAV.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-current={pathname === item.href ? "page" : undefined}
-                  className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:text-foreground"
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+          <nav aria-label={navLabel} className="hidden @min-[40rem]:block">
+            <ul className="flex items-center gap-1">
+              {NAV.map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={pathname === item.href ? "page" : undefined}
+                    className="touch-hit rounded-md px-2.5 py-1.5 text-sm text-muted-foreground focus-ring outline-none hover:text-foreground aria-[current=page]:text-foreground"
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
 
         {showSearch ? (
-          <SearchField
-            shortcut={searchShortcut}
-            action={searchAction}
-            className="ml-auto hidden w-full max-w-64 @3xl:block"
-          />
-        ) : null}
+          <Suspense
+            fallback={
+              <SearchField
+                shortcut={searchShortcut}
+                action={searchAction}
+                className={SEARCH_CLASSES}
+              />
+            }
+          >
+            <HeaderSearch
+              shortcut={searchShortcut}
+              action={searchAction}
+              className={SEARCH_CLASSES}
+            />
+          </Suspense>
+        ) : (
+          <div className="hidden @min-[40rem]:block" />
+        )}
 
-        <div
-          className={cn(
-            "ml-auto flex items-center gap-1",
-            showSearch && "@3xl:ml-0",
-          )}
-        >
+        <div className="ml-auto flex items-center justify-end gap-1">
           {showSearch ? (
-            <Button variant="ghost" size="icon" asChild className="@3xl:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="touch-hit @min-[40rem]:hidden"
+            >
               <Link href={searchAction} aria-label="Search">
                 <SearchIcon />
               </Link>
             </Button>
           ) : null}
-          <Button asChild size="sm" className="mr-1">
-            <Link href="/upload">
+          {/* Just the plus on the narrowest phones, so the bell fits. On the
+              upload page it steps back: it would only lead to itself. */}
+          <Button
+            asChild
+            size="sm"
+            variant={uploading ? "secondary" : "default"}
+            className="touch-hit mr-1 w-8 px-0 @min-[25rem]:w-auto @min-[25rem]:px-3"
+          >
+            <Link href="/upload" aria-current={uploading ? "page" : undefined}>
               <PlusIcon />
-              Upload
+              <span className="sr-only @min-[25rem]:not-sr-only">Upload</span>
             </Link>
           </Button>
-          <div className="hidden items-center gap-1 @3xl:flex">
-            {user ? (
-              <Button variant="ghost" size="icon" asChild className="relative">
-                <Link
-                  href="/notifications"
-                  aria-label={
-                    unread ? `Notifications, ${unread} new` : "Notifications"
-                  }
-                >
-                  <BellIcon />
-                  {unread ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
-                    />
-                  ) : null}
-                </Link>
-              </Button>
-            ) : null}
-            <ThemeToggle />
+          {user ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="touch-hit relative"
+            >
+              <Link
+                href="/notifications"
+                aria-current={
+                  pathname === "/notifications" ? "page" : undefined
+                }
+                aria-label={
+                  unread ? `Notifications, ${unread} new` : "Notifications"
+                }
+              >
+                <BellIcon />
+                {unread ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
+                  />
+                ) : null}
+              </Link>
+            </Button>
+          ) : (
+            // Signed out on a phone: Sign in where the bell would be, not
+            // only inside the menu.
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="touch-hit px-2 @min-[40rem]:hidden"
+            >
+              <Link href="/login">Sign in</Link>
+            </Button>
+          )}
+          {/* Signed in, the theme is in the account menu. */}
+          <div className="hidden items-center gap-1 @min-[40rem]:flex">
             {user ? (
               <UserMenu user={user} isAdmin={isAdmin} />
             ) : (
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/login">Sign in</Link>
-              </Button>
+              <>
+                <ThemeToggle />
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/login">Sign in</Link>
+                </Button>
+              </>
             )}
           </div>
 
           <MobileMenu
             user={user}
             isAdmin={isAdmin}
-            unread={unread}
             navLabel={navLabel}
             pathname={pathname}
           />
@@ -189,12 +266,12 @@ function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <p>Need Ears is free and open source.</p>
         <nav aria-label="Legal and info">
-          <ul className="flex flex-wrap gap-x-4 gap-y-2">
+          <ul className="flex flex-wrap gap-x-4 gap-y-2 coarse:gap-y-0">
             {LEGAL.map((item) => (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="rounded-xs outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="rounded-xs focus-ring outline-none hover:text-foreground coarse:inline-flex coarse:min-h-11 coarse:items-center"
                 >
                   {item.label}
                 </Link>

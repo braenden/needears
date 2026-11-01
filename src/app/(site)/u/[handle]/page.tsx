@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SlidingUnderline } from "@/components/common/sliding-underline";
 import { notFound } from "next/navigation";
-import { cache } from "react";
 import { displayNameOf } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { TrackList } from "@/components/track/track-list";
@@ -10,17 +10,18 @@ import { BadgeList } from "@/components/profile/badges";
 import { ProfileStatsBlock } from "@/components/profile/profile-stats";
 import {
   getCommentsBy,
+  getEditableProfile,
   getFeedbackRecord,
-  getProfileByHandle,
   getProfileStats,
 } from "@/lib/data/profiles";
 import { getTracksByOwner } from "@/lib/data/tracks";
 import { getViewer } from "@/lib/data/viewer";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { loadProfile } from "./load";
 import { OwnProfileHeader } from "./own-profile-header";
 
-const loadProfile = cache(getProfileByHandle);
+const PAGE = 30;
 
 export async function generateMetadata({
   params,
@@ -59,22 +60,45 @@ export default async function ProfilePage({
   const profile = await loadProfile(handle);
   if (!profile) notFound();
   const tab = query.tab === "comments" ? "comments" : "tracks";
+  // "Load more" asks for the next page: 30 more each time, up to 300.
+  const count = Math.min(
+    300,
+    Math.max(PAGE, Math.ceil(Number(query.show) / PAGE || 1) * PAGE),
+  );
   const isOwn = viewer?.userId === profile.id;
-  const [stats, record, tracks, comments] = await Promise.all([
+  const [stats, record, tracks, comments, editable] = await Promise.all([
     getProfileStats(profile),
     getFeedbackRecord(profile.id),
-    tab === "tracks" ? getTracksByOwner(profile.id) : Promise.resolve([]),
-    tab === "comments" ? getCommentsBy(profile.id) : Promise.resolve([]),
+    tab === "tracks"
+      ? getTracksByOwner(profile.id, count + 1)
+      : Promise.resolve([]),
+    tab === "comments"
+      ? getCommentsBy(profile.id, count + 1)
+      : Promise.resolve([]),
+    isOwn && viewer
+      ? getEditableProfile(viewer.userId, viewer.profile)
+      : Promise.resolve(null),
   ]);
   const name = displayNameOf(profile);
+  const listed = tab === "tracks" ? tracks : comments;
+  const hasMore = listed.length > count && count < 300;
+  const moreHref = `/u/${profile.handle}?${new URLSearchParams({
+    ...(tab === "comments" ? { tab } : {}),
+    show: String(count + PAGE),
+  })}`;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
-      <OwnProfileHeader profile={profile} stats={stats} isOwn={isOwn} />
+      <OwnProfileHeader
+        profile={profile}
+        stats={stats}
+        isOwn={isOwn}
+        editable={editable}
+      />
       <ProfileStatsBlock stats={record.stats} className="mt-6" />
       <BadgeList badges={record.badges} showLocked={isOwn} className="mt-4" />
 
-      <nav aria-label="Profile sections" className="mt-10 border-b">
+      <nav aria-label="Profile sections" className="relative mt-10 border-b">
         <ul className="-mb-px flex gap-1">
           {(
             [
@@ -91,8 +115,8 @@ export default async function ProfilePage({
                 href={href}
                 aria-current={tab === key ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-                  "aria-[current=page]:border-primary aria-[current=page]:text-foreground",
+                  "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground focus-ring outline-none hover:text-foreground",
+                  "aria-[current=page]:border-primary aria-[current=page]:text-foreground in-data-[underline=ready]:aria-[current=page]:border-transparent",
                 )}
               >
                 {label}
@@ -100,6 +124,10 @@ export default async function ProfilePage({
             </li>
           ))}
         </ul>
+        <SlidingUnderline
+          selector='[aria-current="page"]'
+          className="-bottom-px"
+        />
       </nav>
 
       <div className="mt-6">
@@ -109,8 +137,9 @@ export default async function ProfilePage({
         {tab === "tracks" ? (
           tracks.length > 0 ? (
             <TrackList
-              tracks={tracks}
+              tracks={tracks.slice(0, count)}
               label={`Tracks by ${name}`}
+              showOwner={false}
               className="grid gap-3"
             />
           ) : isOwn ? (
@@ -135,7 +164,7 @@ export default async function ProfilePage({
           )
         ) : comments.length > 0 ? (
           <ul className="divide-y">
-            {comments.map((comment) => (
+            {comments.slice(0, count).map((comment) => (
               <li key={comment.id} className="py-4">
                 <p className="text-sm text-muted-foreground">
                   On{" "}
@@ -159,6 +188,15 @@ export default async function ProfilePage({
         ) : (
           <EmptyState title="No comments yet." />
         )}
+        {hasMore ? (
+          <div className="mt-6 flex justify-center">
+            <Button asChild variant="outline">
+              <Link href={moreHref} scroll={false}>
+                Load more
+              </Link>
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

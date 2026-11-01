@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 // address and dates only have to be filled in there.
 
 const link =
-  "text-primary-text underline underline-offset-2 outline-none hover:decoration-2 focus-visible:ring-2 focus-visible:ring-ring rounded-xs";
+  "focus-ring text-primary-text underline underline-offset-2 outline-none hover:decoration-2 rounded-xs";
 
 function ContactEmail() {
   return (

@@ -15,6 +15,7 @@ import { FEEDBACK_WANT_LABELS } from "@/config/labels";
 import { reputationLevels } from "@/config/reputation";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 
 import { DetailsFields } from "./details-fields";
 import {
@@ -229,9 +230,17 @@ export function UploadWizard({
   };
 
   return (
-    <div className={cn("@container mx-auto w-full max-w-2xl", className)}>
+    <div className={cn("@container mx-auto w-full max-w-3xl", className)}>
+      <h2
+        ref={headingRef}
+        tabIndex={-1}
+        className="font-display text-2xl font-bold tracking-tight outline-none @md:text-3xl"
+      >
+        {headings[state.step]}
+      </h2>
+
       <ol
-        className="mb-6 flex items-center gap-2 text-sm"
+        className="mt-4 flex items-center gap-2 text-sm"
         aria-label="Upload steps"
       >
         {STEPS.map((step, index) => {
@@ -276,15 +285,7 @@ export function UploadWizard({
         })}
       </ol>
 
-      <h2
-        ref={headingRef}
-        tabIndex={-1}
-        className="font-display text-2xl font-bold tracking-tight outline-none @md:text-3xl"
-      >
-        {headings[state.step]}
-      </h2>
-
-      <div className="mt-5">
+      <div className="mt-6">
         {state.step === "file" ? (
           <FileStep
             state={state}
@@ -333,7 +334,7 @@ export function ProgressBar({
       className="h-1.5 overflow-hidden rounded-full bg-muted"
     >
       <div
-        className="h-full rounded-full bg-primary transition-[width] duration-(--duration-base)"
+        className="h-full rounded-full bg-primary transition-[width] duration-base"
         style={{ width: `${Math.round(value * 100)}%` }}
       />
     </div>
@@ -376,7 +377,7 @@ export function FileStep({
                 />
               ) : index === currentIndex ? (
                 <Loader2Icon
-                  className="size-4 motion-safe:animate-spin"
+                  className="size-4 animate-spin"
                   aria-hidden="true"
                 />
               ) : (
@@ -411,7 +412,7 @@ export function FileStep({
         }}
         data-dragging={dragging || undefined}
         className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors duration-(--duration-fast)",
+          "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-12 text-center transition-colors duration-fast",
           "hover:border-[color-mix(in_oklab,var(--border),var(--foreground)_25%)] has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring",
           "data-dragging:border-primary data-dragging:bg-primary-soft",
         )}
@@ -533,6 +534,7 @@ function DetailsStep({
       onSubmit={(e) => {
         e.preventDefault();
         onNext();
+        focusFirstInvalid(e.currentTarget);
       }}
     >
       <WaveformPreview state={state} />
@@ -588,6 +590,7 @@ function PublishStep({
       onSubmit={(e) => {
         e.preventDefault();
         onPublish();
+        focusFirstInvalid(e.currentTarget);
       }}
     >
       <div className="rounded-xl border bg-card p-4">
@@ -672,7 +675,7 @@ function PublishStep({
           Back
         </Button>
         <Button type="submit" size="lg" disabled={busy}>
-          {busy ? <Loader2Icon className="motion-safe:animate-spin" /> : null}
+          {busy ? <Loader2Icon className="animate-spin" /> : null}
           {state.publishError && state.publishError !== "rate_limited"
             ? "Try again"
             : "Publish"}

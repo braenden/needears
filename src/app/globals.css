@@ -15,6 +15,57 @@
 
 @custom-variant dark (&:where(.dark, .dark *):not(:where(.light, .light *)));
 
+/* A mouse or trackpad: keyboard hints and hover-only extras. */
+@custom-variant fine (@media (hover: hover) and (pointer: fine));
+/* A finger. */
+@custom-variant coarse (@media (pointer: coarse));
+
+/*
+ * Durations: fast for small things (a press, a hover, an exit), base for
+ * menus and dialogs, slow for whole sheets. Also used by the enter and
+ * leave animations.
+ */
+@utility duration-fast {
+  --tw-duration: var(--duration-fast);
+  transition-duration: var(--duration-fast);
+}
+@utility duration-base {
+  --tw-duration: var(--duration-base);
+  transition-duration: var(--duration-base);
+}
+@utility duration-slow {
+  --tw-duration: var(--duration-slow);
+  transition-duration: var(--duration-slow);
+}
+
+/* The one focus style: a ring outside the control, in the accent color. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * At least 44 by 44 pixels to tap on touch screens, however small the control
+ * looks. Not for controls that are positioned themselves.
+ */
+@utility touch-hit {
+  @media (pointer: coarse) {
+    position: relative;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 2.75rem);
+      height: max(100%, 2.75rem);
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
 @theme inline {
   --font-sans: var(--font-geist);
   --font-display: var(--font-geist);
@@ -59,8 +110,37 @@
   --shadow-pop: var(--shadow-pop);
   --shadow-dialog: var(--shadow-dialog);
 
+  /* Motion: things come in with a quick start and a soft landing, leave
+     with a soft start, and move from place to place with the third. */
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
+  --ease-move: cubic-bezier(0.2, 0, 0, 1);
   --animate-marker-in: marker-in var(--duration-base) var(--ease-out-soft) both;
+  /* A reaction picked: a small bounce, nothing more. */
+  --animate-reaction-pop: reaction-pop var(--duration-base) var(--ease-out-soft);
+  /* A comment just posted: fades in, and its row glows for a moment. */
+  --animate-comment-in:
+    comment-in var(--duration-base) var(--ease-out-soft),
+    comment-glow 1.5s var(--ease-in-soft);
+
+  @keyframes reaction-pop {
+    50% {
+      scale: 1.15;
+    }
+  }
+
+  @keyframes comment-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes comment-glow {
+    from,
+    40% {
+      background-color: var(--primary-soft);
+    }
+  }
 
   @keyframes marker-in {
     from {
@@ -199,13 +279,33 @@
   }
 }
 
+/* Toasts come and go on our own timing. */
+[data-sonner-toast].cn-toast {
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-out-soft);
+}
+
+/*
+ * Reduced motion: nothing moves or grows, things only fade, and quickly.
+ * Spinners and the progress bar keep going, since they tell that something
+ * is happening; skeletons stop pulsing.
+ */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-base: var(--duration-fast);
+    --duration-slow: var(--duration-fast);
+  }
   *,
   *::before,
   *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
+    --tw-enter-translate-x: 0 !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-enter-scale: 1 !important;
+    --tw-enter-rotate: 0 !important;
+    --tw-exit-translate-x: 0 !important;
+    --tw-exit-translate-y: 0 !important;
+    --tw-exit-scale: 1 !important;
+    --tw-exit-rotate: 0 !important;
     scroll-behavior: auto !important;
   }
 }

@@ -34,7 +34,7 @@ test("without Google set up, the card only lists the email link", async ({
   page,
 }) => {
   await signInWithMagicLink(page, "jonas@example.com", "/settings");
-  const card = page.getByRole("region", { name: "Connected accounts" });
+  const card = page.getByRole("region", { name: "Account", exact: true });
   await expect(card.getByText("jonas@example.com")).toBeVisible();
   await expect(card.getByText("Not connected")).toBeVisible();
   await expect(card.getByRole("button")).toHaveCount(0);
@@ -64,7 +64,7 @@ test("right after signing in, Connect opens Google's account chooser", async ({
   await page.goto(await magicLinkFor("mia@example.com", sentAfter));
   await expect(page).toHaveURL(`${GOOGLE_URL}/settings`);
 
-  const card = page.getByRole("region", { name: "Connected accounts" });
+  const card = page.getByRole("region", { name: "Account", exact: true });
   await expect(card.getByText("mia@example.com")).toBeVisible();
   // Not Google's own button, which would suggest an account.
   await expect(

@@ -36,3 +36,8 @@ export function formatSpan(startMs: number, endMs?: number | null) {
     ? `${formatTime(startMs)} to ${formatTime(endMs)}`
     : formatTime(startMs);
 }
+
+/** Now, rounded down to the minute: what relative dates are counted from. */
+export function currentMinute() {
+  return Math.floor(Date.now() / 60_000) * 60_000;
+}

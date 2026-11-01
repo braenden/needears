@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 // notFound() inside the site: the header stays as it is.
 export default function SiteNotFound() {
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-16">
+    <div className="mx-auto w-full max-w-lg px-4 py-16 sm:py-24">
       <h1 className="sr-only">Page not found</h1>
       <EmptyState
         title="We can't find that page."

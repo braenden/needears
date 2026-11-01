@@ -131,9 +131,7 @@ export function ReplyComposer({
           disabled={sending}
           aria-keyshortcuts="Meta+Enter Control+Enter"
         >
-          {sending ? (
-            <Loader2Icon className="motion-safe:animate-spin" />
-          ) : null}
+          {sending ? <Loader2Icon className="animate-spin" /> : null}
           Reply
         </Button>
       </div>

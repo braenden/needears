@@ -308,7 +308,7 @@ function CropDialog({
             role="group"
             aria-label="Photo position. Arrow keys move it, plus and minus zoom."
             tabIndex={0}
-            className="relative cursor-grab touch-none overflow-hidden rounded-md bg-muted outline-none select-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+            className="relative cursor-grab touch-none overflow-hidden rounded-md bg-muted focus-ring outline-none select-none active:cursor-grabbing"
             style={{ width: VIEW, height: VIEW }}
             onPointerDown={(e) => {
               e.currentTarget.setPointerCapture(e.pointerId);
@@ -417,9 +417,7 @@ function CropDialog({
             </Button>
           </DialogClose>
           <Button onClick={() => void save()} disabled={saving}>
-            {saving ? (
-              <Loader2Icon className="motion-safe:animate-spin" />
-            ) : null}
+            {saving ? <Loader2Icon className="animate-spin" /> : null}
             Save photo
           </Button>
         </DialogFooter>

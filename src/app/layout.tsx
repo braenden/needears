@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { headers } from "next/headers";
+import { Suspense } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LazyToaster } from "@/components/lazy-toaster";
+import { NavigationProgress } from "@/components/shell/navigation-progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { site, siteUrl } from "@/config/site";
 import { cn } from "@/lib/utils";
@@ -30,8 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Matches the dark background, the default theme.
-  themeColor: "#171513",
+  // themeColor follows the chosen theme, so ThemeProvider sets it.
   colorScheme: "dark light",
 };
 
@@ -45,6 +46,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full">
         <ThemeProvider nonce={nonce}>
+          <Suspense>
+            <NavigationProgress />
+          </Suspense>
           <TooltipProvider delayDuration={300}>
             {children}
             <LazyToaster />

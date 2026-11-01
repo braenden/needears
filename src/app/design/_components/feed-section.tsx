@@ -3,11 +3,7 @@
 import { useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
-import {
-  needsEars,
-  TrackCard,
-  TrackCardSkeleton,
-} from "@/components/track/track-card";
+import { TrackCard, TrackCardSkeleton } from "@/components/track/track-card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { tracks } from "@/mocks/tracks";
@@ -20,18 +16,20 @@ export function FeedSection() {
   const play = (t: TrackSummary) =>
     setPlayingId((id) => (id === t.id ? null : t.id));
   const lists = {
-    needs: tracks.filter(needsEars),
+    needs: tracks.filter((t) => t.needs_ears),
     latest: [...tracks].sort((a, b) =>
       b.published_at.localeCompare(a.published_at),
     ),
-    trending: [...tracks].sort((a, b) => b.comment_count - a.comment_count),
+    trending: [...tracks].sort(
+      (a, b) => b.listener_comment_count - a.listener_comment_count,
+    ),
   };
 
   return (
     <Section
       id="track-card"
       title="TrackCard"
-      description="For the feed: static SVG mini waveform from the peaks, play button, genre, comment count and a Needs ears badge for tracks with 0 or 1 comments."
+      description="For the feed: play button, who made it, genre and experience, what the artist wants feedback on, a static SVG mini waveform from the peaks, and length, comments by others, reactions, plays and versions. Needs ears shows until the artist marks a comment Helpful or three people have commented."
     >
       <Example title="Feed tabs">
         <Tabs defaultValue="needs">

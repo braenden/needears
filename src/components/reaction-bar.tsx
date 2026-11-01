@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,6 +34,7 @@ export function ReactionBar({
   onPick,
   onSignIn,
   shareUrl,
+  actions,
   className,
 }: {
   counts: Record<ReactionKind, number>;
@@ -44,8 +46,12 @@ export function ReactionBar({
   onSignIn?: () => void;
   /** When set, a Copy link button is shown. */
   shareUrl?: string;
+  /** More buttons at the end of the row, such as a menu. */
+  actions?: React.ReactNode;
   className?: string;
 }) {
+  // The reaction just picked gives a small bounce.
+  const [popped, setPopped] = useState<ReactionKind | null>(null);
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <div
@@ -62,17 +68,26 @@ export function ReactionBar({
               type="button"
               aria-pressed={pressed}
               aria-label={`${label}, ${count}`}
-              onClick={() =>
-                signedIn ? onPick?.(pressed ? null : kind) : onSignIn?.()
-              }
+              onClick={() => {
+                if (!signedIn) return onSignIn?.();
+                setPopped(pressed ? null : kind);
+                onPick?.(pressed ? null : kind);
+              }}
               className={cn(
-                "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-[background-color,border-color,transform] duration-(--duration-fast) outline-none select-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95",
+                "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm focus-ring transition-[background-color,border-color,transform] duration-fast outline-none select-none active:scale-95",
                 pressed
                   ? "border-transparent bg-primary-soft text-primary-text"
                   : "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
-              <span aria-hidden="true" className="text-base leading-none">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "text-base leading-none",
+                  popped === kind && "motion-safe:animate-reaction-pop",
+                )}
+                onAnimationEnd={() => setPopped(null)}
+              >
                 {emoji}
               </span>
               <span data-numeric className="min-w-[1ch] font-medium">
@@ -102,6 +117,7 @@ export function ReactionBar({
           Copy link
         </Button>
       ) : null}
+      {actions}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  startTransition,
   useImperativeHandle,
   useRef,
   useState,
@@ -11,8 +12,6 @@ import type WaveSurfer from "wavesurfer.js";
 import {
   KeyboardIcon,
   Loader2Icon,
-  PauseIcon,
-  PlayIcon,
   RotateCcwIcon,
   Volume2Icon,
   VolumeXIcon,
@@ -31,7 +30,17 @@ import { setListenVolume, useListenVolume } from "@/hooks/use-volume";
 import { cn } from "@/lib/utils";
 import type { Comment, VersionedComment } from "@/types/view";
 
+import { MiniWaveform } from "@/components/track/mini-waveform";
+import {
+  fadedSeek,
+  fadeInPlay,
+  fadeOutPause,
+  fadeToSilence,
+  setListenerVolume,
+} from "@/lib/audio/fade";
+
 import { CommentMarkers } from "./comment-markers";
+import { PlayPauseIcon } from "./play-pause-icon";
 
 export type TimeRange = { startMs: number; endMs: number };
 
@@ -42,6 +51,8 @@ export type WaveformPlayerHandle = {
   seekTo: (ms: number) => void;
   play: () => void;
   pause: () => void;
+  /** Fades to silence and plays on, before switching to another source. */
+  fadeOut: () => Promise<void>;
 };
 
 type Status = "loading" | "ready" | "error";
@@ -87,6 +98,8 @@ export type WaveformPlayerProps = {
   media?: () => HTMLAudioElement;
   /** Fires once per second while playing and on every seek. */
   onTimeChange?: (ms: number) => void;
+  /** Fires when playing starts or stops. */
+  onPlayingChange?: (playing: boolean) => void;
   onMarkerSelect?: (comment: Comment) => void;
   /** C key: comment at the current second. */
   onCommentHere?: (ms: number) => void;
@@ -152,6 +165,7 @@ export function WaveformPlayer({
   gainDb = 0,
   media,
   onTimeChange,
+  onPlayingChange,
   onMarkerSelect,
   onCommentHere,
   keyboardScope = "focus",
@@ -166,8 +180,18 @@ export function WaveformPlayer({
   // Status is derived from which URL finished loading, so a new URL is
   // "loading" without resetting state in an effect.
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
+  // Until wavesurfer has loaded and drawn, the same peaks are drawn as a
+  // plain SVG, so the waveform is there from the first paint.
+  const [drawn, setDrawn] = useState(false);
   const [errorUrl, setErrorUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  const onPlayingChangeRef = useRef(onPlayingChange);
+  useEffect(() => {
+    onPlayingChangeRef.current = onPlayingChange;
+  }, [onPlayingChange]);
+  useEffect(() => {
+    onPlayingChangeRef.current?.(playing);
+  }, [playing]);
   const [muted, setMuted] = useState(false);
   const [currentMs, setCurrentMs] = useState(initialTimeMs);
   const initialTimeRef = useRef(initialTimeMs);
@@ -192,7 +216,8 @@ export function WaveformPlayer({
     mediaRef.current = media;
   }, [onTimeChange, keepPosition, muted, volume, media]);
   useEffect(() => {
-    wsRef.current?.setVolume(volume);
+    const media = wsRef.current?.getMediaElement();
+    if (media) setListenerVolume(media, volume);
   }, [volume]);
 
   const status: Status = !audioUrl
@@ -239,22 +264,26 @@ export function WaveformPlayer({
         ...readColors(root),
       });
       wsRef.current = ws;
-      ws.setVolume(volumeRef.current);
+      setDrawn(true);
+      setListenerVolume(ws.getMediaElement(), volumeRef.current);
       ws.setMuted(mutedRef.current);
       let lastSecond = -1;
       const report = (seconds: number) => {
         const whole = Math.floor(seconds);
         if (whole === lastSecond) return;
         lastSecond = whole;
-        setCurrentMs(whole * 1000);
-        onTimeChangeRef.current?.(whole * 1000);
+        // Not urgent: a render of the page must not hold up a fade.
+        startTransition(() => {
+          setCurrentMs(whole * 1000);
+          onTimeChangeRef.current?.(whole * 1000);
+        });
       };
       const handoff = () => {
         const carried = handoffRef.current;
         if (!carried || !ws) return;
         handoffRef.current = null;
         ws.setTime(Math.min(carried.time, durationMs / 1000));
-        if (carried.playing) void ws.play();
+        if (carried.playing) void fadeInPlay(ws.getMediaElement());
       };
       if (!audioUrl) handoff();
       ws.on("ready", () => {
@@ -267,9 +296,9 @@ export function WaveformPlayer({
         }
       });
       ws.on("error", () => setErrorUrl(audioUrl ?? null));
-      ws.on("play", () => setPlaying(true));
-      ws.on("pause", () => setPlaying(false));
-      ws.on("finish", () => setPlaying(false));
+      ws.on("play", () => startTransition(() => setPlaying(true)));
+      ws.on("pause", () => startTransition(() => setPlaying(false)));
+      ws.on("finish", () => startTransition(() => setPlaying(false)));
       ws.on("timeupdate", report);
       ws.on("interaction", report);
       // Already playing this source when this player came: show where it is.
@@ -312,18 +341,40 @@ export function WaveformPlayer({
   const seekTo = useCallback(
     (ms: number) => {
       const clamped = Math.min(Math.max(0, ms), durationMs);
-      wsRef.current?.setTime(clamped / 1000);
+      // Playing, the sound fades around the jump so it does not click.
+      const media = wsRef.current?.getMediaElement();
+      if (media) void fadedSeek(media, clamped / 1000);
       const whole = Math.floor(clamped / 1000) * 1000;
-      setCurrentMs(whole);
-      onTimeChangeRef.current?.(whole);
+      startTransition(() => {
+        setCurrentMs(whole);
+        onTimeChangeRef.current?.(whole);
+      });
     },
     [durationMs],
   );
 
+  // The button changes at once; the sound fades in or out over a few
+  // milliseconds, so starting and stopping do not click.
+  // The fade starts first and the button follows as a transition, so the
+  // page's render (markers, comments) cannot hold up the fade's first steps.
+  const play = useCallback(() => {
+    const media = wsRef.current?.getMediaElement();
+    if (!media) return;
+    void fadeInPlay(media).catch(() => setPlaying(false));
+    startTransition(() => setPlaying(true));
+  }, []);
+  const pause = useCallback(() => {
+    const media = wsRef.current?.getMediaElement();
+    if (!media) return;
+    void fadeOutPause(media);
+    startTransition(() => setPlaying(false));
+  }, []);
+
   const togglePlay = useCallback(() => {
     if (shownStatus !== "ready") return;
-    void wsRef.current?.playPause();
-  }, [shownStatus]);
+    if (playing) pause();
+    else play();
+  }, [shownStatus, playing, play, pause]);
 
   const toggleMute = useCallback(() => {
     const ws = wsRef.current;
@@ -337,10 +388,14 @@ export function WaveformPlayer({
     ref,
     () => ({
       seekTo,
-      play: () => void wsRef.current?.play(),
-      pause: () => wsRef.current?.pause(),
+      play,
+      pause,
+      fadeOut: async () => {
+        const media = wsRef.current?.getMediaElement();
+        if (media) await fadeToSilence(media);
+      },
     }),
-    [seekTo],
+    [seekTo, play, pause],
   );
 
   const handleKey = useCallback(
@@ -469,11 +524,9 @@ export function WaveformPlayer({
           )}
         >
           {shownStatus === "loading" ? (
-            <Loader2Icon className="motion-safe:animate-spin" />
-          ) : playing ? (
-            <PauseIcon className="fill-current" />
+            <Loader2Icon className="animate-spin" />
           ) : (
-            <PlayIcon className="translate-x-px fill-current" />
+            <PlayPauseIcon playing={playing} />
           )}
         </Button>
 
@@ -482,11 +535,21 @@ export function WaveformPlayer({
             className="relative rounded-md has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-4 has-[input:focus-visible]:ring-offset-card"
             style={{ height }}
           >
+            {!drawn ? (
+              <MiniWaveform
+                peaks={peaks}
+                bars={160}
+                className={cn(
+                  "absolute inset-0 h-full",
+                  shownStatus === "loading" && "opacity-60",
+                )}
+              />
+            ) : null}
             <div
               ref={waveRef}
               aria-hidden="true"
               className={cn(
-                "absolute inset-0 touch-pan-y transition-opacity duration-(--duration-base)",
+                "absolute inset-0 touch-pan-y transition-opacity duration-base",
                 shownStatus === "error" && "opacity-30",
                 shownStatus === "loading" && "opacity-60",
               )}
@@ -578,8 +641,9 @@ export function WaveformPlayer({
             >
               {muted || listenVolume === 0 ? <VolumeXIcon /> : <Volume2Icon />}
             </Button>
-            {/* Phones set the volume with their own buttons (and iOS
-                ignores it), so the slider is for wider screens. */}
+            {/* Phones and tablets set the volume with their own buttons
+                (and iOS and iPadOS ignore it), so the slider is for wide
+                screens with a mouse or trackpad. */}
             <input
               type="range"
               data-volume=""
@@ -593,7 +657,7 @@ export function WaveformPlayer({
               }}
               aria-label="Volume"
               aria-valuetext={`${muted ? 0 : Math.round(listenVolume * 100)}%`}
-              className="hidden h-1 w-20 cursor-pointer accent-(--primary) @sm:block"
+              className="hidden h-1 w-20 cursor-pointer accent-(--primary) fine:@sm:block"
             />
             <Button
               type="button"
@@ -601,7 +665,7 @@ export function WaveformPlayer({
               size="icon-sm"
               onClick={() => setHelpOpen(true)}
               aria-label="Keyboard shortcuts"
-              className="hidden text-muted-foreground hover:text-foreground @sm:inline-flex"
+              className="hidden text-muted-foreground hover:text-foreground fine:@sm:inline-flex"
             >
               <KeyboardIcon />
             </Button>

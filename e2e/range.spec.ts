@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInWithMagicLink } from "./helpers";
+import { signInWithMagicLink, trackMenu } from "./helpers";
 
 // A range comment, a reference track and the marker export, on a seed track.
 const trackPath = "/t/night-bus-seed0002";
@@ -18,7 +18,7 @@ test("range comment, reference track and marker export", async ({
 
   await test.step("Nora adds a reference track", async () => {
     await signInWithMagicLink(nora, "nora@example.com", trackPath);
-    await nora.getByRole("button", { name: "Edit details" }).click();
+    await trackMenu(nora, "Edit details");
     const dialog = nora.getByRole("dialog");
     await dialog.getByLabel(/Reference track/).fill(reference);
     await dialog.getByRole("button", { name: "Save changes" }).click();

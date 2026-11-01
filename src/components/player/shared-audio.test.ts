@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FADE_MS } from "@/lib/audio/fade";
+
 import { CLAIM_WAIT_MS, SharedAudio } from "./shared-audio";
 
 const track = { id: "x", slug: "night-bus-x" };
@@ -16,7 +18,18 @@ function playing(shared: SharedAudio) {
   return element;
 }
 
-beforeEach(() => vi.useFakeTimers());
+// The pause fades out first, timed with setInterval and performance.now.
+beforeEach(() =>
+  vi.useFakeTimers({
+    toFake: [
+      "setTimeout",
+      "clearTimeout",
+      "setInterval",
+      "clearInterval",
+      "performance",
+    ],
+  }),
+);
 afterEach(() => vi.useRealTimers());
 
 describe("SharedAudio", () => {
@@ -33,7 +46,7 @@ describe("SharedAudio", () => {
     expect(element.paused).toBe(false);
   });
 
-  it("stops when the track's page never takes it over", () => {
+  it("stops when the track's page never takes it over", async () => {
     const shared = new SharedAudio();
     const element = playing(shared);
     const feed = {};
@@ -42,17 +55,18 @@ describe("SharedAudio", () => {
     shared.release(feed);
     vi.advanceTimersByTime(0);
     expect(element.paused).toBe(false);
-    vi.advanceTimersByTime(CLAIM_WAIT_MS);
+    await vi.advanceTimersByTimeAsync(CLAIM_WAIT_MS + FADE_MS + 10);
     expect(element.paused).toBe(true);
   });
 
-  it("stops at once anywhere else", () => {
+  it("stops anywhere else, after a short fade", async () => {
     const shared = new SharedAudio();
     const element = playing(shared);
     const feed = {};
     shared.claim(feed, track);
     shared.release(feed);
     shared.settle("/t/fast-lane-y");
+    await vi.advanceTimersByTimeAsync(FADE_MS + 10);
     expect(element.paused).toBe(true);
   });
 

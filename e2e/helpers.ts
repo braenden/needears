@@ -47,6 +47,29 @@ export async function signInWithMagicLink(
   await page.getByRole("button", { name: "Email me a sign-in link" }).click();
   await expect(page.getByText("Check your email.")).toBeVisible();
   await page.goto(await magicLinkFor(email, sentAfter));
+  await pageIn(page);
+}
+
+/**
+ * Waits until the page has fully arrived: the loading skeleton is gone and
+ * the streamed page has replaced it. Until then the page can briefly hold
+ * the streamed copy too, hidden, which trips up strict locators.
+ */
+export async function pageIn(page: Page) {
+  await page.waitForFunction(
+    () =>
+      !document.querySelector('[hidden][id^="S:"]') &&
+      !document.querySelector('main [role="status"][aria-label="Loading"]') &&
+      !document.querySelector('main [role="status"][aria-label="Searching"]'),
+  );
+}
+
+/** Opens the track's "More" menu and picks an item, once the page is ready. */
+export async function trackMenu(page: Page, item: string) {
+  await expect(async () => {
+    await page.getByRole("button", { name: "More for this track" }).click();
+    await page.getByRole("menuitem", { name: item }).click({ timeout: 2000 });
+  }).toPass();
 }
 
 /**
@@ -76,4 +99,70 @@ export function testWav(seconds = 8, sampleRate = 44_100) {
     buffer.writeInt16LE(Math.round(value * 32_000), 44 + i * 2);
   }
   return buffer;
+}
+
+/**
+ * Records the largest single change of any audio element's volume while it
+ * plays (changes while paused cannot be heard). A fade moves in small
+ * steps; a cut jumps from 1 to 0. Stopping a playing element (pause, a new
+ * source, a reload) counts as a jump from its volume to silence, so a stop
+ * after a fade counts nothing and a hard stop counts its full volume. Call
+ * before the page loads.
+ */
+export async function watchVolumeSteps(page: Page) {
+  await page.addInitScript(() => {
+    const volume = Object.getOwnPropertyDescriptor(
+      HTMLMediaElement.prototype,
+      "volume",
+    )!;
+    const w = window as unknown as { __jump: number };
+    w.__jump = 0;
+    const proto = HTMLMediaElement.prototype;
+    const stopped = (element: HTMLMediaElement) => {
+      if (!element.paused) w.__jump = Math.max(w.__jump, element.volume);
+    };
+    const pause = proto.pause;
+    proto.pause = function (this: HTMLMediaElement) {
+      stopped(this);
+      return pause.call(this);
+    };
+    const load = proto.load;
+    proto.load = function (this: HTMLMediaElement) {
+      stopped(this);
+      return load.call(this);
+    };
+    const src = Object.getOwnPropertyDescriptor(proto, "src")!;
+    Object.defineProperty(proto, "src", {
+      configurable: true,
+      get() {
+        return src.get!.call(this);
+      },
+      set(value: string) {
+        stopped(this as HTMLMediaElement);
+        src.set!.call(this, value);
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "volume", {
+      configurable: true,
+      get() {
+        return volume.get!.call(this);
+      },
+      set(value: number) {
+        const before = volume.get!.call(this) as number;
+        volume.set!.call(this, value);
+        if (!(this as HTMLMediaElement).paused)
+          w.__jump = Math.max(w.__jump, Math.abs(value - before));
+      },
+    });
+  });
+}
+
+/** The largest volume step while `action` plays out (see watchVolumeSteps). */
+export async function largestStep(page: Page, action: () => Promise<void>) {
+  await page.evaluate(() => {
+    (window as unknown as { __jump: number }).__jump = 0;
+  });
+  await action();
+  await page.waitForTimeout(800);
+  return page.evaluate(() => (window as unknown as { __jump: number }).__jump);
 }

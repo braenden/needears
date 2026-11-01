@@ -37,7 +37,7 @@ function SearchPageDemo() {
           type="search"
           value={query}
           onChange={(e) => setTyped(e.target.value)}
-          className="h-10 w-full max-w-sm rounded-md border border-input bg-card px-3 text-base text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/35 sm:text-sm"
+          className="h-10 w-full max-w-sm rounded-md border border-input bg-card px-3 text-base text-foreground focus-ring outline-none sm:text-sm"
           autoComplete="off"
         />
       </div>

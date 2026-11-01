@@ -3,20 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2Icon, Trash2Icon } from "lucide-react";
-import { toast } from "sonner";
+import { Trash2Icon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DeleteTrackDialog } from "@/components/track/delete-track-dialog";
 import type { Tables } from "@/types/database";
 
 type OwnTrack = Pick<
@@ -34,26 +25,6 @@ const STATUS_LABELS: Record<OwnTrack["status"], string> = {
 export function TrackManager({ tracks }: { tracks: OwnTrack[] }) {
   const router = useRouter();
   const [confirm, setConfirm] = useState<OwnTrack | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  async function remove(track: OwnTrack) {
-    setDeleting(true);
-    const response = await fetch(`/api/tracks/${track.id}`, {
-      method: "DELETE",
-    }).catch(() => null);
-    setDeleting(false);
-    if (response?.status === 204) {
-      setConfirm(null);
-      toast.success(`"${track.title}" is deleted.`);
-      router.refresh();
-      return;
-    }
-    toast.error(
-      response?.status === 403
-        ? "This track is under review and cannot be deleted now."
-        : "Something broke on our side. Try again, or come back in a minute.",
-    );
-  }
 
   if (tracks.length === 0)
     return (
@@ -98,7 +69,7 @@ export function TrackManager({ tracks }: { tracks: OwnTrack[] }) {
               disabled={track.status !== "live"}
               aria-label={`Delete ${track.title}`}
               onClick={() => setConfirm(track)}
-              className="text-muted-foreground hover:text-destructive"
+              className="touch-hit text-muted-foreground hover:text-destructive"
             >
               <Trash2Icon />
             </Button>
@@ -108,37 +79,14 @@ export function TrackManager({ tracks }: { tracks: OwnTrack[] }) {
       <p className="mt-2 text-xs text-muted-foreground">
         Tracks under review stay until a moderator has looked at them.
       </p>
-      <Dialog
-        open={confirm !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirm(null);
+      <DeleteTrackDialog
+        track={confirm}
+        onClose={() => setConfirm(null)}
+        onDeleted={() => {
+          setConfirm(null);
+          router.refresh();
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete this track?</DialogTitle>
-            <DialogDescription>
-              &ldquo;{confirm?.title}&rdquo; and all its comments and reactions
-              are deleted for good. This can&apos;t be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="ghost">Cancel</Button>
-            </DialogClose>
-            <Button
-              variant="destructive"
-              disabled={deleting}
-              onClick={() => confirm && void remove(confirm)}
-            >
-              {deleting ? (
-                <Loader2Icon className="motion-safe:animate-spin" />
-              ) : null}
-              Delete track
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </>
   );
 }

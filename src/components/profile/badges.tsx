@@ -1,16 +1,13 @@
 import {
-  EarIcon,
   LockIcon,
+  type LucideIcon,
+  MessageSquarePlusIcon,
   Music2Icon,
   SparklesIcon,
   StarIcon,
 } from "lucide-react";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { InfoTip } from "@/components/common/info-tip";
 import { reputationLevels } from "@/config/reputation";
 import { cn } from "@/lib/utils";
 
@@ -25,12 +22,13 @@ const goldenAt =
 
 export const BADGES: Record<
   BadgeKind,
-  { name: string; how: string; Icon: typeof EarIcon }
+  { name: string; how: string; Icon: LucideIcon }
 > = {
   first_ears: {
     name: "First ears",
     how: "Left the first comment on a track nobody else had commented on.",
-    Icon: EarIcon,
+    // Not an ear: that is the levels' icon, often right next to it.
+    Icon: MessageSquarePlusIcon,
   },
   finisher: {
     name: "Finisher",
@@ -89,39 +87,40 @@ export function BadgeList({
         const locked = !awardedAt;
         return (
           <li key={kind}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "inline-flex h-7 cursor-help items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    locked
-                      ? "border-dashed text-muted-foreground"
-                      : kind === "golden_ear"
-                        ? "border-transparent bg-gold-soft text-gold"
-                        : "border-transparent bg-primary-soft text-primary-text",
-                  )}
-                >
-                  {locked ? (
-                    <LockIcon className="size-3.5" aria-hidden="true" />
-                  ) : (
-                    <Icon className="size-3.5" aria-hidden="true" />
-                  )}
-                  {name}
-                  {locked ? (
-                    <span className="sr-only"> (not earned yet)</span>
-                  ) : null}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-60">
-                {locked
-                  ? `How to get it: ${how.charAt(0).toLowerCase()}${how.slice(1)}`
-                  : how}
-                {awardedAt
-                  ? ` Earned ${earnedOn.format(new Date(awardedAt))}.`
-                  : null}
-              </TooltipContent>
-            </Tooltip>
+            <InfoTip
+              content={
+                <>
+                  {locked
+                    ? `How to get it: ${how.charAt(0).toLowerCase()}${how.slice(1)}`
+                    : how}
+                  {awardedAt
+                    ? ` Earned ${earnedOn.format(new Date(awardedAt))}.`
+                    : null}
+                </>
+              }
+            >
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex h-7 cursor-help items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium focus-ring outline-none",
+                  locked
+                    ? "border-dashed text-muted-foreground"
+                    : kind === "golden_ear"
+                      ? "border-transparent bg-gold-soft text-gold"
+                      : "border-transparent bg-primary-soft text-primary-text",
+                )}
+              >
+                {locked ? (
+                  <LockIcon className="size-3.5" aria-hidden="true" />
+                ) : (
+                  <Icon className="size-3.5" aria-hidden="true" />
+                )}
+                {name}
+                {locked ? (
+                  <span className="sr-only"> (not earned yet)</span>
+                ) : null}
+              </button>
+            </InfoTip>
           </li>
         );
       })}
@@ -153,20 +152,21 @@ export function BadgeIcons({
         const { name, how, Icon } = BADGES[kind];
         return (
           <li key={kind}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={name}
-                  className="grid size-5 cursor-help place-items-center rounded-full bg-primary-soft text-primary-text outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <Icon className="size-3" aria-hidden="true" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-60">
-                <span className="font-medium">{name}.</span> {how}
-              </TooltipContent>
-            </Tooltip>
+            <InfoTip
+              content={
+                <>
+                  <span className="font-medium">{name}.</span> {how}
+                </>
+              }
+            >
+              <button
+                type="button"
+                aria-label={name}
+                className="touch-hit grid size-5 cursor-help place-items-center rounded-full bg-primary-soft text-primary-text focus-ring outline-none"
+              >
+                <Icon className="size-3" aria-hidden="true" />
+              </button>
+            </InfoTip>
           </li>
         );
       })}

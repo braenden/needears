@@ -107,8 +107,13 @@ type Viewer = "owner" | "visitor" | "signed_out";
 // Badges per author id, read by every comment and reply header.
 const AuthorBadges = createContext<Record<string, BadgeKind[]>>({});
 
+/** Comments drawn at first, and how many more each press shows. */
+const COMMENTS_PAGE = 30;
+
 export function CommentList({
   comments,
+  newCommentIds = [],
+  emptyAll,
   viewer,
   ownerId,
   authorBadges = {},
@@ -134,11 +139,19 @@ export function CommentList({
 }: {
   /** Top-level comments and replies together. Replies have parent_id set. */
   comments: ThreadComment[];
+  /** Just posted: they come in with a short glow. */
+  newCommentIds?: string[];
+  /** In place of the usual empty state of All, such as where else to look. */
+  emptyAll?: React.ReactNode;
   viewer: Viewer;
   /** The track owner. Their comments get an Uploader badge. */
   ownerId?: string;
   /** Badges per author id, shown as small icons next to the name. */
   authorBadges?: Record<string, BadgeKind[]>;
+  /**
+   * The comment playing or picked on the waveform. Not marked in the list;
+   * only drawn, however far down it is.
+   */
   activeCommentId?: string | null;
   defaultFilter?: CommentFilter;
   defaultSort?: CommentSort;
@@ -187,6 +200,12 @@ export function CommentList({
     trusted: filterComments(shown, "trusted").length,
   };
   const visible = sortComments(filterComments(shown, filter), sort);
+  // A busy track draws its comments 30 at a time, but always far enough
+  // to include the one playing or picked on the waveform.
+  const [limit, setLimit] = useState(COMMENTS_PAGE);
+  const activeIndex = visible.findIndex((c) => c.id === activeCommentId);
+  const upTo = Math.max(limit, activeIndex + 1);
+  const remaining = visible.length - upTo;
   const filters: [CommentFilter, string][] = [
     ["all", "All"],
     ["helpful", "Helpful"],
@@ -249,7 +268,7 @@ export function CommentList({
 
           {resolvedCount > 0 ? (
             <div className="flex justify-end pt-2">
-              <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+              <label className="touch-hit inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
                 <input
                   type="checkbox"
                   checked={showResolved}
@@ -266,13 +285,11 @@ export function CommentList({
           ) : null}
 
           {filters.map(([value]) => (
-            <TabsContent
-              key={value}
-              value={value}
-              className="focus-visible:ring-offset-2"
-            >
+            <TabsContent key={value} value={value}>
               {loading ? (
                 <CommentListSkeleton />
+              ) : visible.length === 0 && filter === "all" && emptyAll ? (
+                emptyAll
               ) : visible.length === 0 ? (
                 <CommentsEmpty
                   filter={filter}
@@ -282,25 +299,38 @@ export function CommentList({
                   onCopyLink={onCopyLink}
                 />
               ) : (
-                <ol className="divide-y">
-                  {visible.map((comment) => (
-                    <CommentItem
-                      key={comment.id}
-                      comment={comment}
-                      viewer={viewer}
-                      fromOwner={!!ownerId && comment.author_id === ownerId}
-                      ownerId={ownerId}
-                      active={comment.id === activeCommentId}
-                      onJump={onJump}
-                      onToggleHelpful={onToggleHelpful}
-                      onReport={onReport}
-                      replies={replies.get(comment.id) ?? []}
-                      onReply={onReply}
-                      onToggleResolved={onToggleResolved}
-                      onSignIn={onSignIn}
-                    />
-                  ))}
-                </ol>
+                <>
+                  <ol className="divide-y">
+                    {visible.slice(0, upTo).map((comment) => (
+                      <CommentItem
+                        key={comment.id}
+                        comment={comment}
+                        viewer={viewer}
+                        fromOwner={!!ownerId && comment.author_id === ownerId}
+                        ownerId={ownerId}
+                        newCommentIds={newCommentIds}
+                        onJump={onJump}
+                        onToggleHelpful={onToggleHelpful}
+                        onReport={onReport}
+                        replies={replies.get(comment.id) ?? []}
+                        onReply={onReply}
+                        onToggleResolved={onToggleResolved}
+                        onSignIn={onSignIn}
+                      />
+                    ))}
+                  </ol>
+                  {remaining > 0 ? (
+                    <div className="flex justify-center border-t pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setLimit(upTo + COMMENTS_PAGE)}
+                      >
+                        Show {Math.min(COMMENTS_PAGE, remaining)} more
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </TabsContent>
           ))}
@@ -315,7 +345,7 @@ function CommentItem({
   viewer,
   fromOwner,
   ownerId,
-  active,
+  newCommentIds,
   onJump,
   onToggleHelpful,
   onReport,
@@ -328,7 +358,7 @@ function CommentItem({
   viewer: Viewer;
   fromOwner: boolean;
   ownerId?: string;
-  active: boolean;
+  newCommentIds: string[];
   onJump?: (comment: Comment) => void;
   onToggleHelpful?: (comment: Comment, helpful: boolean) => void;
   onReport?: (comment: Comment) => void;
@@ -346,11 +376,10 @@ function CommentItem({
   const profileHref = `/u/${comment.author.handle}`;
   return (
     <li
-      aria-current={active ? "true" : undefined}
       className={cn(
-        "relative flex gap-3 py-4 transition-colors duration-(--duration-base)",
-        active &&
-          "before:absolute before:inset-y-2 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary",
+        "relative flex gap-3 py-4",
+        newCommentIds.includes(comment.id) &&
+          "-mx-3 animate-comment-in rounded-lg px-3",
       )}
     >
       {/* The name next to it is the link for keyboard and screen readers. */}
@@ -378,7 +407,7 @@ function CommentItem({
             <button
               type="button"
               onClick={() => onJump?.(comment)}
-              className="inline-flex h-6 items-center rounded-full bg-primary-soft px-2 text-xs font-medium text-primary-text outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)] focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-6 items-center rounded-full bg-primary-soft px-2 text-xs font-medium text-primary-text focus-ring outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)]"
               aria-label={`Jump to ${formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}`}
             >
               <time data-numeric>
@@ -424,7 +453,7 @@ function CommentItem({
                 onClick={() =>
                   viewer === "signed_out" ? onSignIn?.() : setReplying(true)
                 }
-                className="text-muted-foreground"
+                className="touch-hit text-muted-foreground"
               >
                 <ReplyIcon />
                 {viewer === "signed_out" ? "Sign in to reply" : "Reply"}
@@ -436,7 +465,7 @@ function CommentItem({
                 variant="ghost"
                 size="xs"
                 onClick={() => onToggleHelpful?.(comment, !comment.is_helpful)}
-                className="text-muted-foreground"
+                className="touch-hit text-muted-foreground"
               >
                 {comment.is_helpful ? <UndoIcon /> : <ThumbsUpIcon />}
                 {comment.is_helpful ? "Remove Helpful" : "Mark as Helpful"}
@@ -448,7 +477,7 @@ function CommentItem({
                 variant="ghost"
                 size="xs"
                 onClick={() => onToggleResolved(comment, !resolved)}
-                className="text-muted-foreground"
+                className="touch-hit text-muted-foreground"
               >
                 {resolved ? <RotateCcwIcon /> : <CircleCheckIcon />}
                 {resolved ? "Reopen" : "Mark as resolved"}
@@ -458,15 +487,21 @@ function CommentItem({
         ) : null}
 
         {replies.length > 0 || replying ? (
-          <div className="mt-3 grid gap-3 border-l-2 pl-3 @sm:pl-4">
+          // One column that may shrink: a grid track is otherwise as wide as
+          // its longest name or link, and pushes the page sideways.
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 border-l-2 pl-3 @sm:pl-4">
             {replies.length > 0 ? (
-              <ol aria-label={`Replies to ${name}`} className="grid gap-3">
+              <ol
+                aria-label={`Replies to ${name}`}
+                className="grid grid-cols-[minmax(0,1fr)] gap-3"
+              >
                 {replies.map((reply) => (
                   <ReplyItem
                     key={reply.id}
                     reply={reply}
                     viewer={viewer}
                     fromOwner={!!ownerId && reply.author_id === ownerId}
+                    fresh={newCommentIds.includes(reply.id)}
                     onReport={onReport}
                     muted={resolved}
                   />
@@ -514,17 +549,19 @@ function CommentHeader({
             badge show who is really speaking. */}
         <Link
           href={profileHref}
-          className="flex min-w-0 items-baseline gap-1.5 rounded-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          className="group/author flex min-w-0 items-baseline gap-1.5 rounded-xs focus-ring outline-none"
         >
+          {/* Only the name is underlined on hover, not the handle. */}
           <span
             className={cn(
-              "truncate text-sm font-semibold",
+              "truncate text-sm font-semibold group-hover/author:underline",
               muted && "text-muted-foreground",
             )}
           >
             {name}
           </span>
-          <span className="truncate text-xs text-muted-foreground">
+          {/* Narrow: name, time and one badge. The rest is on the profile. */}
+          <span className="hidden truncate text-xs text-muted-foreground @sm:block">
             @{comment.author.handle}
           </span>
         </Link>
@@ -533,8 +570,11 @@ function CommentHeader({
             Uploader
           </Badge>
         ) : null}
-        <ReputationBadge helpful={comment.author.reputation} />
-        <BadgeIcons badges={badges} />
+        <ReputationBadge
+          helpful={comment.author.reputation}
+          className={fromOwner ? "hidden @sm:inline-flex" : undefined}
+        />
+        <BadgeIcons badges={badges} className="hidden @sm:flex" />
         <RelativeTime
           date={comment.created_at}
           className="text-xs text-muted-foreground"
@@ -548,7 +588,7 @@ function CommentHeader({
               variant="ghost"
               size="icon-xs"
               aria-label={`More actions for the comment by ${name}`}
-              className="-mt-1 -mr-1.5 shrink-0 text-muted-foreground"
+              className="touch-hit -mt-1 -mr-1.5 shrink-0 text-muted-foreground"
             >
               <EllipsisIcon />
             </Button>
@@ -569,17 +609,24 @@ function ReplyItem({
   reply,
   viewer,
   fromOwner,
+  fresh,
   onReport,
   muted,
 }: {
   reply: ThreadComment;
   viewer: Viewer;
   fromOwner: boolean;
+  fresh: boolean;
   onReport?: (comment: Comment) => void;
   muted?: boolean;
 }) {
   return (
-    <li className="flex gap-2.5">
+    <li
+      className={cn(
+        "flex gap-2.5",
+        fresh && "-mx-2 animate-comment-in rounded-lg px-2 py-1",
+      )}
+    >
       <Link
         href={`/u/${reply.author.handle}`}
         tabIndex={-1}
@@ -675,7 +722,16 @@ function CommentsEmpty({
     <EmptyState
       size="compact"
       title="Quiet in here."
-      body="Be the first to say what you hear. Click the waveform or press C to comment at the current second."
+      body={
+        <>
+          Be the first to say what you hear.{" "}
+          {/* The C key only with a keyboard and mouse. */}
+          <span className="fine:hidden">Tap</span>
+          <span className="hidden fine:inline">Click</span> the waveform
+          <span className="hidden fine:inline"> or press C</span> to comment at
+          the current second.
+        </>
+      }
     />
   );
 }

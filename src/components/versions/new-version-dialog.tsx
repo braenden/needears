@@ -63,6 +63,7 @@ export function NewVersionDialog({
   pipeline,
   onPublished,
   isMobile = false,
+  onClose,
 }: {
   trackTitle: string;
   /** How many versions the track has now. */
@@ -70,9 +71,27 @@ export function NewVersionDialog({
   pipeline: VersionPipeline;
   onPublished: (version: TrackVersion) => void;
   isMobile?: boolean;
+  /**
+   * Opened from somewhere else (a menu): no button of its own, open from
+   * the start, and this runs when it closes.
+   */
+  onClose?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const atLimit = versionCount >= VERSIONS_MAX;
+
+  if (onClose) {
+    return (
+      <VersionDialog
+        trackTitle={trackTitle}
+        nextVersionNo={versionCount + 1}
+        pipeline={pipeline}
+        isMobile={isMobile}
+        onClose={onClose}
+        onPublished={onPublished}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -346,9 +365,7 @@ function VersionDialog({
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={busy}>
-                {busy ? (
-                  <Loader2Icon className="motion-safe:animate-spin" />
-                ) : null}
+                {busy ? <Loader2Icon className="animate-spin" /> : null}
                 {state.publishError && state.publishError !== "rate_limited"
                   ? "Try again"
                   : `Publish v${nextVersionNo}`}

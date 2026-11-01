@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { DISPLAY_NAME_MAX, HANDLE_PATTERN } from "@/config/limits";
 import { handleErrorText } from "@/lib/profile/errors";
 import { browserClient } from "@/lib/supabase/lazy";
+import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 
 export function HandleForm({
   userId,
@@ -32,9 +33,11 @@ export function HandleForm({
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
     const clean = handle.trim().toLowerCase();
     if (!HANDLE_PATTERN.test(clean)) {
       setError("Use 3 to 20 letters, numbers or underscores.");
+      focusFirstInvalid(form);
       return;
     }
     setError(null);
@@ -48,6 +51,7 @@ export function HandleForm({
     if (updateError) {
       setSaving(false);
       setError(handleErrorText(updateError, clean));
+      focusFirstInvalid(form);
       return;
     }
     // Remembered on the account, so the next sign in skips this page.
@@ -109,7 +113,7 @@ export function HandleForm({
         </p>
       </div>
       <Button type="submit" size="lg" disabled={saving}>
-        {saving ? <Loader2Icon className="motion-safe:animate-spin" /> : null}
+        {saving ? <Loader2Icon className="animate-spin" /> : null}
         Continue
       </Button>
     </form>

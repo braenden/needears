@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { Slot } from "radix-ui";
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent text-sm font-medium whitespace-nowrap transition-[background-color,color,border-color,box-shadow,transform] duration-(--duration-fast) outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "focus-ring group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent text-sm font-medium whitespace-nowrap transition-[background-color,color,border-color,box-shadow,transform] duration-fast outline-none select-none motion-safe:active:not-aria-[haspopup]:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -13,7 +13,9 @@ const buttonVariants = cva(
         outline:
           "border-border bg-transparent text-foreground hover:bg-accent aria-expanded:bg-accent",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-accent aria-expanded:bg-accent",
+          // Accent is too close to secondary to show, so it mixes in the
+          // text color like the primary button does.
+          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_12%)] aria-expanded:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_12%)]",
         ghost:
           "text-foreground hover:bg-accent aria-expanded:bg-accent aria-pressed:bg-accent",
         destructive:

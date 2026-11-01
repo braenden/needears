@@ -45,10 +45,12 @@ function AvatarFallback({
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
   return (
+    // Out of the flow (absolute), so a link around the avatar cannot
+    // underline the initials on hover: underlines only reach in-flow text.
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "flex size-full items-center justify-center rounded-full bg-secondary text-sm font-medium text-secondary-foreground group-data-[size=lg]/avatar:text-base group-data-[size=sm]/avatar:text-[10px] group-data-[size=xl]/avatar:text-2xl",
+        "absolute inset-0 flex items-center justify-center rounded-full bg-secondary text-sm font-medium text-secondary-foreground group-data-[size=lg]/avatar:text-base group-data-[size=sm]/avatar:text-[10px] group-data-[size=xl]/avatar:text-2xl",
         className,
       )}
       {...props}

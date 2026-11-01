@@ -13,11 +13,14 @@ export function NewVersion({
   trackTitle,
   versionCount,
   onPublished,
+  onClose,
 }: {
   trackId: string;
   trackTitle: string;
   versionCount: number;
   onPublished: (version: TrackVersion) => void;
+  /** Opened from the track's menu; runs when the dialog closes. */
+  onClose?: () => void;
 }) {
   const [pipeline] = useState(() => createVersionPipeline(trackId));
   const isMobile = useCoarsePointer();
@@ -28,6 +31,7 @@ export function NewVersion({
       pipeline={pipeline}
       onPublished={onPublished}
       isMobile={isMobile}
+      onClose={onClose}
     />
   );
 }

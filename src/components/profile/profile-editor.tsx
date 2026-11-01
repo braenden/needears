@@ -1,10 +1,13 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Loader2Icon, PlusIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { BIO_MAX, DISPLAY_NAME_MAX, HANDLE_PATTERN } from "@/config/limits";
+import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 import { cn } from "@/lib/utils";
 
 import {
@@ -31,35 +34,73 @@ const DAW_SUGGESTIONS = [
   "GarageBand",
 ];
 
-export type ProfileExtras = {
+/** Everything on the public profile except the photo, which saves itself. */
+export type ProfileFields = {
+  displayName: string;
+  handle: string;
+  bio: string;
   workingOn: string;
   daw: string;
   links: ProfileLink[];
 };
 
-export type ProfileExtrasResult = { ok: true } | { ok: false; error: string };
+export type ProfileSaveResult =
+  { ok: true } | { ok: false; error: string; field?: "handle" };
+
+/** "120 characters left", the same under every field with a limit. */
+function CharactersLeft({ id, left }: { id: string; left: number }) {
+  return (
+    <span id={id} data-numeric className="shrink-0">
+      {left} characters left
+    </span>
+  );
+}
 
 /**
- * The newer profile fields: what you are working on, your DAW and up to five
- * links. Validates links before saving so people see the problem next to
- * the field.
+ * The public profile in one form with one Save: name, username, bio, what
+ * you are working on, your DAW and up to five links. Checks the username
+ * and the links before saving, so people see the problem next to the field.
  */
-export function ProfileExtrasForm({
+export function ProfileEditor({
   initial,
   onSave,
-  submitLabel = "Save profile",
+  onCancel,
+  onDirtyChange,
   className,
 }: {
-  initial: ProfileExtras;
-  onSave: (extras: ProfileExtras) => Promise<ProfileExtrasResult>;
-  /** The button text, when the page has other forms that save a profile. */
-  submitLabel?: string;
+  initial: ProfileFields;
+  onSave: (fields: ProfileFields) => Promise<ProfileSaveResult>;
+  /** Shows a Cancel button. */
+  onCancel?: () => void;
+  /** True while there are changes that are not saved. */
+  onDirtyChange?: (dirty: boolean) => void;
   className?: string;
 }) {
   const id = useId();
+  const [displayName, setDisplayName] = useState(initial.displayName);
+  const [handle, setHandle] = useState(initial.handle);
+  const [handleError, setHandleError] = useState<string | null>(null);
+  const [bio, setBio] = useState(initial.bio);
   const [workingOn, setWorkingOn] = useState(initial.workingOn);
   const [daw, setDaw] = useState(initial.daw);
   const [links, setLinks] = useState<ProfileLink[]>(initial.links);
+  // Saved values count as clean, so a successful save resets it.
+  const [saved, setSaved] = useState(initial);
+  const dirty =
+    displayName !== saved.displayName ||
+    handle !== saved.handle ||
+    bio !== saved.bio ||
+    workingOn !== saved.workingOn ||
+    daw !== saved.daw ||
+    JSON.stringify(links.map((l) => l.url)) !==
+      JSON.stringify(saved.links.map((l) => l.url));
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  }, [onDirtyChange]);
+  useEffect(() => {
+    onDirtyChangeRef.current?.(dirty);
+  }, [dirty]);
   const [linkErrors, setLinkErrors] = useState<(string | null)[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -73,6 +114,14 @@ export function ProfileExtrasForm({
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const cleanHandle = handle.trim().toLowerCase();
+    if (!HANDLE_PATTERN.test(cleanHandle)) {
+      setHandleError("Use 3 to 20 letters, numbers or underscores.");
+      focusFirstInvalid(form);
+      return;
+    }
+    setHandleError(null);
     // One address per link. The profile shows the service's name, so there
     // is no label to fill in.
     const cleaned = links
@@ -82,19 +131,35 @@ export function ProfileExtrasForm({
     if (errors.some(Boolean)) {
       setLinks(cleaned);
       setLinkErrors(errors);
+      focusFirstInvalid(form);
       return;
     }
     setLinkErrors([]);
     setError(null);
     setSaving(true);
     try {
-      const result = await onSave({
+      const next = {
+        displayName: displayName.trim() || cleanHandle,
+        handle: cleanHandle,
+        bio: bio.trim(),
         workingOn: workingOn.trim(),
         daw: daw.trim(),
         links: cleaned,
-      });
-      if (!result.ok) setError(result.error);
-      else setLinks(cleaned);
+      };
+      const result = await onSave(next);
+      if (!result.ok && result.field === "handle") {
+        setHandleError(result.error);
+        focusFirstInvalid(form);
+      } else if (!result.ok) setError(result.error);
+      else {
+        setDisplayName(next.displayName);
+        setHandle(next.handle);
+        setBio(next.bio);
+        setWorkingOn(next.workingOn);
+        setDaw(next.daw);
+        setLinks(cleaned);
+        setSaved(next);
+      }
     } catch {
       setError("Something broke on our side. Try again in a minute.");
     }
@@ -103,6 +168,66 @@ export function ProfileExtrasForm({
 
   return (
     <form noValidate onSubmit={save} className={cn("grid gap-5", className)}>
+      <div className="grid gap-1.5">
+        <label htmlFor={`${id}-name`} className="text-sm font-medium">
+          Display name
+        </label>
+        <Input
+          id={`${id}-name`}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          maxLength={DISPLAY_NAME_MAX}
+          autoComplete="nickname"
+        />
+      </div>
+
+      <div className="grid gap-1.5">
+        <label htmlFor={`${id}-handle`} className="text-sm font-medium">
+          Username
+        </label>
+        <Input
+          id={`${id}-handle`}
+          value={handle}
+          onChange={(e) => setHandle(e.target.value)}
+          maxLength={20}
+          autoCapitalize="none"
+          autoComplete="username"
+          spellCheck={false}
+          aria-invalid={handleError ? true : undefined}
+          aria-describedby={`${id}-handle-hint${handleError ? ` ${id}-handle-error` : ""}`}
+        />
+        <p id={`${id}-handle-hint`} className="text-xs text-muted-foreground">
+          3 to 20 characters. Letters, numbers and underscores. Changing it
+          changes your profile link.
+        </p>
+        {handleError ? (
+          <p
+            id={`${id}-handle-error`}
+            role="alert"
+            className="text-sm text-destructive"
+          >
+            {handleError}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="grid gap-1.5">
+        <label htmlFor={`${id}-bio`} className="text-sm font-medium">
+          Bio{" "}
+          <span className="font-normal text-muted-foreground">(optional)</span>
+        </label>
+        <Textarea
+          id={`${id}-bio`}
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          maxLength={BIO_MAX}
+          aria-describedby={`${id}-bio-count`}
+        />
+        <p className="flex justify-end text-xs text-muted-foreground">
+          <CharactersLeft id={`${id}-bio-count`} left={BIO_MAX - bio.length} />
+        </p>
+      </div>
+
       <div className="grid gap-1.5">
         <label htmlFor={`${id}-working`} className="text-sm font-medium">
           Working on{" "}
@@ -114,17 +239,17 @@ export function ProfileExtrasForm({
           maxLength={WORKING_ON_MAX}
           placeholder="Finishing an EP of slow house tracks"
           onChange={(e) => setWorkingOn(e.target.value)}
-          aria-describedby={`${id}-working-hint`}
+          aria-describedby={`${id}-working-hint ${id}-working-count`}
           autoComplete="off"
         />
-        <p
-          id={`${id}-working-hint`}
-          className="flex justify-between gap-3 text-xs text-muted-foreground"
-        >
-          <span>
+        <p className="flex justify-between gap-3 text-xs text-muted-foreground">
+          <span id={`${id}-working-hint`}>
             One line on your profile about what you&apos;re making right now.
           </span>
-          <span data-numeric>{WORKING_ON_MAX - workingOn.length}</span>
+          <CharactersLeft
+            id={`${id}-working-count`}
+            left={WORKING_ON_MAX - workingOn.length}
+          />
         </p>
       </div>
 
@@ -141,7 +266,6 @@ export function ProfileExtrasForm({
           onChange={(e) => setDaw(e.target.value)}
           aria-describedby={`${id}-daw-hint`}
           autoComplete="off"
-          className="max-w-xs"
         />
         <datalist id={`${id}-daws`}>
           {DAW_SUGGESTIONS.map((name) => (
@@ -236,11 +360,16 @@ export function ProfileExtrasForm({
           {error}
         </p>
       ) : null}
-      <div>
+      <div className="flex gap-2">
         <Button type="submit" disabled={saving}>
-          {saving ? <Loader2Icon className="motion-safe:animate-spin" /> : null}
-          {submitLabel}
+          {saving ? <Loader2Icon className="animate-spin" /> : null}
+          Save
         </Button>
+        {onCancel ? (
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
       </div>
     </form>
   );

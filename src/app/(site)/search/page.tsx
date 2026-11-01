@@ -23,21 +23,29 @@ export default async function SearchPage({
   const results = await searchAll(query);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
-      <h1 className="font-display text-3xl font-bold tracking-tight">Search</h1>
-      <SearchField
-        defaultValue={query}
-        shortcut={false}
-        formLabel="Search tracks and people"
-        className="mt-6"
-      />
-      <SearchResults
-        className="mt-8"
-        query={query}
-        tracks={results.tracks}
-        profiles={results.profiles}
-        status={results.failed ? "error" : "ready"}
-      />
+    // Measured like the header, so this box shows exactly when the header's
+    // box does not.
+    <div className="@container">
+      <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
+        <h1 className="font-display text-3xl font-bold tracking-tight">
+          Search
+        </h1>
+        <SearchField
+          key={query}
+          defaultValue={query}
+          shortcut={false}
+          autoFocus={!query}
+          formLabel="Search tracks and people"
+          className="mt-6 @min-[40rem]:hidden"
+        />
+        <SearchResults
+          className="mt-8"
+          query={query}
+          tracks={results.tracks}
+          profiles={results.profiles}
+          status={results.failed ? "error" : "ready"}
+        />
+      </div>
     </div>
   );
 }

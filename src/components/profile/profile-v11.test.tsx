@@ -8,7 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { clampCrop, coverScale, sourceRect } from "./avatar-upload";
 import { BadgeList } from "./badges";
 import { hostOf, linkError } from "./link-hosts";
-import { ProfileExtrasForm } from "./profile-extras-form";
+import { ProfileEditor } from "./profile-editor";
 import { ProfileLinks } from "./profile-links";
 import { ProfileStatsBlock } from "./profile-stats";
 
@@ -84,19 +84,26 @@ describe("avatar crop", () => {
   });
 });
 
-describe("ProfileExtrasForm", () => {
-  const initial = { workingOn: "", daw: "", links: [] };
+describe("ProfileEditor", () => {
+  const initial = {
+    displayName: "Mia",
+    handle: "mia",
+    bio: "",
+    workingOn: "",
+    daw: "",
+    links: [],
+  };
 
   it("refuses links to hosts that are not allowed, next to the field", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn(async () => ({ ok: true as const }));
-    render(<ProfileExtrasForm initial={initial} onSave={onSave} />);
+    render(<ProfileEditor initial={initial} onSave={onSave} />);
     await user.click(screen.getByRole("button", { name: "Add a link" }));
     await user.type(
       screen.getByRole("textbox", { name: "Link 1 address" }),
       "https://example.com/me",
     );
-    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByText(/^Links can go to SoundCloud/)).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "Link 1 address" }),
@@ -107,7 +114,7 @@ describe("ProfileExtrasForm", () => {
   it("saves trimmed values and drops empty link rows", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn(async () => ({ ok: true as const }));
-    render(<ProfileExtrasForm initial={initial} onSave={onSave} />);
+    render(<ProfileEditor initial={initial} onSave={onSave} />);
     await user.type(
       screen.getByRole("textbox", { name: /Working on/ }),
       "  An EP  ",
@@ -119,8 +126,11 @@ describe("ProfileExtrasForm", () => {
       "https://soundcloud.com/me",
     );
     await user.click(screen.getByRole("button", { name: "Add a link" }));
-    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith({
+      displayName: "Mia",
+      handle: "mia",
+      bio: "",
       workingOn: "An EP",
       daw: "Reaper",
       links: [{ label: "", url: "https://soundcloud.com/me" }],
@@ -129,7 +139,7 @@ describe("ProfileExtrasForm", () => {
 
   it("stops offering more links at five", async () => {
     const user = userEvent.setup();
-    render(<ProfileExtrasForm initial={initial} onSave={vi.fn()} />);
+    render(<ProfileEditor initial={initial} onSave={vi.fn()} />);
     for (let i = 0; i < 5; i++) {
       await user.click(screen.getByRole("button", { name: "Add a link" }));
     }

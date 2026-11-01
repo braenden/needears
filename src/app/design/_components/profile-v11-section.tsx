@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { AvatarUpload } from "@/components/profile/avatar-upload";
 import { BadgeList } from "@/components/profile/badges";
-import { ProfileExtrasForm } from "@/components/profile/profile-extras-form";
+import { ProfileEditor } from "@/components/profile/profile-editor";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { ProfileStatsBlock } from "@/components/profile/profile-stats";
 import {
@@ -68,8 +68,11 @@ function EditProfileDemo() {
           setUploaded(false);
         }}
       />
-      <ProfileExtrasForm
+      <ProfileEditor
         initial={{
+          displayName: profile.display_name,
+          handle: profile.handle,
+          bio: profile.bio,
           workingOn: extras.workingOn,
           daw: extras.daw,
           links: extras.links,

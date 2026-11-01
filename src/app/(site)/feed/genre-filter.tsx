@@ -43,7 +43,7 @@ export function GenreFilter({
       </NativeSelect>
       <span className="size-4" aria-hidden="true">
         {pending ? (
-          <Loader2Icon className="size-4 text-muted-foreground motion-safe:animate-spin" />
+          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
         ) : null}
       </span>
     </div>

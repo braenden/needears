@@ -1,7 +1,6 @@
 "use client";
 
 import { GoogleIdButton } from "@/components/auth/google-id-button";
-import { Badge } from "@/components/ui/badge";
 import { completeGoogleSignIn } from "@/lib/auth/google-id";
 import { saveLastLogin } from "@/lib/auth/last-login";
 import { browserClient } from "@/lib/supabase/lazy";
@@ -12,15 +11,15 @@ export function GoogleButton({
   next,
   scriptNonce,
   disabled = false,
-  lastUsed = false,
+  onBusy,
   onError,
 }: {
   clientId: string;
   next: string;
   scriptNonce?: string;
   disabled?: boolean;
-  /** Show "Last used" on the edge: we cannot draw inside Google's button. */
-  lastUsed?: boolean;
+  /** True while the token is turned into a session. */
+  onBusy?: (busy: boolean) => void;
   onError: (message: string | null) => void;
 }) {
   return (
@@ -28,17 +27,7 @@ export function GoogleButton({
       clientId={clientId}
       scriptNonce={scriptNonce}
       disabled={disabled}
-      busyLabel="Signing in…"
-      badge={
-        lastUsed ? (
-          <Badge
-            variant="secondary"
-            className="absolute -top-2.5 right-3 z-20 h-5 px-2 text-[11px] shadow-pop"
-          >
-            Last used
-          </Badge>
-        ) : null
-      }
+      onBusy={onBusy}
       onUnavailable={() =>
         onError("Google sign-in isn't available right now. Try the email link.")
       }

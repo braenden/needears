@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createRawNonce, hashNonce } from "@/lib/auth/google-id";
 
-export const GSI_SCRIPT = "https://accounts.google.com/gsi/client";
+// In English like the site: without hl, the first drawing of the button
+// follows the browser's language.
+export const GSI_SCRIPT = "https://accounts.google.com/gsi/client?hl=en";
 
 // The parts of Google Identity Services we use.
 type GoogleId = {
@@ -123,26 +124,28 @@ function paintButton(parent: HTMLElement) {
  * Google's own "Continue with Google" button, for signing in. The script
  * loads with the page's CSP nonce; until it has drawn the button, a neutral
  * box of the same size holds the place so nothing moves. It is redrawn when
- * the column changes width or the theme changes. Every attempt gets a fresh nonce: Google gets its
- * hash, and `onCredential` gets the raw value with the ID token.
+ * the column changes width or the theme changes. Every attempt gets a fresh
+ * nonce: Google gets its hash, and `onCredential` gets the raw value with
+ * the ID token. Nothing is ever drawn over Google's button: Google shows
+ * its own states inside it (a personal "Continue as" button, its own
+ * progress), and ours would collide with them. The page shows its own
+ * progress around it instead (`onBusy`).
  */
 export function GoogleIdButton({
   clientId,
   scriptNonce,
   disabled = false,
-  badge = null,
-  busyLabel,
+  onBusy,
   onCredential,
   onUnavailable,
   className,
 }: {
   clientId: string;
   scriptNonce?: string;
+  /** Takes no clicks, for example while the email link is being sent. */
   disabled?: boolean;
-  /** Laid over the top edge: we cannot draw inside Google's button. */
-  badge?: React.ReactNode;
-  /** Shown over the button while `onCredential` runs. */
-  busyLabel: string;
+  /** True while `onCredential` runs, false again if it gives up. */
+  onBusy?: (busy: boolean) => void;
   /**
    * Uses Google's ID token. Resolves true when it is done with it (the page
    * moves on), false to draw the button again with a new nonce.
@@ -249,64 +252,49 @@ export function GoogleIdButton({
     const rawNonce = nonce.current;
     if (!rawNonce) return;
     setSigningIn(true);
+    onBusy?.(true);
     const done = await onCredential(credential, rawNonce).catch(() => false);
     if (done) return;
     setSigningIn(false);
+    onBusy?.(false);
     void draw();
   }
 
   return (
-    <div className={cn("relative", className)}>
-      {badge}
-      {/* 40 pixels, the height of Google's large button and of our email
-          button. Google's frame is a little bigger than the button inside
-          it, so the overhang is clipped. */}
-      <div
-        className="relative h-10 overflow-hidden rounded-[4px]"
-        aria-busy={signingIn || undefined}
-      >
-        <Script
-          src={GSI_SCRIPT}
-          nonce={scriptNonce}
-          strategy="afterInteractive"
-          onReady={() => void draw()}
-          onError={onUnavailable}
+    // 44 pixels: room for Google's 40 pixel button and the frame around it,
+    // which grows a little for the personal button. Nothing is clipped.
+    <div
+      className={cn("relative h-11", className)}
+      aria-busy={signingIn || undefined}
+    >
+      <Script
+        src={GSI_SCRIPT}
+        nonce={scriptNonce}
+        strategy="afterInteractive"
+        onReady={() => void draw()}
+        onError={onUnavailable}
+      />
+      {!drawn ? (
+        // Where Google's button will be, until its script has drawn it.
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-1/2 h-10 -translate-y-1/2 rounded-[4px] border bg-card"
         />
-        {!drawn ? (
-          // Where Google's button will be, until its script has drawn it.
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 rounded-[4px] border bg-card"
-          />
-        ) : null}
-        {signingIn ? (
-          <Button
-            type="button"
-            size="lg"
-            variant="outline"
-            disabled
-            className="absolute inset-0 z-10 h-10 w-full"
-          >
-            <GoogleGlyph />
-            {busyLabel}
-          </Button>
-        ) : disabled && drawn ? (
-          // Busy with the email link: Google's button cannot be disabled, so
-          // a cover keeps it from being clicked.
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 z-10 cursor-not-allowed rounded-[4px] bg-background/50"
-          />
-        ) : null}
-        {/* Chrome paints a frame white when its color scheme differs from
+      ) : null}
+      {/* Chrome paints a frame white when its color scheme differs from
           the page's. Google's button frame is light, so this one is too,
           which keeps it see-through on our dark theme. */}
-        <div
-          ref={mount}
-          data-testid="google-button"
-          className="flex h-10 w-full items-center [color-scheme:light]"
-        />
-      </div>
+      <div
+        ref={mount}
+        data-testid="google-button"
+        aria-disabled={disabled || undefined}
+        // Out of reach for the mouse and the keyboard while disabled.
+        inert={disabled || undefined}
+        className={cn(
+          "flex h-full w-full items-center [color-scheme:light]",
+          disabled && "pointer-events-none opacity-50",
+        )}
+      />
     </div>
   );
 }

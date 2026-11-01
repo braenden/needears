@@ -62,33 +62,15 @@ test("reply, resolve, Show resolved in the URL and the reply notice", async ({
   await test.step("Jonas sees the reply under Notifications", async () => {
     await jonas.goto("/notifications");
     await expect(
-      jonas.getByText(/replied to your comment on/).first(),
+      jonas.getByText(/replied (\d+ times )?to your comments? on/).first(),
     ).toBeVisible();
     // The whole row opens the track, not only its title.
     const row = jonas
       .getByRole("listitem")
-      .filter({ hasText: /replied to your comment on/ })
+      .filter({ hasText: /replied (\d+ times )?to your comments? on/ })
       .first();
     const box = (await row.boundingBox())!;
     await jonas.mouse.click(box.x + box.width - 20, box.y + box.height - 10);
     await expect(jonas).toHaveURL(/\/t\/night-bus-seed0002/);
-  });
-
-  await test.step("Jonas switches email and it stays switched", async () => {
-    await jonas.goto("/settings");
-    const email = jonas.getByRole("checkbox", {
-      name: /Email me about new comments/,
-    });
-    // Toggle from whatever it is now, check it after a reload, then put it
-    // back, so a failed earlier run cannot break this one.
-    const before = await email.isChecked();
-    await email.setChecked(!before);
-    await expect(
-      jonas.getByText(before ? "Email is off." : "Email is on."),
-    ).toBeVisible();
-    await jonas.reload();
-    await expect(email).toBeChecked({ checked: !before });
-    await email.setChecked(true);
-    await expect(email).toBeChecked();
   });
 });

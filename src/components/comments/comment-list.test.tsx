@@ -254,3 +254,36 @@ describe("CommentList authors", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("CommentList on a busy track", () => {
+  const many = Array.from({ length: 40 }, (_, i) => ({
+    ...comments[0]!,
+    id: `many-${i}`,
+    parent_id: null,
+    time_ms: i * 1000,
+  }));
+
+  it("draws 30 at first and the rest on request", async () => {
+    const user = userEvent.setup();
+    renderWithTooltips(<CommentList comments={many} viewer="visitor" />);
+    const list = within(screen.getByRole("tabpanel")).getAllByRole("list")[0]!;
+    expect(within(list).getAllByRole("listitem")).toHaveLength(30);
+    await user.click(screen.getByRole("button", { name: "Show 10 more" }));
+    expect(within(list).getAllByRole("listitem")).toHaveLength(40);
+    expect(screen.queryByRole("button", { name: /more$/ })).toBeNull();
+  });
+
+  it("always draws far enough to show the active comment", () => {
+    renderWithTooltips(
+      <CommentList
+        comments={many}
+        viewer="visitor"
+        activeCommentId="many-35"
+      />,
+    );
+    const list = within(screen.getByRole("tabpanel")).getAllByRole("list")[0]!;
+    expect(within(list).getAllByRole("listitem")).toHaveLength(36);
+    // Drawn, but not marked: the list has no "playing now" line.
+    expect(list.querySelector("[aria-current]")).toBeNull();
+  });
+});

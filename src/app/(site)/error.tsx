@@ -18,7 +18,7 @@ export default function SiteError({
     reportError(error);
   }, [error]);
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-16">
+    <div className="mx-auto w-full max-w-lg px-4 py-16 sm:py-24">
       <h1 className="sr-only">Something went wrong</h1>
       <EmptyState
         title="Something broke on our side."

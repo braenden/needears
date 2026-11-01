@@ -37,7 +37,7 @@ export function ReferenceLink({
         href={url}
         target="_blank"
         rel="noopener noreferrer nofollow ugc"
-        className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-2 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-2 focus-ring outline-none hover:bg-accent"
       >
         <HostIcon
           host={host}

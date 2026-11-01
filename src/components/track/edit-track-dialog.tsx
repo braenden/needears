@@ -20,6 +20,7 @@ import {
   validateDetails,
 } from "@/components/upload/upload-state";
 import type { Genre, Track } from "@/types/view";
+import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 
 export type EditTrackResult = { ok: true } | { ok: false };
 
@@ -100,7 +101,8 @@ export function EditTrackDialog({
           className="grid gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            void save();
+            const form = e.currentTarget;
+            void save().finally(() => focusFirstInvalid(form));
           }}
         >
           <DialogHeader>
@@ -128,9 +130,7 @@ export function EditTrackDialog({
               </Button>
             </DialogClose>
             <Button type="submit" disabled={saving}>
-              {saving ? (
-                <Loader2Icon className="motion-safe:animate-spin" />
-              ) : null}
+              {saving ? <Loader2Icon className="animate-spin" /> : null}
               Save changes
             </Button>
           </DialogFooter>

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { signInWithMagicLink } from "./helpers";
+import { signInWithMagicLink, pageIn } from "./helpers";
 
 // One reaction per person on a seed track: pick one, switch to another, take
 // it back, and the track list shows the new count when going back to it.
@@ -61,6 +61,7 @@ test("one reaction per person, and track lists keep up", async ({ page }) => {
 
   await card(page).getByRole("link", { name: title }).click();
   await expect(page).toHaveURL(/\/t\/night-bus-seed0002$/);
+  await pageIn(page);
   await expect(pressed(page)).toHaveCount(0);
   const before = await counts(page);
 
@@ -96,6 +97,8 @@ test("one reaction per person, and track lists keep up", async ({ page }) => {
     await page.goto(listPath);
     await card(page).getByRole("link", { name: title }).click();
     await expect(page).toHaveURL(/\/t\/night-bus-seed0002$/);
+    await pageIn(page);
+    await pageIn(page);
     await react(page, /^Love, /, "DELETE");
     await expect(pressed(page)).toHaveCount(0);
     await page.goBack();

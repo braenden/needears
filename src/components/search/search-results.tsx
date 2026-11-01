@@ -13,7 +13,14 @@ import { SEARCH_MIN_LENGTH } from "@/config/limits";
 
 export type TrackHit = Pick<
   TrackSummary,
-  "id" | "slug" | "title" | "duration_ms" | "comment_count" | "genre" | "owner"
+  | "id"
+  | "slug"
+  | "title"
+  | "duration_ms"
+  | "comment_count"
+  | "listener_comment_count"
+  | "genre"
+  | "owner"
 >;
 
 /** Splits text around case-insensitive matches of the query, for <mark>. */
@@ -80,8 +87,9 @@ export function SearchResults({
   if (q.length < SEARCH_MIN_LENGTH) {
     return (
       <p className={cn("text-sm text-muted-foreground", className)}>
-        Type at least {SEARCH_MIN_LENGTH} characters to search tracks and
-        people.
+        {q
+          ? `Type at least ${SEARCH_MIN_LENGTH} characters to search tracks and people.`
+          : `Type at least ${SEARCH_MIN_LENGTH} characters and press Enter to search tracks and people.`}
       </p>
     );
   }
@@ -155,9 +163,11 @@ export function SearchResults({
                         className="size-3.5"
                         aria-hidden="true"
                       />
-                      {track.comment_count}
+                      {track.listener_comment_count}
                       <span className="sr-only">
-                        {track.comment_count === 1 ? " comment" : " comments"}
+                        {track.listener_comment_count === 1
+                          ? " comment"
+                          : " comments"}
                       </span>
                     </span>
                     <time data-numeric className="hidden @sm:inline">
@@ -183,7 +193,7 @@ export function SearchResults({
               <li key={profile.id} className="min-w-0">
                 <Link
                   href={`/u/${profile.handle}`}
-                  className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 focus-ring outline-none hover:bg-accent"
                 >
                   <UserAvatar profile={profile} />
                   <span className="min-w-0 flex-1">

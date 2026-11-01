@@ -27,7 +27,7 @@ const FEED_FUNCTIONS = {
 
 const OWNER =
   "owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
-const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, play_count, published_at, feedback_wants, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), ${OWNER}`;
+const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, listener_comment_count, needs_ears, play_count, published_at, feedback_wants, level, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), track_versions(count), ${OWNER}`;
 const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, description, tags, level, status, owner_id, reference_url`;
 
 // Bars in the card waveform (MiniWaveform's default).
@@ -41,10 +41,15 @@ type SummaryRow = {
   title: string;
   duration_ms: number;
   comment_count: number;
+  listener_comment_count: number;
+  needs_ears: boolean;
   play_count: number;
   published_at: string;
   feedback_wants: TrackSummary["feedback_wants"];
+  level: TrackSummary["level"];
   reaction_counts: Json;
+  // How many versions, counted by PostgREST.
+  track_versions: { count: number }[];
   audio_key: string;
   peaks_key: string;
   genre: Genre | null;
@@ -78,9 +83,13 @@ async function toCards(
     title: row.title,
     duration_ms: row.duration_ms,
     comment_count: row.comment_count,
+    listener_comment_count: row.listener_comment_count,
+    needs_ears: row.needs_ears,
     play_count: row.play_count,
     published_at: row.published_at,
     feedback_wants: row.feedback_wants,
+    level: row.level,
+    version_count: row.track_versions[0]?.count ?? 1,
     reaction_counts: reactionCounts(row.reaction_counts),
     genre: row.genre!,
     owner: owners[i]!,
@@ -149,6 +158,22 @@ const COMMENT_COLUMNS =
 
 // Everything the track page needs, read as the visitor, so RLS decides what
 // they see. Null when the track does not exist or is not visible to them.
+/**
+ * Whether the track page exists for this person, without loading it: the
+ * same rows getTrackPage would find (row level security decides who sees
+ * hidden tracks), and not deleted.
+ */
+export async function trackPageExists(slug: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tracks")
+    .select("status")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw new Error(`Track failed: ${error.code}`);
+  return !!data && data.status !== "deleted";
+}
+
 export async function getTrackPage(
   slug: string,
 ): Promise<TrackPageData | null> {
@@ -225,6 +250,8 @@ export async function getTrackPage(
       title: row.title,
       duration_ms: row.duration_ms,
       comment_count: row.comment_count,
+      listener_comment_count: row.listener_comment_count,
+      needs_ears: row.needs_ears,
       play_count: row.play_count,
       published_at: row.published_at,
       feedback_wants: row.feedback_wants,

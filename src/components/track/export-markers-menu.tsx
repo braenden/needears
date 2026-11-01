@@ -9,6 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -76,5 +79,46 @@ export function ExportMarkersMenu({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * The same choices as a submenu, for the track's own menu. Disabled while
+ * no comment has a time.
+ */
+export function ExportMarkersSubmenu({
+  trackId,
+  timedCommentCount,
+  hrefFor = markersHref,
+}: {
+  trackId: string;
+  timedCommentCount: number;
+  hrefFor?: (trackId: string, format: MarkerFormat) => string;
+}) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger disabled={timedCommentCount === 0}>
+        <DownloadIcon /> Export markers
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-64">
+        <DropdownMenuLabel className="font-normal text-muted-foreground">
+          {timedCommentCount} {timedCommentCount === 1 ? "comment" : "comments"}{" "}
+          as markers
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {FORMATS.map(({ format, label, note }) => (
+          <DropdownMenuItem key={format} asChild>
+            <a
+              href={hrefFor(trackId, format)}
+              download
+              className="flex flex-col items-start gap-0.5"
+            >
+              <span>{label}</span>
+              <span className="text-xs text-muted-foreground">{note}</span>
+            </a>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }

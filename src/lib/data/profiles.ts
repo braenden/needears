@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cacheLife } from "next/cache";
 import { connection } from "next/server";
 import type { EarnedBadge } from "@/components/profile/badges";
+import type { EditableProfile } from "@/components/profile/edit-profile";
 import type { ProfileLink } from "@/components/profile/link-hosts";
 import type { ProfileStatsV2 } from "@/components/profile/profile-stats";
 import { withAvatar } from "@/lib/data/avatars";
@@ -88,6 +89,37 @@ export async function getProfileByHandle(
     workingOn: working_on,
     daw,
     links: parseLinks(links),
+  };
+}
+
+/**
+ * Everything the profile editor starts from, for the signed in person (the
+ * photo's storage key and Google picture are not on the public profile).
+ */
+export async function getEditableProfile(
+  userId: string,
+  profile: Pick<Profile, "handle" | "display_name" | "avatar_url" | "bio">,
+): Promise<EditableProfile> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("avatar_key, avatar_url, working_on, daw, links")
+    .eq("id", userId)
+    .single();
+  if (error) throw new Error(`Profile failed: ${error.code}`);
+  return {
+    userId,
+    profile,
+    avatarKey: data.avatar_key,
+    googleAvatar: data.avatar_url,
+    fields: {
+      displayName: profile.display_name,
+      handle: profile.handle,
+      bio: profile.bio,
+      workingOn: data.working_on ?? "",
+      daw: data.daw ?? "",
+      links: parseLinks(data.links),
+    },
   };
 }
 

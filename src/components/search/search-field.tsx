@@ -25,6 +25,7 @@ export function SearchField({
   shortcut = true,
   action = "/search",
   formLabel = "Search",
+  autoFocus = false,
   className,
 }: {
   defaultValue?: string;
@@ -33,6 +34,8 @@ export function SearchField({
   action?: string;
   /** Name of the search landmark. Must be unique if a page has more than one. */
   formLabel?: string;
+  /** Focus it on arrival, so the keyboard is ready. */
+  autoFocus?: boolean;
   className?: string;
 }) {
   const id = useId();
@@ -86,6 +89,7 @@ export function SearchField({
         autoComplete="off"
         spellCheck={false}
         enterKeyHint="search"
+        autoFocus={autoFocus}
         aria-keyshortcuts={shortcut ? "/" : undefined}
         className={cn(
           fieldClasses,
@@ -95,7 +99,8 @@ export function SearchField({
       {shortcut && !value && !focused ? (
         <kbd
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded-xs border bg-background px-1.5 font-sans text-xs text-muted-foreground"
+          // Only with a keyboard and mouse, like the other key hints.
+          className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded-xs border bg-background px-1.5 font-sans text-xs text-muted-foreground fine:block"
         >
           /
         </kbd>

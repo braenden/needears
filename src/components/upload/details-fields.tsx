@@ -166,7 +166,7 @@ export function DetailsFields({
                     })
                   }
                 />
-                <span className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-sm text-muted-foreground transition-colors duration-(--duration-fast) select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:ring-2 peer-focus-visible:ring-ring hover:text-foreground peer-checked:hover:text-background">
+                <span className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-sm text-muted-foreground transition-colors duration-fast select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring hover:text-foreground peer-checked:hover:text-background">
                   {checked ? (
                     <CheckIcon className="size-3.5" aria-hidden="true" />
                   ) : null}
@@ -190,7 +190,7 @@ export function DetailsFields({
           {LEVEL_ORDER.map((level) => (
             <label
               key={level}
-              className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md border px-3 text-sm has-checked:border-ring has-checked:bg-primary-soft has-focus-visible:ring-2 has-focus-visible:ring-ring"
+              className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md border px-3 text-sm has-checked:border-ring has-checked:bg-primary-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring"
             >
               <input
                 type="radio"
