@@ -458,9 +458,14 @@ function CommentItem({
         ) : null}
 
         {replies.length > 0 || replying ? (
-          <div className="mt-3 grid gap-3 border-l-2 pl-3 @sm:pl-4">
+          // One column that may shrink: a grid track is otherwise as wide as
+          // its longest name or link, and pushes the page sideways.
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 border-l-2 pl-3 @sm:pl-4">
             {replies.length > 0 ? (
-              <ol aria-label={`Replies to ${name}`} className="grid gap-3">
+              <ol
+                aria-label={`Replies to ${name}`}
+                className="grid grid-cols-[minmax(0,1fr)] gap-3"
+              >
                 {replies.map((reply) => (
                   <ReplyItem
                     key={reply.id}
