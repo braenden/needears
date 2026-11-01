@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils";
 import { loadProfile } from "./load";
 import { OwnProfileHeader } from "./own-profile-header";
 
+const PAGE = 30;
+
 export async function generateMetadata({
   params,
 }: PageProps<"/u/[handle]">): Promise<Metadata> {
@@ -57,17 +59,32 @@ export default async function ProfilePage({
   const profile = await loadProfile(handle);
   if (!profile) notFound();
   const tab = query.tab === "comments" ? "comments" : "tracks";
+  // "Load more" asks for the next page: 30 more each time, up to 300.
+  const count = Math.min(
+    300,
+    Math.max(PAGE, Math.ceil(Number(query.show) / PAGE || 1) * PAGE),
+  );
   const isOwn = viewer?.userId === profile.id;
   const [stats, record, tracks, comments, editable] = await Promise.all([
     getProfileStats(profile),
     getFeedbackRecord(profile.id),
-    tab === "tracks" ? getTracksByOwner(profile.id) : Promise.resolve([]),
-    tab === "comments" ? getCommentsBy(profile.id) : Promise.resolve([]),
+    tab === "tracks"
+      ? getTracksByOwner(profile.id, count + 1)
+      : Promise.resolve([]),
+    tab === "comments"
+      ? getCommentsBy(profile.id, count + 1)
+      : Promise.resolve([]),
     isOwn && viewer
       ? getEditableProfile(viewer.userId, viewer.profile)
       : Promise.resolve(null),
   ]);
   const name = displayNameOf(profile);
+  const listed = tab === "tracks" ? tracks : comments;
+  const hasMore = listed.length > count && count < 300;
+  const moreHref = `/u/${profile.handle}?${new URLSearchParams({
+    ...(tab === "comments" ? { tab } : {}),
+    show: String(count + PAGE),
+  })}`;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
@@ -115,7 +132,7 @@ export default async function ProfilePage({
         {tab === "tracks" ? (
           tracks.length > 0 ? (
             <TrackList
-              tracks={tracks}
+              tracks={tracks.slice(0, count)}
               label={`Tracks by ${name}`}
               showOwner={false}
               className="grid gap-3"
@@ -142,7 +159,7 @@ export default async function ProfilePage({
           )
         ) : comments.length > 0 ? (
           <ul className="divide-y">
-            {comments.map((comment) => (
+            {comments.slice(0, count).map((comment) => (
               <li key={comment.id} className="py-4">
                 <p className="text-sm text-muted-foreground">
                   On{" "}
@@ -166,6 +183,15 @@ export default async function ProfilePage({
         ) : (
           <EmptyState title="No comments yet." />
         )}
+        {hasMore ? (
+          <div className="mt-6 flex justify-center">
+            <Button asChild variant="outline">
+              <Link href={moreHref} scroll={false}>
+                Load more
+              </Link>
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

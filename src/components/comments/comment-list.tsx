@@ -107,6 +107,9 @@ type Viewer = "owner" | "visitor" | "signed_out";
 // Badges per author id, read by every comment and reply header.
 const AuthorBadges = createContext<Record<string, BadgeKind[]>>({});
 
+/** Comments drawn at first, and how many more each press shows. */
+const COMMENTS_PAGE = 30;
+
 export function CommentList({
   comments,
   viewer,
@@ -187,6 +190,12 @@ export function CommentList({
     trusted: filterComments(shown, "trusted").length,
   };
   const visible = sortComments(filterComments(shown, filter), sort);
+  // A busy track draws its comments 30 at a time, but always far enough
+  // to include the one playing or picked on the waveform.
+  const [limit, setLimit] = useState(COMMENTS_PAGE);
+  const activeIndex = visible.findIndex((c) => c.id === activeCommentId);
+  const upTo = Math.max(limit, activeIndex + 1);
+  const remaining = visible.length - upTo;
   const filters: [CommentFilter, string][] = [
     ["all", "All"],
     ["helpful", "Helpful"],
@@ -278,25 +287,38 @@ export function CommentList({
                   onCopyLink={onCopyLink}
                 />
               ) : (
-                <ol className="divide-y">
-                  {visible.map((comment) => (
-                    <CommentItem
-                      key={comment.id}
-                      comment={comment}
-                      viewer={viewer}
-                      fromOwner={!!ownerId && comment.author_id === ownerId}
-                      ownerId={ownerId}
-                      active={comment.id === activeCommentId}
-                      onJump={onJump}
-                      onToggleHelpful={onToggleHelpful}
-                      onReport={onReport}
-                      replies={replies.get(comment.id) ?? []}
-                      onReply={onReply}
-                      onToggleResolved={onToggleResolved}
-                      onSignIn={onSignIn}
-                    />
-                  ))}
-                </ol>
+                <>
+                  <ol className="divide-y">
+                    {visible.slice(0, upTo).map((comment) => (
+                      <CommentItem
+                        key={comment.id}
+                        comment={comment}
+                        viewer={viewer}
+                        fromOwner={!!ownerId && comment.author_id === ownerId}
+                        ownerId={ownerId}
+                        active={comment.id === activeCommentId}
+                        onJump={onJump}
+                        onToggleHelpful={onToggleHelpful}
+                        onReport={onReport}
+                        replies={replies.get(comment.id) ?? []}
+                        onReply={onReply}
+                        onToggleResolved={onToggleResolved}
+                        onSignIn={onSignIn}
+                      />
+                    ))}
+                  </ol>
+                  {remaining > 0 ? (
+                    <div className="flex justify-center border-t pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setLimit(upTo + COMMENTS_PAGE)}
+                      >
+                        Show {Math.min(COMMENTS_PAGE, remaining)} more
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </TabsContent>
           ))}
