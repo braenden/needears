@@ -19,6 +19,13 @@ const TAB_LABELS: Record<FeedTab, string> = {
   trending: "Trending",
 };
 
+const TAB_INTROS: Record<FeedTab, string> = {
+  "needs-ears":
+    "Tracks that haven't had much feedback yet. Give feedback, and your own tracks get seen more.",
+  latest: "The newest tracks, most recent first.",
+  trending: "Tracks getting the most feedback and reactions this week.",
+};
+
 export async function generateMetadata({
   searchParams,
 }: PageProps<"/feed">): Promise<Metadata> {
@@ -55,9 +62,12 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
   ]);
 
   return (
-    <div className="@container mx-auto w-full max-w-5xl px-4 py-8 sm:py-10">
-      <div className="grid gap-8 @4xl:grid-cols-[minmax(0,1fr)_15rem]">
-        <div className="min-w-0">
+    // One centered column on every screen. Where there is room beside it
+    // (the header's width), the weekly list sits in the right margin, so it
+    // never moves the tracks.
+    <div className="@container w-full py-8 sm:py-10">
+      <div className="mx-auto grid max-w-6xl gap-6 px-4 @6xl:grid-cols-[minmax(0,1fr)_40rem_minmax(0,1fr)]">
+        <div className="mx-auto w-full max-w-160 min-w-0 @6xl:col-start-2">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <h1 className="font-display text-3xl font-bold tracking-tight">
               Feed
@@ -83,18 +93,20 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
               ))}
             </ul>
           </nav>
-          {/* On narrow screens the weekly list is a row under the tabs. */}
-          <WeeklyEars
-            variant="row"
-            leaders={weekly.leaders}
-            resetsAt={weekly.resetsAt}
-            className="mt-4 @4xl:hidden"
-          />
-          {tab === "needs-ears" ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Tracks that haven&apos;t had much feedback yet. Give feedback, and
-              your own tracks get seen more.
-            </p>
+          {/* Two lines kept for every tab, so the tracks start in the same
+              place whichever tab is open. */}
+          <p className="mt-3 min-h-[2lh] text-sm text-muted-foreground">
+            {TAB_INTROS[tab]}
+          </p>
+          {/* On narrower screens the weekly list is a row above the tracks,
+              shown once someone is on it. */}
+          {weekly.leaders.length > 0 ? (
+            <WeeklyEars
+              variant="row"
+              leaders={weekly.leaders}
+              resetsAt={weekly.resetsAt}
+              className="mt-4 @6xl:hidden"
+            />
           ) : null}
 
           <div className="mt-6">
@@ -128,7 +140,7 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
             )}
           </div>
         </div>
-        <aside aria-label="This week" className="hidden @4xl:block">
+        <aside aria-label="This week" className="hidden @6xl:block">
           <WeeklyEars
             leaders={weekly.leaders}
             resetsAt={weekly.resetsAt}
