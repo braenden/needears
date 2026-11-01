@@ -544,11 +544,12 @@ function CommentHeader({
             badge show who is really speaking. */}
         <Link
           href={profileHref}
-          className="flex min-w-0 items-baseline gap-1.5 rounded-xs focus-ring outline-none hover:underline"
+          className="group/author flex min-w-0 items-baseline gap-1.5 rounded-xs focus-ring outline-none"
         >
+          {/* Only the name is underlined on hover, not the handle. */}
           <span
             className={cn(
-              "truncate text-sm font-semibold",
+              "truncate text-sm font-semibold group-hover/author:underline",
               muted && "text-muted-foreground",
             )}
           >

@@ -517,10 +517,11 @@ export function TrackView({
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
           <Link
             href={`/u/${track.owner.handle}`}
-            className="flex items-center gap-2 rounded-md text-foreground focus-ring outline-none hover:underline"
+            className="group/owner flex items-center gap-2 rounded-md text-foreground focus-ring outline-none"
           >
             <UserAvatar profile={track.owner} size="sm" />
-            {owner}
+            {/* Only the name is underlined on hover. */}
+            <span className="group-hover/owner:underline">{owner}</span>
           </Link>
           <ReputationBadge helpful={track.owner.reputation} />
           <Link
