@@ -1,8 +1,9 @@
 import "server-only";
 import { inspectMp3 } from "@/lib/audio/mp3";
 import { peaksSchema } from "@/lib/audio/peaks";
+import { audioInfo, readAudioStart } from "@/lib/storage/r2";
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { objectUrl } from "@/lib/supabase/env";
+import { objectKeys } from "./keys";
 import {
   AUDIO_MAX_BYTES,
   AUDIO_MIME,
@@ -14,25 +15,48 @@ import {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
+// `retry` means the check could not run (R2 did not answer): the upload may
+// be fine, so the caller keeps the files and the browser can try again.
 export type VerifyResult =
-  { ok: true } | { ok: false; code: string; message: string };
+  { ok: true } | { ok: false; code: string; message: string; retry?: true };
 
 const HEAD_BYTES = 64 * 1024;
 
 // Checks the uploaded objects before a track row is created: both exist,
 // sizes and types are within limits, the audio really is an mp3 (magic
 // bytes, not the file name) with roughly the declared duration, and the
-// peaks file is valid JSON in our format.
+// peaks file is valid JSON in our format. The audio is in R2 and the peaks
+// in Storage. When everything holds, the reservation is marked verified,
+// which the database requires before a track or version may use the audio.
 export async function verifyUpload(
   admin: Admin,
-  keys: { audioKey: string; peaksKey: string },
+  upload: { userId: string; objectId: string },
   declaredDurationMs: number,
 ): Promise<VerifyResult> {
-  const [audioInfo, peaksInfo] = await Promise.all([
-    admin.storage.from("audio").info(keys.audioKey),
+  try {
+    return await checkUpload(admin, upload, declaredDurationMs);
+  } catch (error) {
+    console.error("Could not check upload", (error as Error).message);
+    return {
+      ok: false,
+      code: "check_failed",
+      message: "Could not check the upload. Try again in a minute.",
+      retry: true,
+    };
+  }
+}
+
+async function checkUpload(
+  admin: Admin,
+  upload: { userId: string; objectId: string },
+  declaredDurationMs: number,
+): Promise<VerifyResult> {
+  const keys = objectKeys(upload.userId, upload.objectId);
+  const [audio, peaksInfo] = await Promise.all([
+    audioInfo(keys.audioKey),
     admin.storage.from("peaks").info(keys.peaksKey),
   ]);
-  if (audioInfo.error || !audioInfo.data) {
+  if (!audio) {
     return {
       ok: false,
       code: "audio_missing",
@@ -47,11 +71,11 @@ export async function verifyUpload(
     };
   }
 
-  const audioSize = audioInfo.data.size ?? 0;
+  const audioSize = audio.size;
   if (
     audioSize <= 0 ||
     audioSize > AUDIO_MAX_BYTES ||
-    audioInfo.data.contentType !== AUDIO_MIME
+    audio.contentType !== AUDIO_MIME
   ) {
     return {
       ok: false,
@@ -72,7 +96,10 @@ export async function verifyUpload(
     };
   }
 
-  const bytes = await readHead(keys.audioKey, Math.min(audioSize, HEAD_BYTES));
+  const bytes = await readAudioStart(
+    keys.audioKey,
+    Math.min(audioSize, HEAD_BYTES),
+  );
   const mp3 = bytes ? inspectMp3(bytes, audioSize) : null;
   if (!mp3) {
     return {
@@ -115,30 +142,17 @@ export async function verifyUpload(
     };
   }
 
-  return { ok: true };
-}
-
-// The first `length` bytes of an audio object, or null on any error. The
-// bucket is private, so this reads with the service role. supabase-js has no
-// range download, hence the plain fetch.
-async function readHead(
-  key: string,
-  length: number,
-): Promise<Uint8Array | null> {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) return null;
-  try {
-    const response = await fetch(objectUrl("audio", key), {
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        apikey: serviceKey,
-        Range: `bytes=0-${length - 1}`,
-      },
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    return new Uint8Array(await response.arrayBuffer()).subarray(0, length);
-  } catch {
-    return null;
+  const marked = await admin.rpc("mark_upload_verified", {
+    p_user: upload.userId,
+    p_object: upload.objectId,
+  });
+  if (marked.error || !marked.data) {
+    return {
+      ok: false,
+      code: "upload_expired",
+      message: "Upload the file again.",
+    };
   }
+
+  return { ok: true };
 }

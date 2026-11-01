@@ -37,9 +37,9 @@ Need Ears puts honest feedback from other producers in a player that lets people
 
 ## How it works
 
-Everything runs on Next.js and Supabase. There is no media server.
+Everything runs on Next.js, Supabase and a Cloudflare R2 bucket for the audio. There is no media server.
 
-**Audio is processed in your browser.** The Web Audio API decodes the file and computes the waveform peaks. If it isn't an mp3, an encoder (lamejs) in a Web Worker turns it into a 192 kbps mp3 while you fill in the details. The browser uploads straight to Supabase Storage with a signed URL, and the server checks the object before it creates the track.
+**Audio is processed in your browser.** The Web Audio API decodes the file and computes the waveform peaks. If it isn't an mp3, an encoder (lamejs) in a Web Worker turns it into a 192 kbps mp3 while you fill in the details. The browser uploads the mp3 straight to R2 with a presigned URL that only takes that one file, at the declared size, once. The server checks the file before it creates the track, and only signs playback URLs for tracks you are allowed to see.
 
 **The database is the security boundary.** Every table has Row Level Security: reading live content is open, writing is limited to your own rows, and only the uploader can mark a comment Helpful. Counters, reputation and rate limits live in Postgres triggers, so the client can't skip them. The policies are tested with pgTAP in CI.
 
@@ -60,15 +60,21 @@ flowchart LR
   subgraph Supabase
     Auth[Auth<br/>Google, magic link]
     DB[(Postgres<br/>RLS on every table,<br/>triggers for counters<br/>and rate limits)]
-    Storage[(Storage<br/>private buckets,<br/>signed URLs)]
+    Storage[(Storage<br/>peaks and avatars)]
+  end
+
+  subgraph Cloudflare
+    R2[(R2<br/>private audio bucket,<br/>presigned URLs)]
   end
 
   UI --> RSC
   UI --> API
+  Pipe -- presigned upload URL --> R2
   Pipe -- signed upload URL --> Storage
-  UI -- stream mp3 --> Storage
+  UI -- stream mp3 --> R2
   RSC --> DB
   API --> DB
+  API -- sign and verify --> R2
   API -- sign and verify --> Storage
   UI --> Auth
 ```
@@ -81,6 +87,7 @@ You need Node 24, pnpm (`corepack enable`), Docker and the [Supabase CLI](https:
 git clone https://github.com/braenden/needears.git && cd needears
 pnpm install
 supabase start                 # Postgres, Auth, Storage and Mailpit, with seed data
+pnpm r2:start                  # a local stand-in for the R2 audio bucket, with the seed audio
 cp .env.example .env.local     # paste the URL and keys from `supabase status`
 pnpm dev                       # http://localhost:3000
 ```
@@ -97,7 +104,7 @@ pnpm build && pnpm test:e2e                 # Playwright: the main flow, securit
 pnpm test:lighthouse                        # Lighthouse budgets on the feed, a track and a profile
 ```
 
-CI runs all of them on every pull request against a local Supabase in the runner, plus CodeQL and Gitleaks.
+CI runs all of them on every pull request against a local Supabase and the local R2 stand-in in the runner, plus CodeQL and Gitleaks.
 
 ## Roadmap
 

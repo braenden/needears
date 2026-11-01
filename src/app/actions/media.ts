@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // A new signed URL for a track's audio, for players that have been open
-// longer than the URL lives. Read and signed as the caller, so RLS and the
-// Storage policy decide, exactly as on page load.
+// longer than the URL lives. Read as the caller and signed by signAudio, so
+// RLS decides, exactly as on page load.
 export async function freshAudioUrl(slug: string): Promise<string | null> {
   if (typeof slug !== "string" || !SLUG.test(slug) || slug.length > 80)
     return null;

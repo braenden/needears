@@ -4,6 +4,7 @@ import { cacheLife } from "next/cache";
 import { connection } from "next/server";
 import { peaksSchema } from "@/lib/audio/peaks";
 import { displayPeaks, downsample } from "@/lib/audio/waveform";
+import { presignAudioPlayback } from "@/lib/storage/r2";
 import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/env";
 import type { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
@@ -15,25 +16,40 @@ type UserClient = Awaited<ReturnType<typeof createClient>>;
 // one if it has expired (src/app/actions/media.ts).
 export const SIGNED_URL_SECONDS = 3600;
 
-// Signs audio for the visitor with their own client (anon when signed out),
-// so the Storage policy decides: only tracks they can see get a URL. One
-// request for the whole page. Never use the service role here (issue 020).
+// Presigns audio for the visitor. Only keys of versions the visitor can
+// read in track_versions with their own client (anon when signed out) get
+// a URL, so RLS decides exactly as it did for the old Storage policy: live
+// tracks for everyone, hidden and taken down ones only for their owner and
+// admins. One query for the whole page. Never use the service role here
+// (issue 020).
 export async function signAudio(
   supabase: UserClient,
   keys: string[],
 ): Promise<Map<string, string>> {
   const urls = new Map<string, string>();
-  if (keys.length === 0) return urls;
-  const { data, error } = await supabase.storage
-    .from("audio")
-    .createSignedUrls(keys, SIGNED_URL_SECONDS);
+  const wanted = [...new Set(keys)];
+  if (wanted.length === 0) return urls;
+  const { data, error } = await supabase
+    .from("track_versions")
+    .select("audio_key")
+    .in("audio_key", wanted);
   if (error) {
-    console.error("Could not sign audio", error.message);
+    console.error("Could not check audio", error.code);
     return urls;
   }
-  for (const item of data) {
-    if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
-  }
+  // One bad key costs only its own track.
+  await Promise.all(
+    data.map(async ({ audio_key }) => {
+      try {
+        urls.set(
+          audio_key,
+          await presignAudioPlayback(audio_key, SIGNED_URL_SECONDS),
+        );
+      } catch (error) {
+        console.error("Could not sign audio", (error as Error).message);
+      }
+    }),
+  );
   return urls;
 }
 

@@ -31,11 +31,11 @@ select throws_ok(
        '11111111-1111-4111-8111-111111111111') $$,
   '42501', null, 'storage rejects an upload without a reservation'
 );
-select lives_ok(
+select throws_ok(
   $$ insert into storage.objects (bucket_id, name, owner_id)
      values ('audio', '11111111-1111-4111-8111-111111111111/' || (select object_id from reserved) || '.mp3',
        '11111111-1111-4111-8111-111111111111') $$,
-  'storage accepts the reserved upload'
+  '42501', null, 'storage takes no new audio, which goes to R2'
 );
 -- Checked with has_function_privilege: calling a function without EXECUTE
 -- after `set role` crashes the local Postgres 17.6 image in psql sessions
@@ -69,6 +69,7 @@ insert into storage.objects (bucket_id, name, owner_id)
 select 'peaks', '11111111-1111-4111-8111-111111111111/' || object_id || '.json', '11111111-1111-4111-8111-111111111111'
 from reserved;
 set local role service_role;
+select public.mark_upload_verified('11111111-1111-4111-8111-111111111111', object_id) from reserved;
 insert into public.tracks (owner_id, title, genre_id, duration_ms, audio_key, peaks_key)
 select '11111111-1111-4111-8111-111111111111', 'Reserved', 1, 5000,
   '11111111-1111-4111-8111-111111111111/' || object_id || '.mp3',
@@ -91,7 +92,7 @@ select throws_ok(
      values ('33333333-3333-4333-8333-333333333333', 'Late', 1, 5000,
        '33333333-3333-4333-8333-333333333333/c5555555-5555-4555-8555-555555555555.mp3',
        '33333333-3333-4333-8333-333333333333/c5555555-5555-4555-8555-555555555555.json') $$,
-  '22023', 'upload_expired', 'a track needs a valid reservation'
+  '22023', 'audio_not_verified', 'a track needs a valid reservation'
 );
 reset role;
 
@@ -102,8 +103,7 @@ where name like '%c5555555-5555-4555-8555-555555555555%'
 select results_eq(
   $$ select name from public.orphaned_upload_objects(500)
      where name like '33333333-%' or name like '11111111-%' order by name $$,
-  $$ values ('33333333-3333-4333-8333-333333333333/c5555555-5555-4555-8555-555555555555.json'),
-            ('33333333-3333-4333-8333-333333333333/c5555555-5555-4555-8555-555555555555.mp3') $$,
+  $$ values ('33333333-3333-4333-8333-333333333333/c5555555-5555-4555-8555-555555555555.json') $$,
   'cleanup finds files without a track or valid reservation, and leaves track files alone'
 );
 

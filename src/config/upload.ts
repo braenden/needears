@@ -1,5 +1,6 @@
-// Upload limits, in one place. The bucket limits in the storage migration
-// and in supabase/config.toml must match AUDIO_MAX_BYTES and PEAKS_MAX_BYTES.
+// Upload limits, in one place. The peaks bucket limit in the storage
+// migration and in supabase/config.toml must match PEAKS_MAX_BYTES; the
+// audio size is pinned in each presigned R2 upload (src/lib/storage/r2.ts).
 // Only mp3 is stored; the browser encodes wav, aiff and flac before upload.
 
 // What the browser accepts from the person.

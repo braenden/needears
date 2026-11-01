@@ -1,8 +1,9 @@
 name: Local stack
 description: >
-  Installs dependencies, starts the local Supabase stack with the seed data,
-  writes .env.local from it and builds the app, so a job can run
-  `pnpm start` against a real database.
+  Installs dependencies, starts the local Supabase stack and the local
+  stand-in for the R2 audio bucket with the seed data, writes .env.local
+  from them and builds the app, so a job can run `pnpm start` against a
+  real database.
 
 runs:
   using: composite
@@ -21,6 +22,8 @@ runs:
     # gateway and Mailpit (for magic links).
     - run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta,realtime
       shell: bash
+    - run: pnpm r2:start
+      shell: bash
     - name: Write .env.local from the local stack
       shell: bash
       run: |
@@ -31,6 +34,10 @@ runs:
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
           echo "CRON_SECRET=ci-only-not-a-secret"
+          echo "R2_ENDPOINT=http://127.0.0.1:54430"
+          echo "R2_ACCESS_KEY_ID=needears-local"
+          echo "R2_SECRET_ACCESS_KEY=needears-local-secret"
+          echo "R2_BUCKET=needears-audio"
         } > .env.local
     - run: pnpm build
       shell: bash

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/api/auth";
 import { BodyError, databaseError, jsonError, readJson } from "@/lib/api/http";
 import { clientIp } from "@/lib/api/ip";
+import { removeAudio } from "@/lib/storage/r2";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_DURATION_MS, MIN_DURATION_MS } from "@/config/upload";
 import { isAllowedLinkUrl } from "@/config/profile";
@@ -49,8 +50,9 @@ const bodySchema = z
 
 // Step 2 of an upload. Verifies the objects the browser uploaded with the
 // URLs from /api/upload/sign and creates the track. Users cannot insert
-// tracks directly (no grant), so this is the only way in. Rate limits and
-// the storage ownership check also run in the database trigger.
+// tracks directly (no grant), so this is the only way in. Rate limits, the
+// verified reservation and the peaks ownership check also run in the
+// database trigger.
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if (auth instanceof Response) return auth;
@@ -84,9 +86,14 @@ export async function POST(request: Request) {
   if (!genre.data)
     return jsonError(400, "unknown_genre", "Pick one of the listed genres.");
 
-  const verified = await verifyUpload(admin, keys, input.durationMs);
+  const verified = await verifyUpload(
+    admin,
+    { userId: auth.user.id, objectId: input.objectId },
+    input.durationMs,
+  );
   if (!verified.ok) {
-    await removeUnusedObjects(admin, keys);
+    if (verified.retry) return jsonError(503, verified.code, verified.message);
+    await removeUnusedObjects(admin, input.objectId, auth.user.id, keys);
     return jsonError(422, verified.code, verified.message);
   }
 
@@ -110,7 +117,8 @@ export async function POST(request: Request) {
     .single();
 
   if (inserted.error) {
-    if (inserted.error.code !== "23505") await removeUnusedObjects(admin, keys);
+    if (inserted.error.code !== "23505")
+      await removeUnusedObjects(admin, input.objectId, auth.user.id, keys);
     return databaseError(inserted.error);
   }
 
@@ -140,20 +148,27 @@ export async function POST(request: Request) {
   });
 }
 
-// Removes rejected uploads, unless a track already uses them (a repeated
-// request for an upload that already succeeded).
+// Removes a rejected upload. Discarding the reservation first, under a row
+// lock, means no request still in flight can turn it into a track (the
+// insert triggers need it), so the files are never deleted under a track
+// that was just created. When the reservation is already gone (used by a
+// track, or expired), nothing is removed here; the cleanup cron handles
+// what nothing uses.
 async function removeUnusedObjects(
   admin: ReturnType<typeof createAdminClient>,
+  objectId: string,
+  userId: string,
   keys: { audioKey: string; peaksKey: string },
 ) {
-  // Version 1 and every later version are in track_versions.
-  const used = await admin
-    .from("track_versions")
-    .select("id", { count: "exact", head: true })
-    .eq("audio_key", keys.audioKey);
-  if (used.error || (used.count ?? 0) > 0) return;
-  await Promise.all([
-    admin.storage.from("audio").remove([keys.audioKey]),
+  const discarded = await admin.rpc("discard_upload", {
+    p_user: userId,
+    p_object: objectId,
+  });
+  if (discarded.error || !discarded.data) return;
+  const [audio, peaks] = await Promise.all([
+    removeAudio([keys.audioKey]),
     admin.storage.from("peaks").remove([keys.peaksKey]),
   ]);
+  if (!audio || peaks.error)
+    console.error("Could not remove a rejected upload");
 }
