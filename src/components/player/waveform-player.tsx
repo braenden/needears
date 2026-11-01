@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  startTransition,
   useImperativeHandle,
   useRef,
   useState,
@@ -268,8 +269,11 @@ export function WaveformPlayer({
         const whole = Math.floor(seconds);
         if (whole === lastSecond) return;
         lastSecond = whole;
-        setCurrentMs(whole * 1000);
-        onTimeChangeRef.current?.(whole * 1000);
+        // Not urgent: a render of the page must not hold up a fade.
+        startTransition(() => {
+          setCurrentMs(whole * 1000);
+          onTimeChangeRef.current?.(whole * 1000);
+        });
       };
       const handoff = () => {
         const carried = handoffRef.current;
@@ -289,9 +293,9 @@ export function WaveformPlayer({
         }
       });
       ws.on("error", () => setErrorUrl(audioUrl ?? null));
-      ws.on("play", () => setPlaying(true));
-      ws.on("pause", () => setPlaying(false));
-      ws.on("finish", () => setPlaying(false));
+      ws.on("play", () => startTransition(() => setPlaying(true)));
+      ws.on("pause", () => startTransition(() => setPlaying(false)));
+      ws.on("finish", () => startTransition(() => setPlaying(false)));
       ws.on("timeupdate", report);
       ws.on("interaction", report);
       // Already playing this source when this player came: show where it is.
@@ -338,25 +342,29 @@ export function WaveformPlayer({
       const media = wsRef.current?.getMediaElement();
       if (media) void fadedSeek(media, clamped / 1000);
       const whole = Math.floor(clamped / 1000) * 1000;
-      setCurrentMs(whole);
-      onTimeChangeRef.current?.(whole);
+      startTransition(() => {
+        setCurrentMs(whole);
+        onTimeChangeRef.current?.(whole);
+      });
     },
     [durationMs],
   );
 
   // The button changes at once; the sound fades in or out over a few
   // milliseconds, so starting and stopping do not click.
+  // The fade starts first and the button follows as a transition, so the
+  // page's render (markers, comments) cannot hold up the fade's first steps.
   const play = useCallback(() => {
     const media = wsRef.current?.getMediaElement();
     if (!media) return;
-    setPlaying(true);
     void fadeInPlay(media).catch(() => setPlaying(false));
+    startTransition(() => setPlaying(true));
   }, []);
   const pause = useCallback(() => {
     const media = wsRef.current?.getMediaElement();
     if (!media) return;
-    setPlaying(false);
     void fadeOutPause(media);
+    startTransition(() => setPlaying(false));
   }, []);
 
   const togglePlay = useCallback(() => {

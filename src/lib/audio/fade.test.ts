@@ -155,3 +155,33 @@ describe("fades", () => {
     expect(audio.volume).toBe(1);
   });
 });
+
+describe("a busy page", () => {
+  it("delays the fade instead of skipping it, two steps a tick at most", async () => {
+    const audio = fakeAudio();
+    setListenerVolume(asMedia(audio), 1);
+    audio.paused = false;
+    // Every tick comes 20 ms late, as when a render holds the page.
+    let clock = 0;
+    const now = vi.spyOn(performance, "now").mockImplementation(() => {
+      clock += 20;
+      return clock;
+    });
+    const heard: number[] = [];
+    const record = () => {
+      if (!audio.paused) heard.push(audio.volume);
+    };
+    const done = fadeOutPause(asMedia(audio));
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(4);
+      record();
+    }
+    await done;
+    now.mockRestore();
+    // It took several steps, not one jump from full volume to silence.
+    const jumps = heard.map((v, i) => Math.abs(v - (heard[i - 1] ?? 1)));
+    expect(heard.length).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...jumps)).toBeLessThan(0.4);
+    expect(audio.pause).toHaveBeenCalledOnce();
+  });
+});

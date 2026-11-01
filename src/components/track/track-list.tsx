@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -82,12 +82,14 @@ export function TrackList({
       // The button changes at once; the sound fades in or out (25 ms, so
       // it does not click). A pause still fading out has not paused yet,
       // so there is no play event to wait for.
+      // The fade first, the button as a transition after it, so a render
+      // cannot hold up the fade.
       if (audio.paused || !isPlaying) {
-        setIsPlaying(true);
         void fadeInPlay(audio).catch(() => setIsPlaying(false));
+        startTransition(() => setIsPlaying(true));
       } else {
-        setIsPlaying(false);
         void fadeOutPause(audio);
+        startTransition(() => setIsPlaying(false));
       }
       return;
     }
@@ -112,9 +114,11 @@ export function TrackList({
     setListenerVolume(audio, volume);
     audio.src = url;
     audio.ontimeupdate = () =>
-      setProgress(audio.duration ? audio.currentTime / audio.duration : 0);
-    audio.onplay = () => setIsPlaying(true);
-    audio.onpause = () => setIsPlaying(false);
+      startTransition(() =>
+        setProgress(audio.duration ? audio.currentTime / audio.duration : 0),
+      );
+    audio.onplay = () => startTransition(() => setIsPlaying(true));
+    audio.onpause = () => startTransition(() => setIsPlaying(false));
     audio.onended = () => {
       setPlayingId(null);
       setProgress(0);
@@ -153,7 +157,7 @@ export function TrackList({
     const duration = audio.duration || track.duration_ms / 1000;
     // Playing, it fades around the jump; paused, it just moves.
     void fadedSeek(audio, Math.min(at, 0.999) * duration);
-    setProgress(at);
+    startTransition(() => setProgress(at));
   }
 
   /** Plays from `at` (0 to 1): the waveform on a card is a seek bar. */
@@ -170,14 +174,17 @@ export function TrackList({
     }
     const duration = audio.duration || track.duration_ms / 1000;
     const seconds = Math.min(at, 0.999) * duration;
-    setProgress(at);
     if (audio.paused || !isPlaying) {
       // Paused: jump in silence, then fade in from there.
       audio.currentTime = seconds;
-      setIsPlaying(true);
       void fadeInPlay(audio).catch(() => setIsPlaying(false));
+      startTransition(() => {
+        setIsPlaying(true);
+        setProgress(at);
+      });
     } else {
       void fadedSeek(audio, seconds);
+      startTransition(() => setProgress(at));
     }
   }
 

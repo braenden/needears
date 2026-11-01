@@ -100,9 +100,13 @@ function cancelRamp(state: FadeState) {
 }
 
 /**
- * Moves the gain to `to` over `ms` on a raised cosine, which starts and
- * ends gently, so the ramp itself makes no sound. Resolves true when it
- * got there, false when a newer ramp took over.
+ * Moves the gain to `to` in steps along a raised cosine, which starts and
+ * ends gently, so the ramp itself makes no sound. It counts steps, not
+ * time: when the page is busy and a tick comes late, the fade waits instead
+ * of jumping to the end (that jump would be the very click it is there to
+ * prevent). A late tick takes two steps at most, so a busy page still ends
+ * it within about twice the time. Resolves true when it got there, false
+ * when a newer ramp took over.
  */
 function ramp(
   element: HTMLMediaElement,
@@ -113,11 +117,16 @@ function ramp(
   cancelRamp(state);
   const from = state.gain;
   if (from === to) return Promise.resolve(true);
-  const start = performance.now();
+  const steps = Math.max(1, Math.round(ms / TICK_MS));
+  let step = 0;
+  let last = performance.now();
   return new Promise((resolve) => {
     state.stop = resolve;
     state.timer = setInterval(() => {
-      const t = Math.min(1, (performance.now() - start) / ms);
+      const now = performance.now();
+      step += now - last > TICK_MS * 1.5 ? 2 : 1;
+      last = now;
+      const t = Math.min(1, step / steps);
       state.gain = from + ((to - from) * (1 - Math.cos(Math.PI * t))) / 2;
       if (t >= 1) {
         state.gain = to;
