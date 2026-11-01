@@ -10,9 +10,9 @@ test("photo, working on, DAW and links show on the profile", async ({
   page,
 }) => {
   await test.step("Mia uploads and crops a photo", async () => {
-    await signInWithMagicLink(page, "mia@example.com", "/settings");
+    await signInWithMagicLink(page, "mia@example.com", "/settings/profile");
     await expect(
-      page.getByRole("heading", { name: "Settings", level: 1 }),
+      page.getByRole("heading", { name: "Edit profile", level: 1 }),
     ).toBeVisible();
     // A generated picture, picked through the hidden file input. Retried
     // until the page has hydrated and the crop dialog opens.
@@ -56,6 +56,8 @@ test("photo, working on, DAW and links show on the profile", async ({
       .fill("https://soundcloud.com/mia-k");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByText("Profile saved.")).toBeVisible();
+    // Saving goes back to the profile.
+    await expect(page).toHaveURL(/\/u\/mia$/);
   });
 
   await test.step("everyone sees it on the profile", async () => {
@@ -73,4 +75,23 @@ test("photo, working on, DAW and links show on the profile", async ({
     ).toBeVisible();
     await expect(visitor.getByText("Week streak")).toBeVisible();
   });
+});
+
+test("on a wide screen, the profile is edited in a panel over it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const bio = `Garage and broken beats. ${stamp}`;
+  await signInWithMagicLink(page, "mia@example.com", "/u/mia");
+  await expect(async () => {
+    await page.getByRole("button", { name: "Edit profile" }).click();
+    await expect(page).toHaveURL(/\?edit=profile$/, { timeout: 2000 });
+  }).toPass();
+  const panel = page.getByRole("dialog", { name: "Edit profile" });
+  await expect(panel).toBeVisible();
+  await panel.getByLabel(/Bio/).fill(bio);
+  await panel.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(panel).toBeHidden();
+  await expect(page).toHaveURL(/\/u\/mia$/);
+  await expect(page.getByText(bio)).toBeVisible();
 });

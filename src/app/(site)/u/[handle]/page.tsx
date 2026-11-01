@@ -10,6 +10,7 @@ import { BadgeList } from "@/components/profile/badges";
 import { ProfileStatsBlock } from "@/components/profile/profile-stats";
 import {
   getCommentsBy,
+  getEditableProfile,
   getFeedbackRecord,
   getProfileByHandle,
   getProfileStats,
@@ -60,17 +61,25 @@ export default async function ProfilePage({
   if (!profile) notFound();
   const tab = query.tab === "comments" ? "comments" : "tracks";
   const isOwn = viewer?.userId === profile.id;
-  const [stats, record, tracks, comments] = await Promise.all([
+  const [stats, record, tracks, comments, editable] = await Promise.all([
     getProfileStats(profile),
     getFeedbackRecord(profile.id),
     tab === "tracks" ? getTracksByOwner(profile.id) : Promise.resolve([]),
     tab === "comments" ? getCommentsBy(profile.id) : Promise.resolve([]),
+    isOwn && viewer
+      ? getEditableProfile(viewer.userId, viewer.profile)
+      : Promise.resolve(null),
   ]);
   const name = displayNameOf(profile);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
-      <OwnProfileHeader profile={profile} stats={stats} isOwn={isOwn} />
+      <OwnProfileHeader
+        profile={profile}
+        stats={stats}
+        isOwn={isOwn}
+        editable={editable}
+      />
       <ProfileStatsBlock stats={record.stats} className="mt-6" />
       <BadgeList badges={record.badges} showLocked={isOwn} className="mt-4" />
 

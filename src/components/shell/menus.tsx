@@ -26,11 +26,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import type { HeaderProps } from "./app-shell";
-import { NAV, SIGN_OUT_FORM } from "./nav";
+import { EDIT_PROFILE_HREF, NAV, SIGN_OUT_FORM } from "./nav";
 import { THEME_CHOICES, ThemeSegments, useMounted } from "./theme-toggle";
-
-/** Where "Edit profile" goes: one form with everything on the profile. */
-export const EDIT_PROFILE_HREF = "/settings/profile";
 
 const rowClasses =
   "flex h-11 items-center rounded-md px-3 text-[15px] focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent";
@@ -158,7 +155,8 @@ export function UserMenu({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href={EDIT_PROFILE_HREF}>Edit profile</Link>
+          {/* The profile with the editor open over it. */}
+          <Link href={`/u/${user.handle}?edit=profile`}>Edit profile</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings">Settings</Link>
