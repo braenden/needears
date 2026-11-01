@@ -31,6 +31,8 @@ import { setListenVolume, useListenVolume } from "@/hooks/use-volume";
 import { cn } from "@/lib/utils";
 import type { Comment, VersionedComment } from "@/types/view";
 
+import { MiniWaveform } from "@/components/track/mini-waveform";
+
 import { CommentMarkers } from "./comment-markers";
 
 export type TimeRange = { startMs: number; endMs: number };
@@ -166,6 +168,9 @@ export function WaveformPlayer({
   // Status is derived from which URL finished loading, so a new URL is
   // "loading" without resetting state in an effect.
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
+  // Until wavesurfer has loaded and drawn, the same peaks are drawn as a
+  // plain SVG, so the waveform is there from the first paint.
+  const [drawn, setDrawn] = useState(false);
   const [errorUrl, setErrorUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -239,6 +244,7 @@ export function WaveformPlayer({
         ...readColors(root),
       });
       wsRef.current = ws;
+      setDrawn(true);
       ws.setVolume(volumeRef.current);
       ws.setMuted(mutedRef.current);
       let lastSecond = -1;
@@ -469,7 +475,7 @@ export function WaveformPlayer({
           )}
         >
           {shownStatus === "loading" ? (
-            <Loader2Icon className="motion-safe:animate-spin" />
+            <Loader2Icon className="animate-spin" />
           ) : playing ? (
             <PauseIcon className="fill-current" />
           ) : (
@@ -482,11 +488,21 @@ export function WaveformPlayer({
             className="relative rounded-md has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-4 has-[input:focus-visible]:ring-offset-card"
             style={{ height }}
           >
+            {!drawn ? (
+              <MiniWaveform
+                peaks={peaks}
+                bars={160}
+                className={cn(
+                  "absolute inset-0 h-full",
+                  shownStatus === "loading" && "opacity-60",
+                )}
+              />
+            ) : null}
             <div
               ref={waveRef}
               aria-hidden="true"
               className={cn(
-                "absolute inset-0 touch-pan-y transition-opacity duration-(--duration-base)",
+                "absolute inset-0 touch-pan-y transition-opacity duration-base",
                 shownStatus === "error" && "opacity-30",
                 shownStatus === "loading" && "opacity-60",
               )}
