@@ -26,7 +26,7 @@ const MobileMenu = dynamic(() => import("./menus").then((m) => m.MobileMenu), {
     <Button
       variant="ghost"
       size="icon"
-      className="@min-[40rem]:hidden"
+      className="touch-hit @min-[40rem]:hidden"
       aria-label="Menu"
       disabled
     >
@@ -41,7 +41,7 @@ const UserMenu = dynamic(() => import("./menus").then((m) => m.UserMenu), {
     <Button
       variant="ghost"
       size="icon"
-      className="rounded-full"
+      className="touch-hit rounded-full"
       aria-label="Account menu"
       disabled
     >
@@ -137,7 +137,7 @@ export function SiteHeader({
                 <Link
                   href={item.href}
                   aria-current={pathname === item.href ? "page" : undefined}
-                  className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:text-foreground"
+                  className="touch-hit rounded-md px-2.5 py-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:text-foreground"
                 >
                   {item.label}
                 </Link>
@@ -175,7 +175,7 @@ export function SiteHeader({
               variant="ghost"
               size="icon"
               asChild
-              className="@min-[40rem]:hidden"
+              className="touch-hit @min-[40rem]:hidden"
             >
               <Link href={searchAction} aria-label="Search">
                 <SearchIcon />
@@ -188,7 +188,7 @@ export function SiteHeader({
             asChild
             size="sm"
             variant={uploading ? "secondary" : "default"}
-            className="mr-1 w-8 px-0 @min-[25rem]:w-auto @min-[25rem]:px-3"
+            className="touch-hit mr-1 w-8 px-0 @min-[25rem]:w-auto @min-[25rem]:px-3"
           >
             <Link href="/upload" aria-current={uploading ? "page" : undefined}>
               <PlusIcon />
@@ -196,7 +196,12 @@ export function SiteHeader({
             </Link>
           </Button>
           {user ? (
-            <Button variant="ghost" size="icon" asChild className="relative">
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="touch-hit relative"
+            >
               <Link
                 href="/notifications"
                 aria-current={
@@ -245,12 +250,12 @@ function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <p>Need Ears is free and open source.</p>
         <nav aria-label="Legal and info">
-          <ul className="flex flex-wrap gap-x-4 gap-y-2">
+          <ul className="flex flex-wrap gap-x-4 gap-y-2 coarse:gap-y-0">
             {LEGAL.map((item) => (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="rounded-xs outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="rounded-xs outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring coarse:inline-flex coarse:min-h-11 coarse:items-center"
                 >
                   {item.label}
                 </Link>

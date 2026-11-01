@@ -249,7 +249,7 @@ export function CommentList({
 
           {resolvedCount > 0 ? (
             <div className="flex justify-end pt-2">
-              <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+              <label className="touch-hit inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
                 <input
                   type="checkbox"
                   checked={showResolved}
@@ -424,7 +424,7 @@ function CommentItem({
                 onClick={() =>
                   viewer === "signed_out" ? onSignIn?.() : setReplying(true)
                 }
-                className="text-muted-foreground"
+                className="touch-hit text-muted-foreground"
               >
                 <ReplyIcon />
                 {viewer === "signed_out" ? "Sign in to reply" : "Reply"}
@@ -436,7 +436,7 @@ function CommentItem({
                 variant="ghost"
                 size="xs"
                 onClick={() => onToggleHelpful?.(comment, !comment.is_helpful)}
-                className="text-muted-foreground"
+                className="touch-hit text-muted-foreground"
               >
                 {comment.is_helpful ? <UndoIcon /> : <ThumbsUpIcon />}
                 {comment.is_helpful ? "Remove Helpful" : "Mark as Helpful"}
@@ -448,7 +448,7 @@ function CommentItem({
                 variant="ghost"
                 size="xs"
                 onClick={() => onToggleResolved(comment, !resolved)}
-                className="text-muted-foreground"
+                className="touch-hit text-muted-foreground"
               >
                 {resolved ? <RotateCcwIcon /> : <CircleCheckIcon />}
                 {resolved ? "Reopen" : "Mark as resolved"}
@@ -553,7 +553,7 @@ function CommentHeader({
               variant="ghost"
               size="icon-xs"
               aria-label={`More actions for the comment by ${name}`}
-              className="-mt-1 -mr-1.5 shrink-0 text-muted-foreground"
+              className="touch-hit -mt-1 -mr-1.5 shrink-0 text-muted-foreground"
             >
               <EllipsisIcon />
             </Button>

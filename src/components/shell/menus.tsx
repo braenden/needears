@@ -40,7 +40,7 @@ export function MobileMenu({
         <Button
           variant="ghost"
           size="icon"
-          className="@min-[40rem]:hidden"
+          className="touch-hit @min-[40rem]:hidden"
           aria-label="Menu"
         >
           <MenuIcon />
@@ -116,7 +116,7 @@ export function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full">
+        <Button variant="ghost" size="icon" className="touch-hit rounded-full">
           <UserAvatar profile={user} />
           <span className="sr-only">Account menu</span>
         </Button>

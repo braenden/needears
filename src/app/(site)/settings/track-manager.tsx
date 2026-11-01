@@ -98,7 +98,7 @@ export function TrackManager({ tracks }: { tracks: OwnTrack[] }) {
               disabled={track.status !== "live"}
               aria-label={`Delete ${track.title}`}
               onClick={() => setConfirm(track)}
-              className="text-muted-foreground hover:text-destructive"
+              className="touch-hit text-muted-foreground hover:text-destructive"
             >
               <Trash2Icon />
             </Button>

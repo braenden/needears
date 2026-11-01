@@ -17,6 +17,28 @@
 
 /* A mouse or trackpad: keyboard hints and hover-only extras. */
 @custom-variant fine (@media (hover: hover) and (pointer: fine));
+/* A finger. */
+@custom-variant coarse (@media (pointer: coarse));
+
+/*
+ * At least 44 by 44 pixels to tap on touch screens, however small the control
+ * looks. Not for controls that are positioned themselves.
+ */
+@utility touch-hit {
+  @media (pointer: coarse) {
+    position: relative;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 2.75rem);
+      height: max(100%, 2.75rem);
+      transform: translate(-50%, -50%);
+    }
+  }
+}
 
 @theme inline {
   --font-sans: var(--font-geist);
