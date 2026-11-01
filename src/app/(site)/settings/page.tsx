@@ -61,7 +61,7 @@ export default async function SettingsPage() {
     ]);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
       <h1 className="font-display text-3xl font-bold tracking-tight">
         Settings
       </h1>

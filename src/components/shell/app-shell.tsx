@@ -73,7 +73,7 @@ export type HeaderProps = {
   searchAction?: string;
 };
 
-const SEARCH_CLASSES = "ml-auto hidden w-full max-w-64 @min-[40rem]:block";
+const SEARCH_CLASSES = "hidden w-full @min-[40rem]:block";
 
 /**
  * The search box in the top bar. On the results page it holds the search,
@@ -122,26 +122,33 @@ export function SiteHeader({
 
   return (
     <header className="@container sticky top-0 z-40 border-b bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @min-[40rem]:gap-6">
-        <Link href="/" className="-ml-1 rounded-md p-1 focus-ring outline-none">
-          <Logo />
-        </Link>
+      {/* Wide: three zones, with the search in the middle on the same axis
+          as the page column below. Narrow: logo left, buttons right. */}
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @min-[40rem]:grid @min-[40rem]:grid-cols-[1fr_minmax(0,30rem)_1fr] @min-[40rem]:gap-6">
+        <div className="flex items-center gap-6">
+          <Link
+            href="/"
+            className="-ml-1 shrink-0 rounded-md p-1 focus-ring outline-none"
+          >
+            <Logo />
+          </Link>
 
-        <nav aria-label={navLabel} className="hidden @min-[40rem]:block">
-          <ul className="flex items-center gap-1">
-            {NAV.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-current={pathname === item.href ? "page" : undefined}
-                  className="touch-hit rounded-md px-2.5 py-1.5 text-sm text-muted-foreground focus-ring outline-none hover:text-foreground aria-[current=page]:text-foreground"
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+          <nav aria-label={navLabel} className="hidden @min-[40rem]:block">
+            <ul className="flex items-center gap-1">
+              {NAV.map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={pathname === item.href ? "page" : undefined}
+                    className="touch-hit rounded-md px-2.5 py-1.5 text-sm text-muted-foreground focus-ring outline-none hover:text-foreground aria-[current=page]:text-foreground"
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
 
         {showSearch ? (
           <Suspense
@@ -159,14 +166,11 @@ export function SiteHeader({
               className={SEARCH_CLASSES}
             />
           </Suspense>
-        ) : null}
+        ) : (
+          <div className="hidden @min-[40rem]:block" />
+        )}
 
-        <div
-          className={cn(
-            "ml-auto flex items-center gap-1",
-            showSearch && "@min-[40rem]:ml-0",
-          )}
-        >
+        <div className="ml-auto flex items-center justify-end gap-1">
           {showSearch ? (
             <Button
               variant="ghost"
@@ -218,14 +222,17 @@ export function SiteHeader({
               </Link>
             </Button>
           ) : null}
+          {/* Signed in, the theme is in the account menu. */}
           <div className="hidden items-center gap-1 @min-[40rem]:flex">
-            <ThemeToggle />
             {user ? (
               <UserMenu user={user} isAdmin={isAdmin} />
             ) : (
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/login">Sign in</Link>
-              </Button>
+              <>
+                <ThemeToggle />
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/login">Sign in</Link>
+                </Button>
+              </>
             )}
           </div>
 

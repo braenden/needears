@@ -10,7 +10,8 @@ const THEME_COLORS = {
 } as const;
 
 /**
- * Dark is the default. The class lands on <html> as `dark` or `light`.
+ * Dark is the default, also for new visitors; light, or the system's
+ * setting, can be chosen. The class lands on <html> as `dark` or `light`.
  * The nonce lets the inline script that sets the class pass the CSP.
  */
 export function ThemeProvider({
@@ -25,7 +26,7 @@ export function ThemeProvider({
       attribute="class"
       defaultTheme="dark"
       themes={["dark", "light"]}
-      enableSystem={false}
+      enableSystem
       disableTransitionOnChange
       nonce={nonce}
     >

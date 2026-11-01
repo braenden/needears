@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <div
-      className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12"
+      className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12"
       role="status"
       aria-label="Loading"
     >

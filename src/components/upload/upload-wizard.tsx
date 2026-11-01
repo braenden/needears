@@ -229,7 +229,7 @@ export function UploadWizard({
   };
 
   return (
-    <div className={cn("@container mx-auto w-full max-w-2xl", className)}>
+    <div className={cn("@container mx-auto w-full max-w-3xl", className)}>
       <h2
         ref={headingRef}
         tabIndex={-1}
