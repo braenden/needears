@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { callbackUrl } from "@/lib/auth/callback-url";
 import { readLastLogin } from "@/lib/auth/last-login";
 import { cn } from "@/lib/utils";
+import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 import { browserClient } from "@/lib/supabase/lazy";
 import { GoogleButton } from "./google-button";
 
@@ -40,9 +41,11 @@ export function LoginForm({
 
   async function sendLink(event: React.FormEvent) {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
     const address = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
       setError("Enter a valid email address.");
+      focusFirstInvalid(form);
       return;
     }
     setError(null);

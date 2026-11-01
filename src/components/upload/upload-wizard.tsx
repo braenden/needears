@@ -15,6 +15,7 @@ import { FEEDBACK_WANT_LABELS } from "@/config/labels";
 import { reputationLevels } from "@/config/reputation";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 
 import { DetailsFields } from "./details-fields";
 import {
@@ -533,6 +534,7 @@ function DetailsStep({
       onSubmit={(e) => {
         e.preventDefault();
         onNext();
+        focusFirstInvalid(e.currentTarget);
       }}
     >
       <WaveformPreview state={state} />
@@ -588,6 +590,7 @@ function PublishStep({
       onSubmit={(e) => {
         e.preventDefault();
         onPublish();
+        focusFirstInvalid(e.currentTarget);
       }}
     >
       <div className="rounded-xl border bg-card p-4">

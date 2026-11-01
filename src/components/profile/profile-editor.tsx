@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BIO_MAX, DISPLAY_NAME_MAX, HANDLE_PATTERN } from "@/config/limits";
+import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 import { cn } from "@/lib/utils";
 
 import {
@@ -113,9 +114,11 @@ export function ProfileEditor({
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
     const cleanHandle = handle.trim().toLowerCase();
     if (!HANDLE_PATTERN.test(cleanHandle)) {
       setHandleError("Use 3 to 20 letters, numbers or underscores.");
+      focusFirstInvalid(form);
       return;
     }
     setHandleError(null);
@@ -128,6 +131,7 @@ export function ProfileEditor({
     if (errors.some(Boolean)) {
       setLinks(cleaned);
       setLinkErrors(errors);
+      focusFirstInvalid(form);
       return;
     }
     setLinkErrors([]);
@@ -143,8 +147,10 @@ export function ProfileEditor({
         links: cleaned,
       };
       const result = await onSave(next);
-      if (!result.ok && result.field === "handle") setHandleError(result.error);
-      else if (!result.ok) setError(result.error);
+      if (!result.ok && result.field === "handle") {
+        setHandleError(result.error);
+        focusFirstInvalid(form);
+      } else if (!result.ok) setError(result.error);
       else {
         setDisplayName(next.displayName);
         setHandle(next.handle);
