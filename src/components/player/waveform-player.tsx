@@ -79,6 +79,12 @@ export type WaveformPlayerProps = {
    * versions in A/B. Only ever down, so nothing can clip.
    */
   gainDb?: number;
+  /**
+   * An audio element to play through instead of one of its own, such as
+   * the site's shared one, so playback started elsewhere carries on here.
+   * Called in the browser only.
+   */
+  media?: () => HTMLAudioElement;
   /** Fires once per second while playing and on every seek. */
   onTimeChange?: (ms: number) => void;
   onMarkerSelect?: (comment: Comment) => void;
@@ -144,6 +150,7 @@ export function WaveformPlayer({
   currentVersionId,
   versionNumbers,
   gainDb = 0,
+  media,
   onTimeChange,
   onMarkerSelect,
   onCommentHere,
@@ -172,6 +179,7 @@ export function WaveformPlayer({
   const onTimeChangeRef = useRef(onTimeChange);
   // Read when a new source is created, so mute and level carry over.
   const mutedRef = useRef(muted);
+  const mediaRef = useRef(media);
   // The listener's own volume, times the level match between versions.
   const listenVolume = useListenVolume();
   const volume = listenVolume * Math.min(1, 10 ** (Math.min(0, gainDb) / 20));
@@ -181,7 +189,8 @@ export function WaveformPlayer({
     keepPositionRef.current = keepPosition;
     mutedRef.current = muted;
     volumeRef.current = volume;
-  }, [onTimeChange, keepPosition, muted, volume]);
+    mediaRef.current = media;
+  }, [onTimeChange, keepPosition, muted, volume, media]);
   useEffect(() => {
     wsRef.current?.setVolume(volume);
   }, [volume]);
@@ -207,7 +216,9 @@ export function WaveformPlayer({
 
     void import("wavesurfer.js").then(({ default: WaveSurferLib }) => {
       if (cancelled) return;
+      const element = mediaRef.current?.();
       ws = WaveSurferLib.create({
+        ...(element ? { media: element } : {}),
         container,
         height,
         peaks: [peaks],
@@ -257,6 +268,11 @@ export function WaveformPlayer({
       ws.on("finish", () => setPlaying(false));
       ws.on("timeupdate", report);
       ws.on("interaction", report);
+      // Already playing when this player came: show where it is.
+      if (element && !element.paused) {
+        setPlaying(true);
+        report(element.currentTime);
+      }
     });
 
     return () => {
