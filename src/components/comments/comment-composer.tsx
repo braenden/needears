@@ -353,7 +353,7 @@ export function CommentComposer({
             {remaining} characters left
           </span>
         ) : null}
-        <span className="hidden text-xs text-muted-foreground @md:inline">
+        <span className="hidden text-xs text-muted-foreground fine:@md:inline">
           <kbd className="font-sans">Cmd</kbd> or{" "}
           <kbd className="font-sans">Ctrl</kbd> + Enter
         </span>

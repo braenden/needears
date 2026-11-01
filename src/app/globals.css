@@ -15,6 +15,9 @@
 
 @custom-variant dark (&:where(.dark, .dark *):not(:where(.light, .light *)));
 
+/* A mouse or trackpad: keyboard hints and hover-only extras. */
+@custom-variant fine (@media (hover: hover) and (pointer: fine));
+
 @theme inline {
   --font-sans: var(--font-geist);
   --font-display: var(--font-geist);

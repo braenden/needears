@@ -601,7 +601,7 @@ export function WaveformPlayer({
               size="icon-sm"
               onClick={() => setHelpOpen(true)}
               aria-label="Keyboard shortcuts"
-              className="hidden text-muted-foreground hover:text-foreground @sm:inline-flex"
+              className="hidden text-muted-foreground hover:text-foreground fine:@sm:inline-flex"
             >
               <KeyboardIcon />
             </Button>

@@ -25,7 +25,7 @@ const MobileMenu = dynamic(() => import("./menus").then((m) => m.MobileMenu), {
     <Button
       variant="ghost"
       size="icon"
-      className="@3xl:hidden"
+      className="@min-[40rem]:hidden"
       aria-label="Menu"
       disabled
     >
@@ -73,9 +73,9 @@ export type HeaderProps = {
 };
 
 /**
- * Top bar. Wide: logo, nav, upload, bell, theme, avatar menu. Narrow (container
- * query, so it also works inside the /design phone frame): logo, upload,
- * menu button that opens the rest in a sheet.
+ * Top bar. Wide: logo, nav, upload, bell, theme, avatar menu. Narrow (below
+ * 640 pixels, a container query so it also works inside the /design phone
+ * frame): logo, upload, bell, menu button that opens the rest in a sheet.
  */
 export function SiteHeader({
   user,
@@ -87,10 +87,11 @@ export function SiteHeader({
   searchAction = "/search",
 }: HeaderProps) {
   const pathname = usePathname();
+  const uploading = pathname === "/upload";
 
   return (
     <header className="@container sticky top-0 z-40 border-b bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @3xl:gap-6">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @min-[40rem]:gap-6">
         <Link
           href="/"
           className="-ml-1 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -98,7 +99,7 @@ export function SiteHeader({
           <Logo />
         </Link>
 
-        <nav aria-label={navLabel} className="hidden @3xl:block">
+        <nav aria-label={navLabel} className="hidden @min-[40rem]:block">
           <ul className="flex items-center gap-1">
             {NAV.map((item) => (
               <li key={item.href}>
@@ -118,48 +119,63 @@ export function SiteHeader({
           <SearchField
             shortcut={searchShortcut}
             action={searchAction}
-            className="ml-auto hidden w-full max-w-64 @3xl:block"
+            className="ml-auto hidden w-full max-w-64 @min-[40rem]:block"
           />
         ) : null}
 
         <div
           className={cn(
             "ml-auto flex items-center gap-1",
-            showSearch && "@3xl:ml-0",
+            showSearch && "@min-[40rem]:ml-0",
           )}
         >
           {showSearch ? (
-            <Button variant="ghost" size="icon" asChild className="@3xl:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="@min-[40rem]:hidden"
+            >
               <Link href={searchAction} aria-label="Search">
                 <SearchIcon />
               </Link>
             </Button>
           ) : null}
-          <Button asChild size="sm" className="mr-1">
-            <Link href="/upload">
+          {/* Just the plus on the narrowest phones, so the bell fits. On the
+              upload page it steps back: it would only lead to itself. */}
+          <Button
+            asChild
+            size="sm"
+            variant={uploading ? "secondary" : "default"}
+            className="mr-1 w-8 px-0 @min-[25rem]:w-auto @min-[25rem]:px-3"
+          >
+            <Link href="/upload" aria-current={uploading ? "page" : undefined}>
               <PlusIcon />
-              Upload
+              <span className="sr-only @min-[25rem]:not-sr-only">Upload</span>
             </Link>
           </Button>
-          <div className="hidden items-center gap-1 @3xl:flex">
-            {user ? (
-              <Button variant="ghost" size="icon" asChild className="relative">
-                <Link
-                  href="/notifications"
-                  aria-label={
-                    unread ? `Notifications, ${unread} new` : "Notifications"
-                  }
-                >
-                  <BellIcon />
-                  {unread ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
-                    />
-                  ) : null}
-                </Link>
-              </Button>
-            ) : null}
+          {user ? (
+            <Button variant="ghost" size="icon" asChild className="relative">
+              <Link
+                href="/notifications"
+                aria-current={
+                  pathname === "/notifications" ? "page" : undefined
+                }
+                aria-label={
+                  unread ? `Notifications, ${unread} new` : "Notifications"
+                }
+              >
+                <BellIcon />
+                {unread ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
+                  />
+                ) : null}
+              </Link>
+            </Button>
+          ) : null}
+          <div className="hidden items-center gap-1 @min-[40rem]:flex">
             <ThemeToggle />
             {user ? (
               <UserMenu user={user} isAdmin={isAdmin} />
@@ -173,7 +189,6 @@ export function SiteHeader({
           <MobileMenu
             user={user}
             isAdmin={isAdmin}
-            unread={unread}
             navLabel={navLabel}
             pathname={pathname}
           />

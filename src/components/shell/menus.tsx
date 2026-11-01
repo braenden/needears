@@ -30,7 +30,6 @@ import { ThemeToggle } from "./theme-toggle";
 export function MobileMenu({
   user,
   isAdmin = false,
-  unread = 0,
   navLabel = "Main",
   pathname,
 }: HeaderProps & { pathname: string }) {
@@ -41,7 +40,7 @@ export function MobileMenu({
         <Button
           variant="ghost"
           size="icon"
-          className="@3xl:hidden"
+          className="@min-[40rem]:hidden"
           aria-label="Menu"
         >
           <MenuIcon />
@@ -69,12 +68,6 @@ export function MobileMenu({
               ...NAV,
               ...(user
                 ? [
-                    {
-                      href: "/notifications",
-                      label: unread
-                        ? `Notifications (${unread} new)`
-                        : "Notifications",
-                    },
                     { href: `/u/${user.handle}`, label: "Your profile" },
                     { href: "/settings", label: "Settings" },
                     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
