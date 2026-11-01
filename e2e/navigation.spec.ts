@@ -11,17 +11,17 @@ test("a slow navigation shows the progress line until the page is in", async ({
   const line = page.locator("[data-phase]");
   await expect(line).toHaveAttribute("data-phase", "idle");
 
-  // Hold back everything for Mia's profile, prefetches included.
+  // Hold back everything for track pages, prefetches included.
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
-  await page.route("**/u/mia**", async (route) => {
+  await page.route("**/t/**", async (route) => {
     await held;
     await route.continue();
   });
 
-  await page.getByRole("link", { name: "Mia K" }).first().click();
+  await page.locator("main article").first().getByRole("link").first().click();
   await expect(line).toHaveAttribute("data-phase", "loading");
   release();
-  await expect(page).toHaveURL(/\/u\/mia$/);
+  await expect(page).toHaveURL(/\/t\//);
   await expect(line).toHaveAttribute("data-phase", "idle");
 });
