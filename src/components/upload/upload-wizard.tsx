@@ -230,8 +230,16 @@ export function UploadWizard({
 
   return (
     <div className={cn("@container mx-auto w-full max-w-2xl", className)}>
+      <h2
+        ref={headingRef}
+        tabIndex={-1}
+        className="font-display text-2xl font-bold tracking-tight outline-none @md:text-3xl"
+      >
+        {headings[state.step]}
+      </h2>
+
       <ol
-        className="mb-6 flex items-center gap-2 text-sm"
+        className="mt-4 flex items-center gap-2 text-sm"
         aria-label="Upload steps"
       >
         {STEPS.map((step, index) => {
@@ -276,15 +284,7 @@ export function UploadWizard({
         })}
       </ol>
 
-      <h2
-        ref={headingRef}
-        tabIndex={-1}
-        className="font-display text-2xl font-bold tracking-tight outline-none @md:text-3xl"
-      >
-        {headings[state.step]}
-      </h2>
-
-      <div className="mt-5">
+      <div className="mt-6">
         {state.step === "file" ? (
           <FileStep
             state={state}
