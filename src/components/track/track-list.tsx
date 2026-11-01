@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { freshAudioUrl } from "@/app/actions/media";
+import { useListenVolume } from "@/hooks/use-volume";
 import type { TrackSummary } from "@/types/view";
 import { TrackCard } from "./track-card";
 
@@ -30,6 +31,11 @@ export function TrackList({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  // The same volume as the track page's player.
+  const volume = useListenVolume();
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
 
   useEffect(() => {
     loadedAt.current = Date.now();
@@ -51,6 +57,7 @@ export function TrackList({
       return;
     }
     audio.pause();
+    audio.volume = volume;
     audio.src = url;
     audio.ontimeupdate = () =>
       setProgress(audio.duration ? audio.currentTime / audio.duration : 0);
