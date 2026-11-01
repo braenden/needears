@@ -9,6 +9,7 @@ import {
   EyeOffIcon,
   FlagIcon,
   PencilIcon,
+  Trash2Icon,
   UploadIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,9 +38,10 @@ import { ReportDialog, type ReportResult } from "@/components/report-dialog";
 import { ReputationBadge } from "@/components/reputation-badge";
 import type { EditTrackResult } from "@/components/track/edit-track-dialog";
 import {
-  ExportMarkersMenu,
+  ExportMarkersSubmenu,
   markersHref,
 } from "@/components/track/export-markers-menu";
+import { DeleteTrackDialog } from "@/components/track/delete-track-dialog";
 import { ReferenceLink } from "@/components/track/reference-link";
 import { VersionPicker } from "@/components/versions/version-picker";
 import { Badge } from "@/components/ui/badge";
@@ -147,6 +149,7 @@ export function TrackView({
   const [showResolved, setShowResolved] = useState(initialShowResolved);
   const [editing, setEditing] = useState(false);
   const [addingVersion, setAddingVersion] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [range, setRange] = useState<TimeRange | null>(null);
   const latest = versions[versions.length - 1];
   const [versionId, setVersionId] = useState(latest?.id ?? null);
@@ -574,7 +577,7 @@ export function TrackView({
         actions={
           // Everything else about the track, in one place: the owner's
           // changes, or a report for anyone else signed in.
-          (isOwner && genres) || (viewer && !isOwner) ? (
+          track.status === "live" || (isOwner && genres) || viewer ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -588,7 +591,21 @@ export function TrackView({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-52">
-                {isOwner ? (
+                {track.status === "live" ? (
+                  <ExportMarkersSubmenu
+                    trackId={track.id}
+                    timedCommentCount={
+                      topLevel.filter((c) => onVersion(c) && c.time_ms !== null)
+                        .length
+                    }
+                    hrefFor={(id, format) =>
+                      versioned && current
+                        ? `${markersHref(id, format)}&version=${current.version_no}`
+                        : markersHref(id, format)
+                    }
+                  />
+                ) : null}
+                {isOwner && genres ? (
                   <>
                     <DropdownMenuItem onSelect={() => setEditing(true)}>
                       <PencilIcon /> Edit details
@@ -609,14 +626,22 @@ export function TrackView({
                         </span>
                       </DropdownMenuItem>
                     ) : null}
+                    {track.status === "live" ? (
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => setDeleting(true)}
+                      >
+                        <Trash2Icon /> Delete track
+                      </DropdownMenuItem>
+                    ) : null}
                   </>
-                ) : (
+                ) : viewer && !isOwner ? (
                   <DropdownMenuItem
                     onSelect={() => setReporting({ type: "track" })}
                   >
                     <FlagIcon /> Report track
                   </DropdownMenuItem>
-                )}
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null
@@ -662,6 +687,13 @@ export function TrackView({
       </section>
 
       {/* Opened from the menu next to the reactions. */}
+      {isOwner ? (
+        <DeleteTrackDialog
+          track={deleting ? track : null}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => router.push(`/u/${track.owner.handle}`)}
+        />
+      ) : null}
       {isOwner && genres ? (
         <EditTrackDialog
           track={track}
@@ -702,20 +734,6 @@ export function TrackView({
           >
             Comments
           </h2>
-          {track.status === "live" ? (
-            <ExportMarkersMenu
-              trackId={track.id}
-              timedCommentCount={
-                topLevel.filter((c) => onVersion(c) && c.time_ms !== null)
-                  .length
-              }
-              hrefFor={(id, format) =>
-                versioned && current
-                  ? `${markersHref(id, format)}&version=${current.version_no}`
-                  : markersHref(id, format)
-              }
-            />
-          ) : null}
         </div>
         <CommentComposer
           ref={composer}
