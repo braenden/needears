@@ -8,6 +8,12 @@ let client: Promise<BrowserClient> | null = null;
 // biggest pieces of JavaScript on a page, and most visitors only listen,
 // so pages fetch it when someone signs in, comments or saves.
 export function browserClient(): Promise<BrowserClient> {
-  client ??= import("./client").then((m) => m.createClient());
+  client ??= import("./client")
+    .then((m) => m.createClient())
+    .catch((error: unknown) => {
+      // A failed download (offline for a moment) can be tried again.
+      client = null;
+      throw error;
+    });
   return client;
 }
