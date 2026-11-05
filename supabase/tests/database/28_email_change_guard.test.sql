@@ -2,7 +2,7 @@
 -- a recently signed in session gets (POST /api/account/identity-intent).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(13);
 \ir _helpers.psql
 
 update auth.users set email_confirmed_at = now() - interval '30 days'
@@ -15,7 +15,28 @@ select throws_ok(
   'a new email address needs a recent sign in'
 );
 
-select public.create_identity_intent('11111111-1111-4111-8111-111111111111', 'email_change', 'email');
+select ok(
+  not public.has_identity_intent('11111111-1111-4111-8111-111111111111', 'email_change', 'email', '5e550000-0000-4000-8000-000000000001'),
+  'no open intent before one is made'
+);
+select public.create_identity_intent('11111111-1111-4111-8111-111111111111', 'email_change', 'email', '5e550000-0000-4000-8000-000000000001');
+select ok(
+  public.has_identity_intent('11111111-1111-4111-8111-111111111111', 'email_change', 'email', '5e550000-0000-4000-8000-000000000001'),
+  'an unused intent is open, so a retry can reuse it'
+);
+select ok(
+  not public.has_identity_intent('11111111-1111-4111-8111-111111111111', 'email_change', 'email',
+    '5e550000-0000-4000-8000-000000000002'),
+  'but only for the session that asked for it'
+);
+update private.identity_intents set expires_at = now() + interval '30 seconds'
+where user_id = '11111111-1111-4111-8111-111111111111';
+select ok(
+  not public.has_identity_intent('11111111-1111-4111-8111-111111111111', 'email_change', 'email', '5e550000-0000-4000-8000-000000000001'),
+  'and not when less than a minute is left'
+);
+update private.identity_intents set expires_at = now() + interval '5 minutes'
+where user_id = '11111111-1111-4111-8111-111111111111';
 select lives_ok(
   $$ update auth.users set email_change = 'alice.new@test.local'
      where id = '11111111-1111-4111-8111-111111111111' $$,
@@ -30,6 +51,11 @@ select lives_ok(
   $$ update auth.users set email_change = 'alice.new@test.local'
      where id = '11111111-1111-4111-8111-111111111111' $$,
   'sending the link again for the same address needs no new intent'
+);
+select ok(
+  not public.has_identity_intent('11111111-1111-4111-8111-111111111111', 'email_change', 'email', '5e550000-0000-4000-8000-000000000001')
+    and not has_function_privilege('authenticated', 'public.has_identity_intent(uuid, text, text, uuid)', 'execute'),
+  'a used intent is no longer open, and only the service role asks'
 );
 select throws_ok(
   $$ update auth.users set email_change = 'another@test.local'

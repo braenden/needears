@@ -3,7 +3,7 @@
 -- experience level of your last upload.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(42);
 \ir _helpers.psql
 
 -- Alice is the artist. Bob and carol listen. Dave is an admin.
@@ -85,9 +85,15 @@ insert into public.comments (track_id, author_id, parent_id, body)
 select older, '22222222-2222-4222-8222-222222222222',
   (select id from public.comments where body = 'Carol with replies'), 'Bob replies'
 from ids;
+-- Carol edits her comment, then the artist marks it Helpful and resolves
+-- the thread, so the withdrawal below has all of that to deal with.
+select pg_temp.as_user('33333333-3333-4333-8333-333333333333');
+set local role authenticated;
+update public.comments set category = 'mix' where body = 'Carol with replies';
+reset role;
 select pg_temp.as_user('11111111-1111-4111-8111-111111111111');
 set local role authenticated;
-update public.comments set is_helpful = true where body = 'Carol with replies';
+update public.comments set is_helpful = true, resolved_at = now() where body = 'Carol with replies';
 reset role;
 
 select results_eq(
@@ -141,6 +147,15 @@ select throws_ok(
   $$ delete from public.comments where body = 'Carol with replies' $$,
   '22023', 'has_replies', 'a comment with replies is not deleted directly'
 );
+reset role;
+select ok(
+  (select is_helpful and helpful_at is not null and first_helpful_at is not null
+     and edited_at is not null and resolved_at is not null
+   from public.comments where body = 'Carol with replies'),
+  'before: edited, marked Helpful and resolved'
+);
+select pg_temp.as_user('33333333-3333-4333-8333-333333333333');
+set local role authenticated;
 select is(
   public.delete_comment((select id from public.comments where body = 'Carol with replies')),
   'withdrawn',
@@ -149,10 +164,13 @@ select is(
 reset role;
 
 select results_eq(
-  $$ select status::text, body, author_id, is_helpful from public.comments
+  $$ select status::text, body, author_id, is_helpful,
+       helpful_at, first_helpful_at, edited_at, resolved_at is not null
+     from public.comments
      where id = (select parent_id from public.comments where body = 'Bob replies') $$,
-  $$ values ('withdrawn', '', null::uuid, false) $$,
-  'a withdrawn comment keeps its place without its text, author or Helpful mark'
+  $$ values ('withdrawn', '', null::uuid, false,
+       null::timestamptz, null::timestamptz, null::timestamptz, true) $$,
+  'a withdrawn comment keeps its place and nothing of its author: no text, author, Helpful or edit time (the artist''s resolved thread stays resolved)'
 );
 select results_eq(
   $$ select comment_count, listener_count, listener_comment_count, has_helpful

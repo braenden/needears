@@ -778,7 +778,12 @@ export type Database = {
         Returns: boolean;
       };
       create_identity_intent: {
-        Args: { p_action: string; p_provider: string; p_user: string };
+        Args: {
+          p_action: string;
+          p_provider: string;
+          p_session?: string;
+          p_user: string;
+        };
         Returns: undefined;
       };
       delete_comment: { Args: { p_comment: string }; Returns: string };
@@ -892,6 +897,15 @@ export type Database = {
         };
       };
       forget_expired_upload_reservations: { Args: never; Returns: undefined };
+      has_identity_intent: {
+        Args: {
+          p_action: string;
+          p_provider: string;
+          p_session: string;
+          p_user: string;
+        };
+        Returns: boolean;
+      };
       is_admin: { Args: never; Returns: boolean };
       mark_emails_failed: { Args: { p_ids: number[] }; Returns: undefined };
       mark_emails_sent: {
