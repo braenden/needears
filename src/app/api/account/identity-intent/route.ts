@@ -4,19 +4,29 @@ import { BodyError, databaseError, jsonError, readJson } from "@/lib/api/http";
 import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const bodySchema = z
-  .object({
-    action: z.enum(["link", "unlink"]),
-    provider: z.enum(["google"]),
-  })
-  .strict();
+const bodySchema = z.union([
+  z
+    .object({
+      action: z.enum(["link", "unlink"]),
+      provider: z.enum(["google"]),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("email_change"),
+      provider: z.literal("email"),
+    })
+    .strict(),
+]);
 
-// Step 1 of linking or unlinking a way to sign in. Checks that the session
-// making this request signed in within REAUTH_WINDOW_MS (its own `amr`
-// claim, so a stolen or forgotten session cannot pass because the owner
-// signed in somewhere else), signs out the account's other sessions, then
-// leaves a one time intent the database requires for the change. The intent lasts five minutes. Step 2 is the
-// Supabase Auth call itself (linkIdentity or unlinkIdentity).
+// Step 1 of linking or unlinking a way to sign in, or of changing the
+// account email. Checks that the session making this request signed in
+// within REAUTH_WINDOW_MS (its own `amr` claim, so a stolen or forgotten
+// session cannot pass because the owner signed in somewhere else), signs
+// out the account's other sessions, then leaves a one time intent the
+// database requires for the change. The intent lasts five minutes. Step 2
+// is the Supabase Auth call itself (linkIdentity, unlinkIdentity, or
+// updateUser with a new email).
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if (auth instanceof Response) return auth;
@@ -33,7 +43,7 @@ export async function POST(request: Request) {
     return jsonError(
       400,
       "invalid_intent",
-      "Choose link or unlink and a provider.",
+      "Choose link, unlink or email_change, and a provider.",
     );
 
   const claims = await auth.supabase.auth.getClaims(auth.token ?? undefined);
