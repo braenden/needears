@@ -74,6 +74,9 @@ test("the track menu keeps off the edge of the screen", async ({ page }) => {
     await expect(page.getByRole("menu")).toBeVisible({ timeout: 2000 });
   }).toPass();
   const box = (await page.getByRole("menu").boundingBox())!;
-  expect(box.x).toBeGreaterThanOrEqual(8);
-  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width - 8);
+  // The page gutter, like everything else on the page.
+  expect(box.x).toBeGreaterThanOrEqual(16);
+  expect(box.x + box.width).toBeLessThanOrEqual(
+    page.viewportSize()!.width - 16,
+  );
 });

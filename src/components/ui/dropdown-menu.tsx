@@ -34,8 +34,8 @@ function DropdownMenuContent({
   className,
   align = "start",
   sideOffset = 4,
-  // Never flush against the edge of a phone screen.
-  collisionPadding = 8,
+  // Keeps the page gutter (16 px) from the edge of a phone screen.
+  collisionPadding = 16,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
   return (
