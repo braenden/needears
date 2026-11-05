@@ -24,6 +24,8 @@ import {
   activeCommentAt,
   type CommentFilter,
   CommentList,
+  type DeleteResult,
+  isWithdrawn,
 } from "@/components/comments/comment-list";
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
@@ -77,8 +79,17 @@ import type {
   TrackVersion,
 } from "@/types/view";
 
+/** Who a deleted comment kept for its replies is from: nobody. */
+const WITHDRAWN_AUTHOR = {
+  id: "",
+  handle: "",
+  display_name: "",
+  avatar_url: null,
+  reputation: 0,
+};
+
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, edited_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
 
 // Only the owner needs these, so everyone else never downloads them.
 const NewVersion = dynamic(
@@ -101,6 +112,7 @@ type TrackViewer = {
   userId: string;
   profile: Profile;
   commentsPerHour: number;
+  isAdmin: boolean;
 };
 
 export function TrackView({
@@ -253,7 +265,8 @@ export function TrackView({
   const viewerKind = !viewer ? "signed_out" : isOwner ? "owner" : "visitor";
   // Replies sit at their parent's time, so only top-level comments get a
   // marker on the waveform.
-  const topLevel = comments.filter((c) => !c.parent_id);
+  // A deleted comment kept for its replies counts and marks nothing.
+  const topLevel = comments.filter((c) => !c.parent_id && !isWithdrawn(c));
   const listed = comments.filter(onVersion);
   // The version open has no comments, but others do: say where they are,
   // so an empty list does not read as "nobody commented".
@@ -347,6 +360,62 @@ export function TrackView({
     setComments((list) => [...list, withOwnAvatar(data)]);
     setPosted((ids) => [...ids, data.id]);
     return { ok: true };
+  }
+
+  async function editComment(
+    comment: ThreadComment,
+    body: string,
+  ): Promise<SubmitResult> {
+    const { data, error } = await (
+      await browserClient()
+    )
+      .from("comments")
+      .update({ body })
+      .eq("id", comment.id)
+      .select("body, edited_at, is_helpful")
+      .single();
+    if (error) {
+      if (error.code === "PT429") return { ok: false, error: "rate_limited" };
+      if (error.code === "42501" || error.code === "PGRST116")
+        return { ok: false, error: "unavailable" };
+      return { ok: false, error: "failed" };
+    }
+    setComments((list) =>
+      list.map((c) => (c.id === comment.id ? { ...c, ...data } : c)),
+    );
+    return { ok: true };
+  }
+
+  async function deleteComment(comment: ThreadComment): Promise<DeleteResult> {
+    const { data, error } = await (
+      await browserClient()
+    ).rpc("delete_comment", { p_comment: comment.id });
+    if (error) {
+      return error.code === "42501" && /review/i.test(error.details ?? "")
+        ? "under_review"
+        : "failed";
+    }
+    setComments((list) =>
+      data === "withdrawn"
+        ? // Replies keep it in the thread, with nothing of it left.
+          list.map((c) =>
+            c.id === comment.id
+              ? {
+                  ...c,
+                  status: "withdrawn" as const,
+                  body: "",
+                  author_id: "",
+                  is_helpful: false,
+                  author: WITHDRAWN_AUTHOR,
+                }
+              : c,
+          )
+        : list.filter((c) => c.id !== comment.id),
+    );
+    if (selectedId === comment.id) setSelectedId(null);
+    toast.success(comment.parent_id ? "Reply deleted." : "Comment deleted.");
+    router.refresh();
+    return "ok";
   }
 
   async function toggleResolved(comment: ThreadComment, resolved: boolean) {
@@ -892,6 +961,10 @@ export function TrackView({
           showResolved={showResolved}
           onShowResolvedChange={changeShowResolved}
           onReply={reply}
+          viewerId={viewer?.userId}
+          isAdmin={viewer?.isAdmin ?? false}
+          onEdit={viewer ? editComment : undefined}
+          onDelete={viewer ? deleteComment : undefined}
           onToggleResolved={(c, resolved) => void toggleResolved(c, resolved)}
           onJump={(c) => {
             // The time on a comment plays from there: that is what people

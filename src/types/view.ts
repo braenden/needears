@@ -97,6 +97,6 @@ export type ThreadComment = Comment &
   Partial<
     Pick<
       Tables<"comments">,
-      "parent_id" | "resolved_at" | "version_id" | "end_ms"
+      "parent_id" | "resolved_at" | "version_id" | "end_ms" | "edited_at"
     >
   >;

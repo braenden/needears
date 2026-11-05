@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useId, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDownUpIcon,
@@ -8,9 +8,12 @@ import {
   CircleCheckIcon,
   EllipsisIcon,
   FlagIcon,
+  Loader2Icon,
+  PencilIcon,
   ReplyIcon,
   RotateCcwIcon,
   ThumbsUpIcon,
+  Trash2Icon,
   UndoIcon,
 } from "lucide-react";
 
@@ -22,6 +25,14 @@ import { ReputationBadge } from "@/components/reputation-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,7 +43,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { CATEGORY_LABELS } from "@/config/labels";
+import { COMMENT_MAX } from "@/config/limits";
 import { isTrusted } from "@/config/reputation";
 import { formatSpan } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -42,6 +55,17 @@ import type { SubmitResult } from "./comment-composer";
 import { ReplyComposer } from "./reply-composer";
 
 export type CommentFilter = "all" | "helpful" | "trusted";
+
+/**
+ * Deleted by its author while it had replies: it keeps its place so the
+ * replies keep theirs, with nothing of the comment left.
+ */
+export function isWithdrawn(comment: Pick<Comment, "status">) {
+  return comment.status === "withdrawn";
+}
+
+/** How deleting a comment went. */
+export type DeleteResult = "ok" | "under_review" | "failed";
 export type CommentSort = "time" | "newest";
 
 export function filterComments<T extends Comment>(
@@ -107,6 +131,14 @@ type Viewer = "owner" | "visitor" | "signed_out";
 // Badges per author id, read by every comment and reply header.
 const AuthorBadges = createContext<Record<string, BadgeKind[]>>({});
 
+// Who is looking, and what they can do to a comment of their own.
+const Actions = createContext<{
+  viewerId?: string;
+  isAdmin: boolean;
+  onEdit?: (comment: ThreadComment, body: string) => Promise<SubmitResult>;
+  askDelete?: (comment: ThreadComment) => void;
+}>({ isAdmin: false });
+
 /** Comments drawn at first, and how many more each press shows. */
 const COMMENTS_PAGE = 30;
 
@@ -135,6 +167,10 @@ export function CommentList({
   showResolved: showResolvedProp,
   defaultShowResolved = true,
   onShowResolvedChange,
+  viewerId,
+  isAdmin = false,
+  onEdit,
+  onDelete,
   className,
 }: {
   /** Top-level comments and replies together. Replies have parent_id set. */
@@ -173,8 +209,15 @@ export function CommentList({
   showResolved?: boolean;
   defaultShowResolved?: boolean;
   onShowResolvedChange?: (show: boolean) => void;
+  /** The signed in person: their own comments get Edit and Delete. */
+  viewerId?: string;
+  /** Admins can delete anyone's comment. */
+  isAdmin?: boolean;
+  onEdit?: (comment: ThreadComment, body: string) => Promise<SubmitResult>;
+  onDelete?: (comment: ThreadComment) => Promise<DeleteResult>;
   className?: string;
 }) {
+  const [deleting, setDeleting] = useState<ThreadComment | null>(null);
   const [showResolvedState, setShowResolvedState] =
     useState(defaultShowResolved);
   const showResolved = showResolvedProp ?? showResolvedState;
@@ -192,10 +235,17 @@ export function CommentList({
   };
 
   const { top, replies } = threadComments(comments);
-  const resolvedCount = top.filter((c) => c.resolved_at).length;
-  const shown = showResolved ? top : top.filter((c) => !c.resolved_at);
+  // A deleted comment stays only while there are replies to hold together,
+  // and it counts nowhere.
+  const present = top.filter(
+    (c) => !isWithdrawn(c) || (replies.get(c.id)?.length ?? 0) > 0,
+  );
+  const resolvedCount = present.filter(
+    (c) => c.resolved_at && !isWithdrawn(c),
+  ).length;
+  const shown = showResolved ? present : present.filter((c) => !c.resolved_at);
   const counts: Record<CommentFilter, number> = {
-    all: shown.length,
+    all: shown.filter((c) => !isWithdrawn(c)).length,
     helpful: filterComments(shown, "helpful").length,
     trusted: filterComments(shown, "trusted").length,
   };
@@ -213,130 +263,164 @@ export function CommentList({
   ];
 
   return (
-    <AuthorBadges value={authorBadges}>
-      <div className={cn("@container", className)}>
-        <Tabs
-          value={filter}
-          onValueChange={(v) => setFilter(v as CommentFilter)}
-          className="gap-0"
-        >
-          <div className="flex items-end justify-between gap-3 border-b">
-            <TabsList
-              variant="line"
-              aria-label="Filter comments"
-              className="min-w-0 border-b-0"
-            >
-              {filters.map(([value, label]) => (
-                <TabsTrigger key={value} value={value}>
-                  {label}
-                  <span data-numeric className="text-xs text-muted-foreground">
-                    {counts[value]}
-                  </span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mb-1 shrink-0 text-muted-foreground"
-                >
-                  <ArrowDownUpIcon />
-                  <span className="hidden @sm:inline">
-                    {sort === "time" ? "By time" : "Newest"}
-                  </span>
-                  <span className="sr-only @sm:hidden">Sort comments</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Sort comments</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={sort}
-                  onValueChange={(v) => setSort(v as CommentSort)}
-                >
-                  <DropdownMenuRadioItem value="time">
-                    By time in the track
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="newest">
-                    Newest first
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {resolvedCount > 0 ? (
-            <div className="flex justify-end pt-2">
-              <label className="touch-hit inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
-                <input
-                  type="checkbox"
-                  checked={showResolved}
-                  onChange={(e) => {
-                    setShowResolvedState(e.target.checked);
-                    onShowResolvedChange?.(e.target.checked);
-                  }}
-                  className="size-4 accent-(--primary)"
-                />
-                Show resolved
-                <span data-numeric>({resolvedCount})</span>
-              </label>
+    <Actions
+      value={{
+        viewerId,
+        isAdmin,
+        onEdit,
+        askDelete: onDelete ? setDeleting : undefined,
+      }}
+    >
+      <AuthorBadges value={authorBadges}>
+        <div className={cn("@container", className)}>
+          <Tabs
+            value={filter}
+            onValueChange={(v) => setFilter(v as CommentFilter)}
+            className="gap-0"
+          >
+            <div className="flex items-end justify-between gap-3 border-b">
+              <TabsList
+                variant="line"
+                aria-label="Filter comments"
+                className="min-w-0 border-b-0"
+              >
+                {filters.map(([value, label]) => (
+                  <TabsTrigger key={value} value={value}>
+                    {label}
+                    <span
+                      data-numeric
+                      className="text-xs text-muted-foreground"
+                    >
+                      {counts[value]}
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mb-1 shrink-0 text-muted-foreground"
+                  >
+                    <ArrowDownUpIcon />
+                    <span className="hidden @sm:inline">
+                      {sort === "time" ? "By time" : "Newest"}
+                    </span>
+                    <span className="sr-only @sm:hidden">Sort comments</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Sort comments</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={sort}
+                    onValueChange={(v) => setSort(v as CommentSort)}
+                  >
+                    <DropdownMenuRadioItem value="time">
+                      By time in the track
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="newest">
+                      Newest first
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          ) : null}
 
-          {filters.map(([value]) => (
-            <TabsContent key={value} value={value}>
-              {loading ? (
-                <CommentListSkeleton />
-              ) : visible.length === 0 && filter === "all" && emptyAll ? (
-                emptyAll
-              ) : visible.length === 0 ? (
-                <CommentsEmpty
-                  filter={filter}
-                  viewer={viewer}
-                  onShowAll={() => setFilter("all")}
-                  onSignIn={onSignIn}
-                  onCopyLink={onCopyLink}
-                />
-              ) : (
-                <>
-                  <ol className="divide-y">
-                    {visible.slice(0, upTo).map((comment) => (
-                      <CommentItem
-                        key={comment.id}
-                        comment={comment}
-                        viewer={viewer}
-                        fromOwner={!!ownerId && comment.author_id === ownerId}
-                        ownerId={ownerId}
-                        newCommentIds={newCommentIds}
-                        onJump={onJump}
-                        onToggleHelpful={onToggleHelpful}
-                        onReport={onReport}
-                        replies={replies.get(comment.id) ?? []}
-                        onReply={onReply}
-                        onToggleResolved={onToggleResolved}
-                        onSignIn={onSignIn}
-                      />
-                    ))}
-                  </ol>
-                  {remaining > 0 ? (
-                    <div className="flex justify-center border-t pt-4">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setLimit(upTo + COMMENTS_PAGE)}
-                      >
-                        Show {Math.min(COMMENTS_PAGE, remaining)} more
-                      </Button>
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
-      </div>
-    </AuthorBadges>
+            {resolvedCount > 0 ? (
+              <div className="flex justify-end pt-2">
+                <label className="touch-hit inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+                  <input
+                    type="checkbox"
+                    checked={showResolved}
+                    onChange={(e) => {
+                      setShowResolvedState(e.target.checked);
+                      onShowResolvedChange?.(e.target.checked);
+                    }}
+                    className="size-4 accent-(--primary)"
+                  />
+                  Show resolved
+                  <span data-numeric>({resolvedCount})</span>
+                </label>
+              </div>
+            ) : null}
+
+            {filters.map(([value]) => (
+              <TabsContent key={value} value={value}>
+                {loading ? (
+                  <CommentListSkeleton />
+                ) : visible.length === 0 && filter === "all" && emptyAll ? (
+                  emptyAll
+                ) : visible.length === 0 ? (
+                  <CommentsEmpty
+                    filter={filter}
+                    viewer={viewer}
+                    onShowAll={() => setFilter("all")}
+                    onSignIn={onSignIn}
+                    onCopyLink={onCopyLink}
+                  />
+                ) : (
+                  <>
+                    <ol className="divide-y">
+                      {visible
+                        .slice(0, upTo)
+                        .map((comment) =>
+                          isWithdrawn(comment) ? (
+                            <WithdrawnItem
+                              key={comment.id}
+                              replies={replies.get(comment.id) ?? []}
+                              viewer={viewer}
+                              ownerId={ownerId}
+                              newCommentIds={newCommentIds}
+                              onReport={onReport}
+                            />
+                          ) : (
+                            <CommentItem
+                              key={comment.id}
+                              comment={comment}
+                              viewer={viewer}
+                              fromOwner={
+                                !!ownerId && comment.author_id === ownerId
+                              }
+                              ownerId={ownerId}
+                              newCommentIds={newCommentIds}
+                              onJump={onJump}
+                              onToggleHelpful={onToggleHelpful}
+                              onReport={onReport}
+                              replies={replies.get(comment.id) ?? []}
+                              onReply={onReply}
+                              onToggleResolved={onToggleResolved}
+                              onSignIn={onSignIn}
+                            />
+                          ),
+                        )}
+                    </ol>
+                    {remaining > 0 ? (
+                      <div className="flex justify-center border-t pt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setLimit(upTo + COMMENTS_PAGE)}
+                        >
+                          Show {Math.min(COMMENTS_PAGE, remaining)} more
+                        </Button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+        {onDelete ? (
+          <DeleteCommentDialog
+            comment={deleting}
+            onClose={() => setDeleting(null)}
+            onDelete={onDelete}
+          />
+        ) : null}
+      </AuthorBadges>
+    </Actions>
   );
 }
 
@@ -370,6 +454,8 @@ function CommentItem({
   const name = displayNameOf(comment.author);
   const resolved = !!comment.resolved_at;
   const [replying, setReplying] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const { onEdit } = useContext(Actions);
   const replyButton = useRef<HTMLButtonElement>(null);
   const canResolve = viewer === "owner" && !!onToggleResolved;
 
@@ -399,6 +485,7 @@ function CommentItem({
           comment={comment}
           viewer={viewer}
           onReport={onReport}
+          onEditStart={() => setEditing(true)}
           muted={resolved}
           fromOwner={fromOwner}
         />
@@ -433,14 +520,22 @@ function CommentItem({
             </Badge>
           ) : null}
         </div>
-        <p
-          className={cn(
-            "mt-2 text-sm leading-relaxed break-words whitespace-pre-line",
-            resolved && "text-muted-foreground",
-          )}
-        >
-          {comment.body}
-        </p>
+        {editing && onEdit ? (
+          <CommentEditor
+            comment={comment}
+            onSave={(body) => onEdit(comment, body)}
+            onClose={() => setEditing(false)}
+          />
+        ) : (
+          <p
+            className={cn(
+              "mt-2 text-sm leading-relaxed break-words whitespace-pre-line",
+              resolved && "text-muted-foreground",
+            )}
+          >
+            {comment.body}
+          </p>
+        )}
 
         {viewer === "owner" || onReply ? (
           <div className="mt-2 -ml-2 flex flex-wrap items-center gap-1">
@@ -530,15 +625,21 @@ function CommentHeader({
   comment,
   viewer,
   onReport,
+  onEditStart,
   muted,
   fromOwner,
 }: {
-  comment: Comment;
+  comment: ThreadComment;
   viewer: Viewer;
   onReport?: (comment: Comment) => void;
+  onEditStart?: () => void;
   muted?: boolean;
   fromOwner?: boolean;
 }) {
+  const { viewerId, isAdmin, onEdit, askDelete } = useContext(Actions);
+  const own = !!viewerId && comment.author_id === viewerId;
+  const canEdit = own && !!onEdit && !!onEditStart;
+  const canDelete = (own || isAdmin) && !!askDelete;
   const name = displayNameOf(comment.author);
   const profileHref = `/u/${comment.author.handle}`;
   const badges = useContext(AuthorBadges)[comment.author_id] ?? [];
@@ -579,6 +680,9 @@ function CommentHeader({
           date={comment.created_at}
           className="text-xs text-muted-foreground"
         />
+        {comment.edited_at ? (
+          <span className="text-xs text-muted-foreground">edited</span>
+        ) : null}
       </div>
       {viewer !== "signed_out" ? (
         <DropdownMenu>
@@ -594,9 +698,25 @@ function CommentHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => onReport?.(comment)}>
-              <FlagIcon /> Report comment
-            </DropdownMenuItem>
+            {canEdit ? (
+              <DropdownMenuItem onSelect={onEditStart}>
+                <PencilIcon /> Edit
+              </DropdownMenuItem>
+            ) : null}
+            {canDelete ? (
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => askDelete?.(comment)}
+              >
+                <Trash2Icon /> Delete
+              </DropdownMenuItem>
+            ) : null}
+            {/* Nobody reports their own. */}
+            {!own ? (
+              <DropdownMenuItem onSelect={() => onReport?.(comment)}>
+                <FlagIcon /> Report comment
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
@@ -620,6 +740,8 @@ function ReplyItem({
   onReport?: (comment: Comment) => void;
   muted?: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+  const { onEdit } = useContext(Actions);
   return (
     <li
       className={cn(
@@ -645,16 +767,25 @@ function ReplyItem({
           viewer={viewer}
           fromOwner={fromOwner}
           onReport={onReport}
+          onEditStart={() => setEditing(true)}
           muted={muted}
         />
-        <p
-          className={cn(
-            "mt-1 text-sm leading-relaxed break-words whitespace-pre-line",
-            muted && "text-muted-foreground",
-          )}
-        >
-          {reply.body}
-        </p>
+        {editing && onEdit ? (
+          <CommentEditor
+            comment={reply}
+            onSave={(body) => onEdit(reply, body)}
+            onClose={() => setEditing(false)}
+          />
+        ) : (
+          <p
+            className={cn(
+              "mt-1 text-sm leading-relaxed break-words whitespace-pre-line",
+              muted && "text-muted-foreground",
+            )}
+          >
+            {reply.body}
+          </p>
+        )}
       </div>
     </li>
   );
@@ -751,5 +882,243 @@ function CommentListSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+/** Asks before a comment goes; it cannot be brought back. */
+function DeleteCommentDialog({
+  comment,
+  onClose,
+  onDelete,
+}: {
+  comment: ThreadComment | null;
+  onClose: () => void;
+  onDelete: (comment: ThreadComment) => Promise<DeleteResult>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<DeleteResult | null>(null);
+  const isReply = !!comment?.parent_id;
+  return (
+    <Dialog
+      open={!!comment}
+      onOpenChange={(open) => {
+        if (open || busy) return;
+        setError(null);
+        onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {isReply ? "Delete reply?" : "Delete comment?"}
+          </DialogTitle>
+          <DialogDescription>
+            It goes for good.
+            {!isReply
+              ? " Replies to it stay, under \u201cComment deleted\u201d."
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error === "under_review"
+              ? "This comment is being looked at by a moderator, so it can't be deleted right now."
+              : "Couldn't delete it. Try again."}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              setError(null);
+              onClose();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={busy}
+            onClick={async () => {
+              if (!comment) return;
+              setBusy(true);
+              const result = await onDelete(comment).catch(
+                () => "failed" as const,
+              );
+              setBusy(false);
+              if (result === "ok") {
+                setError(null);
+                onClose();
+              } else setError(result);
+            }}
+          >
+            {busy ? <Loader2Icon className="animate-spin" /> : null}
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Your own comment or reply, in place, with the same limits as writing it. */
+function CommentEditor({
+  comment,
+  onSave,
+  onClose,
+}: {
+  comment: ThreadComment;
+  onSave: (body: string) => Promise<SubmitResult>;
+  onClose: () => void;
+}) {
+  const id = useId();
+  const [body, setBody] = useState(comment.body);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const problem = (text: string) =>
+    !text.trim()
+      ? "Write something first."
+      : text.trim().length > COMMENT_MAX
+        ? `Comments can be up to ${COMMENT_MAX} characters.`
+        : null;
+
+  async function save() {
+    if (saving) return;
+    const issue = problem(body);
+    if (issue) {
+      setError(issue);
+      return;
+    }
+    if (body.trim() === comment.body) {
+      onClose();
+      return;
+    }
+    setSaving(true);
+    const result = await onSave(body.trim()).catch(
+      () => ({ ok: false, error: "failed" }) as const,
+    );
+    setSaving(false);
+    if (result.ok) onClose();
+    else
+      setError(
+        result.error === "unavailable"
+          ? "This comment can't be changed right now."
+          : "Your change didn't go through. Your text is still here. Try again.",
+      );
+  }
+
+  return (
+    <form
+      noValidate
+      className="mt-2 grid gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
+      <label htmlFor={`${id}-body`} className="sr-only">
+        Edit your comment
+      </label>
+      <Textarea
+        id={`${id}-body`}
+        // The person just pressed Edit.
+        autoFocus
+        value={body}
+        onChange={(e) => {
+          setBody(e.target.value);
+          if (error) setError(problem(e.target.value));
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+          }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            void save();
+          }
+        }}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={`${id}-note`}
+        className="min-h-16 bg-background"
+      />
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div
+          id={`${id}-note`}
+          className="mr-auto min-h-5 text-sm"
+          aria-live="polite"
+        >
+          {error ? (
+            <p className="text-destructive">{error}</p>
+          ) : comment.is_helpful ? (
+            <p className="text-muted-foreground">
+              A changed comment loses its Helpful mark.
+            </p>
+          ) : null}
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={saving}
+          aria-keyshortcuts="Meta+Enter Control+Enter"
+        >
+          {saving ? <Loader2Icon className="animate-spin" /> : null}
+          Save
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * A comment its author deleted while it had replies: no name, no text, no
+ * actions. Only there to hold the replies.
+ */
+function WithdrawnItem({
+  replies,
+  viewer,
+  ownerId,
+  newCommentIds,
+  onReport,
+}: {
+  replies: ThreadComment[];
+  viewer: Viewer;
+  ownerId?: string;
+  newCommentIds: string[];
+  onReport?: (comment: Comment) => void;
+}) {
+  return (
+    <li className="flex gap-3 py-4">
+      <span
+        aria-hidden="true"
+        className="mt-0.5 size-8 shrink-0 rounded-full border border-dashed"
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-muted-foreground italic">Comment deleted</p>
+        <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 border-l-2 pl-3 @sm:pl-4">
+          <ol
+            aria-label="Replies to a deleted comment"
+            className="grid grid-cols-[minmax(0,1fr)] gap-3"
+          >
+            {replies.map((reply) => (
+              <ReplyItem
+                key={reply.id}
+                reply={reply}
+                viewer={viewer}
+                fromOwner={!!ownerId && reply.author_id === ownerId}
+                fresh={newCommentIds.includes(reply.id)}
+                onReport={onReport}
+              />
+            ))}
+          </ol>
+        </div>
+      </div>
+    </li>
   );
 }

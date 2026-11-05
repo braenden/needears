@@ -287,3 +287,74 @@ describe("CommentList on a busy track", () => {
     expect(list.querySelector("[aria-current]")).toBeNull();
   });
 });
+
+describe("CommentList with a deleted comment", () => {
+  const withdraw = (id: string) =>
+    threadedComments.map((c) =>
+      c.id === id
+        ? {
+            ...c,
+            status: "withdrawn" as const,
+            body: "",
+            author_id: "",
+            is_helpful: false,
+            author: {
+              id: "",
+              handle: "",
+              display_name: "",
+              avatar_url: null,
+              reputation: 0,
+            },
+          }
+        : c,
+    );
+
+  it("keeps its replies under Comment deleted and leaves it out of the count", () => {
+    const list = withdraw("c1");
+    renderWithTooltips(<CommentList comments={list} viewer="visitor" />);
+    const kept = screen.getByText("Comment deleted").closest("li")!;
+    expect(
+      within(kept).getByText(/Is that cut on the snare bus/),
+    ).toBeInTheDocument();
+    // Nothing to act on.
+    expect(within(kept).queryByRole("button", { name: /^Reply$/ })).toBeNull();
+    const top = list.filter((c) => !c.parent_id).length;
+    expect(screen.getByRole("tab", { name: /^All/ })).toHaveTextContent(
+      String(top - 1),
+    );
+  });
+
+  it("is gone once it has no replies", () => {
+    const list = withdraw("c2").filter((c) => c.parent_id !== "c2");
+    renderWithTooltips(<CommentList comments={list} viewer="visitor" />);
+    expect(screen.queryByText("Comment deleted")).toBeNull();
+  });
+});
+
+describe("CommentList actions on your own comment", () => {
+  it("offers Edit and Delete on your own, Report on others", async () => {
+    const user = userEvent.setup();
+    const own = threadedComments.find((c) => !c.parent_id)!;
+    renderWithTooltips(
+      <CommentList
+        comments={threadedComments}
+        viewer="visitor"
+        viewerId={own.author_id}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    const name = own.author.display_name;
+    const menus = screen.getAllByRole("button", {
+      name: `More actions for the comment by ${name}`,
+    });
+    await user.click(menus[0]!);
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Delete" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Report comment" }),
+    ).toBeNull();
+  });
+});

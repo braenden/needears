@@ -154,7 +154,7 @@ export type PlayableVersion = TrackVersion & {
 };
 
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
+  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, edited_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
 
 const WITHDRAWN_AUTHOR = {
   id: "",
