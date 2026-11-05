@@ -2,8 +2,12 @@ name: Backup
 
 # Nightly encrypted backup of the production database, kept as a workflow
 # artifact for 90 days. On Sundays it also lists every Storage object and
-# copies the ones that are new since the week before (scripts/backup.sh).
-# Skipped until the secrets SUPABASE_DB_URL and BACKUP_AGE_RECIPIENT are set.
+# every track audio file in R2, and copies the ones that are new since the
+# week before (scripts/backup.sh). Skipped until the secrets SUPABASE_DB_URL
+# and BACKUP_AGE_RECIPIENT are set; the R2 part is skipped until
+# R2_BACKUP_ENDPOINT, R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY and
+# R2_BACKUP_BUCKET are set (an R2 API token with Object Read only, on the
+# audio bucket only).
 #
 # Artifacts of a public repository can be downloaded by anyone signed in to
 # GitHub, so only age encrypted archives are uploaded.
@@ -12,6 +16,7 @@ name: Backup
 #   1. age -d -i key.txt needears-db-*.tar.gz.age | tar xz
 #   2. psql --single-transaction -v ON_ERROR_STOP=1 -f roles.sql -f schema.sql -c 'SET session_replication_role = replica' -f data.sql -c 'SET session_replication_role = origin' -f cron.sql -d "$NEW_DB_URL"
 #   3. For each weekly archive, oldest first: age -d -i key.txt needears-storage-*.tar.gz.age | tar xz, then with the CLI linked to the new project: for b in objects/*; do supabase storage cp -r "$b" ss:/// --experimental; done
+#   4. For each weekly R2 archive, oldest first: age -d -i key.txt needears-r2-*.tar.gz.age | tar xz, then with a read and write token for the new bucket: AWS_REQUEST_CHECKSUM_CALCULATION=when_required aws s3 cp objects/ "s3://$NEW_BUCKET/" --recursive --content-type audio/mpeg --endpoint-url "https://<account id>.eu.r2.cloudflarestorage.com" (objects.json lists every file the bucket had)
 
 on:
   schedule:
@@ -20,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       storage:
-        description: Also list Storage and copy objects from the last 8 days
+        description: Also list Storage and R2 and copy objects from the last 8 days
         type: boolean
         default: false
 
@@ -71,9 +76,16 @@ jobs:
           BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          R2_BACKUP_ENDPOINT: ${{ secrets.R2_BACKUP_ENDPOINT }}
+          R2_BACKUP_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
           BACKUP_STORAGE: ${{ (github.event.schedule == '41 2 * * 0' || inputs.storage) && 'true' || 'false' }}
           BACKUP_OUT: backup
+      # Also when a later part failed (R2, for example), so the database
+      # backup of the day is kept. Everything in backup/ is encrypted.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
         with:
           name: backup-${{ github.run_id }}
           path: backup/
