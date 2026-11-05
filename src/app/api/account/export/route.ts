@@ -74,6 +74,15 @@ export async function GET(request: Request) {
   if (versions.error)
     return jsonError(500, "export_failed", "Could not export your data.");
 
+  // Handles the profile had before, which still lead to it for a while.
+  const oldHandles = await supabase
+    .from("handle_history")
+    .select("handle, changed_at")
+    .eq("profile_id", uid)
+    .order("changed_at", { ascending: false });
+  if (oldHandles.error)
+    return jsonError(500, "export_failed", "Could not export your data.");
+
   const exportedAt = new Date().toISOString();
   const data = {
     exportedAt,
@@ -95,6 +104,7 @@ export async function GET(request: Request) {
       })),
     },
     profile: profile.data,
+    oldHandles: oldHandles.data,
     tracks: tracks.data,
     trackVersions: versions.data,
     uploadIps: uploadIps.data,
