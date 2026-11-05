@@ -29,7 +29,7 @@ test("change email, with the link opened in another browser", async ({
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Send links" }).click();
   await expect(
-    dialog.getByText("That address belongs to another account."),
+    dialog.getByText("We can't use that address. Try another one."),
   ).toBeVisible();
 
   const sentAfter = Date.now() - 1_000;

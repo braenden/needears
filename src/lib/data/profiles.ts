@@ -199,6 +199,28 @@ export type FeedbackRecord = {
   badges: EarnedBadge[];
 };
 
+type QueryError = { code?: string; message?: string; details?: string };
+
+/** A request cut off because the page was left (or the server stopped it). */
+export function aborted(error: QueryError) {
+  return /abort/i.test(`${error.message ?? ""} ${error.details ?? ""}`);
+}
+
+/** The code when there is one, and always the message, for the logs. */
+export function describeError(error: QueryError) {
+  return [error.code, error.message].filter(Boolean).join(" ") || "unknown";
+}
+
+const EMPTY_RECORD: FeedbackRecord = {
+  stats: {
+    commentsGiven: 0,
+    helpfulReceived: 0,
+    helpfulShare: 0,
+    weekStreak: 0,
+  },
+  badges: [],
+};
+
 // How someone gives feedback (profile_stats) and the badges they have.
 export async function getFeedbackRecord(
   userId: string,
@@ -212,8 +234,17 @@ export async function getFeedbackRecord(
       .eq("user_id", userId)
       .order("awarded_at"),
   ]);
-  if (stats.error) throw new Error(`Stats failed: ${stats.error.code}`);
-  if (badges.error) throw new Error(`Badges failed: ${badges.error.code}`);
+  // The page was left before the answer came: nobody sees it, so nothing
+  // to report.
+  if (
+    (stats.error && aborted(stats.error)) ||
+    (badges.error && aborted(badges.error))
+  )
+    return EMPTY_RECORD;
+  if (stats.error)
+    throw new Error(`Stats failed: ${describeError(stats.error)}`);
+  if (badges.error)
+    throw new Error(`Badges failed: ${describeError(badges.error)}`);
   const row = stats.data[0];
   return {
     stats: {

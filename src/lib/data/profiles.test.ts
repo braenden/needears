@@ -6,7 +6,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ rpc }),
 }));
 
-const { currentHandleFor } = await import("./profiles");
+const { aborted, currentHandleFor, describeError } = await import("./profiles");
 
 describe("currentHandleFor", () => {
   beforeEach(() => {
@@ -34,5 +34,26 @@ describe("currentHandleFor", () => {
     expect(await currentHandleFor("nobody")).toBeNull();
     rpc.mockResolvedValueOnce({ data: "nora", error: null });
     expect(await currentHandleFor("nora")).toBeNull();
+  });
+});
+
+describe("query errors", () => {
+  it("knows a request cut off by leaving the page", () => {
+    expect(
+      aborted({ message: "AbortError: This operation was aborted", code: "" }),
+    ).toBe(true);
+    expect(aborted({ message: "permission denied", code: "42501" })).toBe(
+      false,
+    );
+  });
+
+  it("logs the message, also when there is no code", () => {
+    expect(describeError({ message: "TypeError: fetch failed" })).toBe(
+      "TypeError: fetch failed",
+    );
+    expect(describeError({ code: "42501", message: "permission denied" })).toBe(
+      "42501 permission denied",
+    );
+    expect(describeError({})).toBe("unknown");
   });
 });

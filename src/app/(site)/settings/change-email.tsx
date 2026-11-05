@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2Icon } from "lucide-react";
 
@@ -29,22 +29,17 @@ type State =
   | { step: "sent"; to: string }
   | { step: "reauth" };
 
-/** What went wrong, from Supabase Auth's answer, for the person. */
+/**
+ * What went wrong when sending the links, for the person. Asking for a
+ * fresh sign-in is only for our own server's answer, before this.
+ */
 export function emailChangeError(error: {
   status?: number;
   code?: string;
-  message?: string;
-}): "reauth" | string {
-  // The database refuses a change without a recent go-ahead (it expired,
-  // or was used up by a double click). Supabase Auth only passes that on
-  // as a failed email: a fresh sign-in sorts it out.
-  if (
-    error.code === "reauth_required" ||
-    (error.status === 500 && error.code === "unexpected_failure")
-  )
-    return "reauth";
+}): string {
+  // Neutral on purpose: it does not say whether the address has an account.
   if (error.code === "email_exists" || error.code === "email_address_taken")
-    return "That address belongs to another account.";
+    return "We can't use that address. Try another one.";
   if (error.status === 429 || error.code === "over_email_send_rate_limit")
     return "Too many emails. Wait a minute and try again.";
   if (
@@ -52,8 +47,11 @@ export function emailChangeError(error: {
     error.code === "validation_failed"
   )
     return "Enter a valid email address.";
-  return "We couldn't send the link. Try again in a minute.";
+  return "We couldn't send the email. Try again in a minute.";
 }
+
+/** How long our server's go-ahead lasts, less a margin. */
+const INTENT_MS = 4 * 60 * 1000;
 
 /**
  * Change the account's email address. A link goes to both the current and
@@ -62,6 +60,9 @@ export function emailChangeError(error: {
 export function ChangeEmail({ current }: { current: string | null }) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  // When our server last gave a go-ahead. A retry within its lifetime does
+  // not ask again, so other devices are not signed out a second time.
+  const intentAt = useRef(0);
   const [email, setEmail] = useState("");
   const [state, setState] = useState<State>({
     step: "form",
@@ -87,18 +88,21 @@ export function ChangeEmail({ current }: { current: string | null }) {
     setState({ step: "form", error: null, sending: true });
     // Our server's go-ahead first: only for a recent sign-in, and it signs
     // out the account's other sessions.
-    const intent = await requestIdentityIntent("email_change", "email");
-    if (intent === "reauth") {
-      setState({ step: "reauth" });
-      return;
-    }
-    if (intent === "failed") {
-      setState({
-        step: "form",
-        error: "Something broke on our side. Try again in a minute.",
-        sending: false,
-      });
-      return;
+    if (Date.now() - intentAt.current > INTENT_MS) {
+      const intent = await requestIdentityIntent("email_change", "email");
+      if (intent === "reauth") {
+        setState({ step: "reauth" });
+        return;
+      }
+      if (intent === "failed") {
+        setState({
+          step: "form",
+          error: "Something broke on our side. Try again in a minute.",
+          sending: false,
+        });
+        return;
+      }
+      intentAt.current = Date.now();
     }
     const address = email.trim();
     const { error } = await (
@@ -110,15 +114,12 @@ export function ChangeEmail({ current }: { current: string | null }) {
       },
     );
     if (!error) {
+      // Used up.
+      intentAt.current = 0;
       setState({ step: "sent", to: address });
       return;
     }
-    const text = emailChangeError(error);
-    setState(
-      text === "reauth"
-        ? { step: "reauth" }
-        : { step: "form", error: text, sending: false },
-    );
+    setState({ step: "form", error: emailChangeError(error), sending: false });
   }
 
   return (
