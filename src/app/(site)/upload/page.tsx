@@ -21,9 +21,7 @@ export default async function UploadPage() {
     .from("tracks")
     .select("level")
     .eq("owner_id", viewer.userId)
-    .neq("status", "deleted")
-    .not("level", "is", null)
-    .order("published_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   return (
