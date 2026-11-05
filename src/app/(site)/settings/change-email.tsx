@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { Loader2Icon } from "lucide-react";
 
@@ -50,9 +50,6 @@ export function emailChangeError(error: {
   return "We couldn't send the email. Try again in a minute.";
 }
 
-/** How long our server's go-ahead lasts, less a margin. */
-const INTENT_MS = 4 * 60 * 1000;
-
 /**
  * Change the account's email address. A link goes to both the current and
  * the new address, and the change happens when one of them is opened.
@@ -70,9 +67,6 @@ export function ChangeEmail({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  // When our server last gave a go-ahead. A retry within its lifetime does
-  // not ask again, so other devices are not signed out a second time.
-  const intentAt = useRef(0);
   const [email, setEmail] = useState("");
   const [state, setState] = useState<State>({
     step: "form",
@@ -126,21 +120,20 @@ export function ChangeEmail({
     setState({ step: "form", error: null, sending: true });
     // Our server's go-ahead first: only for a recent sign-in, and it signs
     // out the account's other sessions.
-    if (Date.now() - intentAt.current > INTENT_MS) {
-      const intent = await requestIdentityIntent("email_change", "email");
-      if (intent === "reauth") {
-        needFreshSignIn();
-        return;
-      }
-      if (intent === "failed") {
-        setState({
-          step: "form",
-          error: "Something broke on our side. Try again in a minute.",
-          sending: false,
-        });
-        return;
-      }
-      intentAt.current = Date.now();
+    // A retry gets the same, unused go-ahead back from the server, without
+    // signing anyone out again.
+    const intent = await requestIdentityIntent("email_change", "email");
+    if (intent === "reauth") {
+      needFreshSignIn();
+      return;
+    }
+    if (intent === "failed") {
+      setState({
+        step: "form",
+        error: "Something broke on our side. Try again in a minute.",
+        sending: false,
+      });
+      return;
     }
     const address = email.trim();
     const { error } = await (
@@ -152,8 +145,6 @@ export function ChangeEmail({
       },
     );
     if (!error) {
-      // Used up.
-      intentAt.current = 0;
       setState({ step: "sent", to: address });
       return;
     }

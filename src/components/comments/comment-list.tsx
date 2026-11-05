@@ -243,14 +243,10 @@ export function CommentList({
   const present = top.filter(
     (c) => !isWithdrawn(c) || (replies.get(c.id)?.length ?? 0) > 0,
   );
-  const resolvedCount = present.filter(
-    (c) => c.resolved_at && !isWithdrawn(c),
-  ).length;
-  // A deleted comment is not hidden as resolved: its replies would go with
-  // it, and nothing would say where.
-  const shown = showResolved
-    ? present
-    : present.filter((c) => !c.resolved_at || isWithdrawn(c));
+  // A resolved thread stays resolved when its top comment was deleted, so
+  // it is counted here and "Show resolved" brings it back.
+  const resolvedCount = present.filter((c) => c.resolved_at).length;
+  const shown = showResolved ? present : present.filter((c) => !c.resolved_at);
   const counts: Record<CommentFilter, number> = {
     all: shown.filter((c) => !isWithdrawn(c)).length,
     helpful: filterComments(shown, "helpful").length,

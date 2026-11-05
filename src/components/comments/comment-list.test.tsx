@@ -324,6 +324,19 @@ describe("CommentList with a deleted comment", () => {
     );
   });
 
+  it("stays resolved: Show resolved hides it and brings it back", async () => {
+    const user = userEvent.setup();
+    const list = withdraw("c1").map((c) =>
+      c.id === "c1" ? { ...c, resolved_at: "2026-11-01T10:00:00Z" } : c,
+    );
+    renderWithTooltips(<CommentList comments={list} viewer="visitor" />);
+    const toggle = screen.getByRole("checkbox", { name: /Show resolved/ });
+    await user.click(toggle);
+    expect(screen.queryByText("Comment deleted")).toBeNull();
+    await user.click(toggle);
+    expect(screen.getByText("Comment deleted")).toBeInTheDocument();
+  });
+
   it("is gone once it has no replies", () => {
     const list = withdraw("c2").filter((c) => c.parent_id !== "c2");
     renderWithTooltips(<CommentList comments={list} viewer="visitor" />);
