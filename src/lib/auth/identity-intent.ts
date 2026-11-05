@@ -1,13 +1,14 @@
-// Connecting or disconnecting a way to sign in needs a short lived go-ahead
-// from our server first, given only to a session that signed in recently.
-// The database checks it when Supabase adds or removes the identity, so a
-// stolen session cannot do either.
+// Connecting or disconnecting a way to sign in, and changing the account
+// email, need a short lived go-ahead from our server first, given only to a
+// session that signed in recently. The database checks it when Supabase
+// makes the change, so a stolen session cannot do any of them.
 
 export type IntentResult = "ok" | "reauth" | "failed";
 
 export async function requestIdentityIntent(
-  action: "link" | "unlink",
-  provider: "google",
+  ...[action, provider]:
+    | [action: "link" | "unlink", provider: "google"]
+    | [action: "email_change", provider: "email"]
 ): Promise<IntentResult> {
   try {
     const response = await fetch("/api/account/identity-intent", {
