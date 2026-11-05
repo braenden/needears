@@ -185,11 +185,15 @@ export function LoginForm({
 function WaitForSignIn({ next }: { next: string }) {
   useEffect(() => {
     let gone = false;
+    // Only a sign-in from now on counts: on "Sign in again" the person
+    // already has a session, and it is the new one that matters.
+    const since = Date.now() - 60_000;
     const check = async () => {
       if (gone) return;
       const supabase = await browserClient();
       const { data } = await supabase.auth.getSession();
-      if (!data.session || gone) return;
+      const signedInAt = Date.parse(data.session?.user.last_sign_in_at ?? "");
+      if (!data.session || gone || !(signedInAt >= since)) return;
       gone = true;
       window.location.replace(destinationAfterSignIn(data.session.user, next));
     };

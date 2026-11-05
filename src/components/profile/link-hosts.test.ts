@@ -34,3 +34,12 @@ describe("withHttps", () => {
     ).not.toBeNull();
   });
 });
+
+describe("withHttps and capitals", () => {
+  it("writes the scheme and the host in lower case, not the path", () => {
+    expect(withHttps("HTTPS://SoundCloud.com/AlexBeats")).toBe(
+      "https://soundcloud.com/AlexBeats",
+    );
+    expect(withHttps("Instagram.com/Alex")).toBe("https://instagram.com/Alex");
+  });
+});

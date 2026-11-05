@@ -42,10 +42,17 @@ export function hostName(host: LinkHost) {
 export function withHttps(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return trimmed;
-  if (/^http:\/\//i.test(trimmed)) return `https://${trimmed.slice(7)}`;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^[^:/]+:\d/.test(trimmed))
+  let full: string;
+  if (/^https?:\/\//i.test(trimmed))
+    full = trimmed.replace(/^https?:\/\//i, "");
+  else if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^[^:/]+:\d/.test(trimmed))
     return trimmed;
-  return `https://${trimmed.replace(/^\/+/, "")}`;
+  else full = trimmed.replace(/^\/+/, "");
+  // Hosts are not case sensitive, but the saved link is checked as written.
+  const at = full.search(/[/?#]/);
+  const host = at === -1 ? full : full.slice(0, at);
+  const rest = at === -1 ? "" : full.slice(at);
+  return `https://${host.toLowerCase()}${rest}`;
 }
 
 /** Null when the link is fine, otherwise the message to show next to it. */

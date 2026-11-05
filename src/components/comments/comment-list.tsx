@@ -243,7 +243,11 @@ export function CommentList({
   const resolvedCount = present.filter(
     (c) => c.resolved_at && !isWithdrawn(c),
   ).length;
-  const shown = showResolved ? present : present.filter((c) => !c.resolved_at);
+  // A deleted comment is not hidden as resolved: its replies would go with
+  // it, and nothing would say where.
+  const shown = showResolved
+    ? present
+    : present.filter((c) => !c.resolved_at || isWithdrawn(c));
   const counts: Record<CommentFilter, number> = {
     all: shown.filter((c) => !isWithdrawn(c)).length,
     helpful: filterComments(shown, "helpful").length,
