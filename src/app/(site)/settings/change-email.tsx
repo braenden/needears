@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { requestIdentityIntent } from "@/lib/auth/identity-intent";
 import { browserClient } from "@/lib/supabase/lazy";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -34,10 +35,12 @@ export function emailChangeError(error: {
   code?: string;
   message?: string;
 }): "reauth" | string {
+  // The database refuses a change without a recent go-ahead (it expired,
+  // or was used up by a double click). Supabase Auth only passes that on
+  // as a failed email: a fresh sign-in sorts it out.
   if (
-    error.code === "reauthentication_needed" ||
     error.code === "reauth_required" ||
-    error.status === 401
+    (error.status === 500 && error.code === "unexpected_failure")
   )
     return "reauth";
   if (error.code === "email_exists" || error.code === "email_address_taken")
@@ -82,6 +85,21 @@ export function ChangeEmail({ current }: { current: string | null }) {
       return;
     }
     setState({ step: "form", error: null, sending: true });
+    // Our server's go-ahead first: only for a recent sign-in, and it signs
+    // out the account's other sessions.
+    const intent = await requestIdentityIntent("email_change", "email");
+    if (intent === "reauth") {
+      setState({ step: "reauth" });
+      return;
+    }
+    if (intent === "failed") {
+      setState({
+        step: "form",
+        error: "Something broke on our side. Try again in a minute.",
+        sending: false,
+      });
+      return;
+    }
     const address = email.trim();
     const { error } = await (
       await browserClient()
@@ -145,7 +163,8 @@ export function ChangeEmail({ current }: { current: string | null }) {
                 We sent a link to {state.to}, and one to{" "}
                 {current ?? "your current address"} too. Open one of them to
                 finish. Until then you keep using{" "}
-                {current ?? "your current address"}.
+                {current ?? "your current address"}. To keep your account safe,
+                you&apos;re now signed out on your other devices.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
