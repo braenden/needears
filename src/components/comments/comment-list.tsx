@@ -994,6 +994,7 @@ function CommentEditor({
   onClose: () => void;
 }) {
   const id = useId();
+  const textarea = useRef<HTMLTextAreaElement>(null);
   const [body, setBody] = useState(comment.body);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1009,6 +1010,7 @@ function CommentEditor({
     const issue = problem(body);
     if (issue) {
       setError(issue);
+      textarea.current?.focus();
       return;
     }
     if (body.trim() === comment.body) {
@@ -1042,6 +1044,7 @@ function CommentEditor({
         Edit your comment
       </label>
       <Textarea
+        ref={textarea}
         id={`${id}-body`}
         // The person just pressed Edit.
         autoFocus
@@ -1061,19 +1064,19 @@ function CommentEditor({
           }
         }}
         aria-invalid={error ? true : undefined}
-        aria-describedby={`${id}-note`}
+        aria-describedby={
+          error ? `${id}-error` : comment.is_helpful ? `${id}-note` : undefined
+        }
         className="min-h-16 bg-background"
       />
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <div
-          id={`${id}-note`}
-          className="mr-auto min-h-5 text-sm"
-          aria-live="polite"
-        >
+        <div className="mr-auto min-h-5 text-sm">
           {error ? (
-            <p className="text-destructive">{error}</p>
+            <p id={`${id}-error`} role="alert" className="text-destructive">
+              {error}
+            </p>
           ) : comment.is_helpful ? (
-            <p className="text-muted-foreground">
+            <p id={`${id}-note`} className="text-muted-foreground">
               A changed comment loses its Helpful mark.
             </p>
           ) : null}

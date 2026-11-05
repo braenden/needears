@@ -1,10 +1,15 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -14,6 +19,9 @@ import {
 import { REACTIONS } from "@/config/labels";
 import { cn } from "@/lib/utils";
 import type { ReactionKind } from "@/types/view";
+
+/** How long a press on touch shows what a reaction means. */
+const LONG_PRESS_MS = 450;
 
 /** Counts after someone's reaction goes from `from` to `to` (null is none). */
 export function moveReaction(
@@ -60,6 +68,15 @@ export function ReactionBar({
   // The reaction just picked gives a small bounce.
   const [popped, setPopped] = useState<ReactionKind | null>(null);
   const mineLabel = REACTIONS.find((r) => r.kind === mine)?.label;
+  // On touch there is no hover: a long press shows the same words, and
+  // does not react.
+  const [touchTip, setTouchTip] = useState<ReactionKind | null>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+  const clearPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <TooltipProvider delayDuration={300}>
@@ -82,41 +99,74 @@ export function ReactionBar({
                 ? `${label}: replaces your ${mineLabel}`
                 : label;
             return (
-              <Tooltip key={kind}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-pressed={pressed}
-                    aria-label={`${label}, ${count}`}
-                    onClick={() => {
-                      if (!signedIn) return onSignIn?.();
-                      setPopped(pressed ? null : kind);
-                      onPick?.(pressed ? null : kind);
-                    }}
-                    className={cn(
-                      "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm focus-ring transition-[background-color,border-color,transform] duration-fast outline-none select-none active:scale-95",
-                      pressed
-                        ? "border-transparent bg-primary-soft text-primary-text"
-                        : "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
-                    )}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "text-base leading-none",
-                        popped === kind && "motion-safe:animate-reaction-pop",
-                      )}
-                      onAnimationEnd={() => setPopped(null)}
-                    >
-                      {emoji}
-                    </span>
-                    <span data-numeric className="min-w-[1ch] font-medium">
-                      {count}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{tip}</TooltipContent>
-              </Tooltip>
+              <Popover
+                key={kind}
+                open={touchTip === kind}
+                onOpenChange={(open) => {
+                  if (!open) setTouchTip(null);
+                }}
+              >
+                <Tooltip>
+                  <PopoverAnchor asChild>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-pressed={pressed}
+                        aria-label={`${label}, ${count}`}
+                        onPointerDown={(e) => {
+                          if (e.pointerType === "mouse") return;
+                          longPressed.current = false;
+                          clearPress();
+                          pressTimer.current = setTimeout(() => {
+                            longPressed.current = true;
+                            setTouchTip(kind);
+                          }, LONG_PRESS_MS);
+                        }}
+                        onPointerUp={clearPress}
+                        onPointerCancel={clearPress}
+                        onContextMenu={(e) => e.preventDefault()}
+                        onClick={() => {
+                          if (longPressed.current) {
+                            longPressed.current = false;
+                            return;
+                          }
+                          if (!signedIn) return onSignIn?.();
+                          setPopped(pressed ? null : kind);
+                          onPick?.(pressed ? null : kind);
+                        }}
+                        className={cn(
+                          "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm focus-ring transition-[background-color,border-color,transform] duration-fast outline-none select-none active:scale-95",
+                          pressed
+                            ? "border-transparent bg-primary-soft text-primary-text"
+                            : "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
+                        )}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "text-base leading-none",
+                            popped === kind &&
+                              "motion-safe:animate-reaction-pop",
+                          )}
+                          onAnimationEnd={() => setPopped(null)}
+                        >
+                          {emoji}
+                        </span>
+                        <span data-numeric className="min-w-[1ch] font-medium">
+                          {count}
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                  </PopoverAnchor>
+                  <TooltipContent>{tip}</TooltipContent>
+                </Tooltip>
+                <PopoverContent
+                  side="top"
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                >
+                  {tip}
+                </PopoverContent>
+              </Popover>
             );
           })}
         </div>

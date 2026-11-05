@@ -11,6 +11,7 @@ import { onSignedInElsewhere } from "@/lib/auth/signed-in-elsewhere";
 import { cn } from "@/lib/utils";
 import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 import { browserClient } from "@/lib/supabase/lazy";
+import { useMounted } from "@/components/shell/theme-toggle";
 import { GoogleButton } from "./google-button";
 
 // The last login only changes when signing in, which leaves this page.
@@ -33,6 +34,7 @@ export function LoginForm({
 }) {
   const id = useId();
   const [email, setEmail] = useState(defaultEmail);
+  const ready = useMounted();
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
   // Google has handed over its token and the session is being made.
@@ -152,7 +154,9 @@ export function LoginForm({
             <Button
               type="submit"
               size="lg"
-              disabled={state !== "idle"}
+              // Until the page is ready a tap would send the form the plain
+              // way: reload, no email sent.
+              disabled={state !== "idle" || !ready}
               className="h-10"
             >
               {state === "sending" ? (
