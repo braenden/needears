@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Finish signing up for Need Ears</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 24px;
+      background: #ffffff;
+      color: #1a1a1a;
+      font-family:
+        -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Helvetica,
+        Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    "
+  >
+    <div style="max-width: 480px">
+      <p>
+        Welcome to Need Ears. Use this link to finish signing up. It works once,
+        for one hour.
+      </p>
+      <p>
+        <a
+          href="{{ .ConfirmationURL }}"
+          style="
+            display: inline-block;
+            padding: 10px 18px;
+            background: #1a1a1a;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 6px;
+          "
+          >Finish signing up</a
+        >
+      </p>
+      <p>
+        Or copy this link into your browser:<br /><a
+          href="{{ .ConfirmationURL }}"
+          style="color: #1a1a1a; word-break: break-all"
+          >{{ .ConfirmationURL }}</a
+        >
+      </p>
+      <p style="color: #555555; font-size: 14px">
+        You got this email because someone signed up for Need Ears with this
+        address. If it wasn't you, you can ignore it.
+      </p>
+      <p style="color: #555555; font-size: 14px">
+        Need Ears<br /><a href="{{ .SiteURL }}" style="color: #555555"
+          >{{ .SiteURL }}</a
+        >
+      </p>
+    </div>
+  </body>
+</html>

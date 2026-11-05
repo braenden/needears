@@ -251,10 +251,22 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Our own sign-in emails: short, plain and with the link written out, so
+# they read well as text and look less like spam. Hosted Supabase does not
+# read this file: the same subjects and bodies are pasted into the dashboard
+# (Authentication > Email Templates).
+[auth.email.template.magic_link]
+subject = "Your sign-in link for Need Ears"
+content_path = "./supabase/templates/magic_link.html"
+
+# A new address signing in for the first time.
+[auth.email.template.confirmation]
+subject = "Finish signing up for Need Ears"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email address for Need Ears"
+content_path = "./supabase/templates/email_change.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
