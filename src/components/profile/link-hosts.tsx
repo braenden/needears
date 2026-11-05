@@ -34,6 +34,20 @@ export function hostName(host: LinkHost) {
   return LINK_HOSTS.find((h) => h.host === host)?.name ?? host;
 }
 
+/**
+ * People paste links the way they see them: "instagram.com/alexbeats" gets
+ * https:// in front, and http:// becomes https://. Anything else is left as
+ * it is, for linkError to judge.
+ */
+export function withHttps(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  if (/^http:\/\//i.test(trimmed)) return `https://${trimmed.slice(7)}`;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^[^:/]+:\d/.test(trimmed))
+    return trimmed;
+  return `https://${trimmed.replace(/^\/+/, "")}`;
+}
+
 /** Null when the link is fine, otherwise the message to show next to it. */
 export function linkError(link: ProfileLink): string | null {
   const url = link.url.trim();

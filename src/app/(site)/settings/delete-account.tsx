@@ -119,7 +119,10 @@ export function DeleteAccount({ handle }: { handle: string }) {
                 <Input
                   id={`${id}-confirm`}
                   value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
+                  onChange={(e) => {
+                    setTyped(e.target.value);
+                    if (error) setError(null);
+                  }}
                   autoComplete="off"
                   autoCapitalize="none"
                   spellCheck={false}

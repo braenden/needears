@@ -223,7 +223,14 @@ export function CommentComposer({
                 autoComplete="off"
                 spellCheck={false}
                 value={timeInput}
-                onChange={(e) => setTimeInput(e.target.value)}
+                onChange={(e) => {
+                  setTimeInput(e.target.value);
+                  if (timeError) {
+                    const parsed = parseTime(e.target.value);
+                    if (parsed !== null && parsed <= durationMs)
+                      setTimeError(null);
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
