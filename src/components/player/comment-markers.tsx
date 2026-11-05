@@ -24,6 +24,49 @@ function excerpt(text: string, max = 90) {
   return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
 }
 
+/** Room kept between a preview and the edge of the screen. */
+const EDGE_PX = 8;
+/** The preview's width (w-64), or the screen less its edges. */
+const PREVIEW_PX = 256;
+
+/**
+ * How far to move a preview sideways from the middle of its marker, so it
+ * stays on screen. Worked out from the marker before the preview shows:
+ * measuring the preview itself would let it stick out for a moment, which
+ * on a phone widens the whole page.
+ */
+function previewShift(marker: HTMLElement) {
+  const box = marker.getBoundingClientRect();
+  const middle = box.left + box.width / 2;
+  const screen = document.documentElement.clientWidth;
+  const half = Math.min(PREVIEW_PX, screen - 2 * EDGE_PX) / 2;
+  if (middle + half > screen - EDGE_PX) return screen - EDGE_PX - half - middle;
+  if (middle - half < EDGE_PX) return EDGE_PX + half - middle;
+  return 0;
+}
+
+/** A comment's preview above its marker, moved sideways by `shift`. */
+function MarkerPreview({
+  id,
+  shift,
+  children,
+}: {
+  id: string;
+  shift: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      id={id}
+      role="tooltip"
+      className="absolute bottom-full left-1/2 mb-2 w-64 max-w-[calc(100vw-1rem)] rounded-lg bg-popover p-3 text-left text-sm text-popover-foreground shadow-pop"
+      style={{ transform: `translateX(calc(-50% + ${shift}px))` }}
+    >
+      {children}
+    </div>
+  );
+}
+
 const timeOf = (comment: Comment) =>
   formatSpan(comment.time_ms ?? 0, (comment as RangeComment).end_ms);
 
@@ -102,7 +145,13 @@ export function CommentMarkers({
   const [width, setWidth] = useState(260);
   const groups = groupMarkers(sorted, durationMs, width);
   const [focusIndex, setFocusIndex] = useState(0);
-  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ id: string; shift: number } | null>(
+    null,
+  );
+  const previewId = preview?.id ?? null;
+  const showPreview = (id: string, marker: HTMLElement) =>
+    setPreview({ id, shift: previewShift(marker) });
+  const hidePreview = () => setPreview(null);
   const [openGroup, setOpenGroup] = useState<number | null>(null);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -333,27 +382,29 @@ export function CommentMarkers({
                 onSelect(comment);
               }}
               onPointerEnter={(e) => {
-                if (e.pointerType === "mouse") setPreviewId(comment.id);
+                if (e.pointerType === "mouse")
+                  showPreview(comment.id, e.currentTarget);
               }}
               onPointerLeave={(e) => {
-                if (e.pointerType === "mouse") setPreviewId(null);
+                if (e.pointerType === "mouse") hidePreview();
               }}
               onPointerDown={(e) => {
                 if (e.pointerType === "mouse") return;
                 longPressed.current = false;
+                const marker = e.currentTarget;
                 pressTimer.current = setTimeout(() => {
                   longPressed.current = true;
-                  setPreviewId(comment.id);
+                  showPreview(comment.id, marker);
                 }, LONG_PRESS_MS);
               }}
               onPointerUp={clearPress}
               onPointerCancel={() => {
                 clearPress();
-                setPreviewId(null);
+                hidePreview();
               }}
               onContextMenu={(e) => e.preventDefault()}
-              onFocus={() => setPreviewId(comment.id)}
-              onBlur={() => setPreviewId(null)}
+              onFocus={(e) => showPreview(comment.id, e.currentTarget)}
+              onBlur={hidePreview}
               className="touch-hit relative grid size-7 place-items-center rounded-full focus-ring outline-none"
             >
               {otherVersion && !active && !previewing ? (
@@ -377,18 +428,7 @@ export function CommentMarkers({
               <span className="sr-only">{`Comment by ${name} at ${time}${onVersion}`}</span>
             </button>
             {previewing ? (
-              <div
-                id={previewIdAttr}
-                role="tooltip"
-                className={cn(
-                  "absolute bottom-full mb-2 w-64 max-w-[70vw] rounded-lg bg-popover p-3 text-left text-sm text-popover-foreground shadow-pop",
-                  left < 30
-                    ? "left-0"
-                    : left > 70
-                      ? "right-0"
-                      : "left-1/2 -translate-x-1/2",
-                )}
-              >
+              <MarkerPreview id={previewIdAttr} shift={preview?.shift ?? 0}>
                 <span className="flex items-baseline gap-2 text-xs text-muted-foreground">
                   <span className="min-w-0 truncate font-medium text-foreground">
                     {name}
@@ -406,7 +446,7 @@ export function CommentMarkers({
                 <span className="mt-1 block leading-snug">
                   {excerpt(comment.body)}
                 </span>
-              </div>
+              </MarkerPreview>
             ) : null}
           </div>
         );
