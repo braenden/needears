@@ -1,11 +1,13 @@
 "use client";
 
-import { useId, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { Loader2Icon, MailIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { callbackUrl } from "@/lib/auth/callback-url";
+import { destinationAfterSignIn } from "@/lib/auth/google-id";
 import { readLastLogin } from "@/lib/auth/last-login";
+import { onSignedInElsewhere } from "@/lib/auth/signed-in-elsewhere";
 import { cn } from "@/lib/utils";
 import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 import { browserClient } from "@/lib/supabase/lazy";
@@ -13,6 +15,8 @@ import { GoogleButton } from "./google-button";
 
 // The last login only changes when signing in, which leaves this page.
 const noSubscription = () => () => {};
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function LoginForm({
   next,
@@ -43,7 +47,7 @@ export function LoginForm({
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const address = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
+    if (!EMAIL_PATTERN.test(address)) {
       setError("Enter a valid email address.");
       focusFirstInvalid(form);
       return;
@@ -71,6 +75,7 @@ export function LoginForm({
   if (state === "sent") {
     return (
       <div role="status" className="mt-8 rounded-xl border bg-card p-5">
+        <WaitForSignIn next={next} />
         <MailIcon className="size-5 text-primary-text" aria-hidden="true" />
         <p className="mt-3 font-semibold">Check your email.</p>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -131,7 +136,12 @@ export function LoginForm({
               autoComplete="email"
               inputMode="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                // The error goes as soon as the address looks right.
+                if (error && EMAIL_PATTERN.test(e.target.value.trim()))
+                  setError(null);
+              }}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? `${id}-error` : undefined}
             />
@@ -166,4 +176,28 @@ export function LoginForm({
       ) : null}
     </div>
   );
+}
+
+/**
+ * While "Check your email" shows: once the link has signed this browser in
+ * (in another tab), this tab moves on as well, to where it was going.
+ */
+function WaitForSignIn({ next }: { next: string }) {
+  useEffect(() => {
+    let gone = false;
+    const check = async () => {
+      if (gone) return;
+      const supabase = await browserClient();
+      const { data } = await supabase.auth.getSession();
+      if (!data.session || gone) return;
+      gone = true;
+      window.location.replace(destinationAfterSignIn(data.session.user, next));
+    };
+    const stop = onSignedInElsewhere(() => void check());
+    return () => {
+      gone = true;
+      stop();
+    };
+  }, [next]);
+  return null;
 }

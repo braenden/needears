@@ -11,6 +11,8 @@ export type Viewer = {
   profile: Profile;
   isAdmin: boolean;
   unread: number;
+  /** Has picked a username. Until then the handle is a placeholder. */
+  onboarded: boolean;
 };
 
 const PROFILE_COLUMNS =
@@ -47,5 +49,6 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     profile: rest,
     isAdmin: role === "admin",
     unread: unread.count ?? 0,
+    onboarded: data.claims.user_metadata?.onboarded === true,
   };
 });

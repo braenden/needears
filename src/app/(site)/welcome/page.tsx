@@ -30,8 +30,16 @@ export default async function WelcomePage({
         </p>
         <HandleForm
           userId={viewer.userId}
-          initialHandle={viewer.profile.handle}
-          initialDisplayName={viewer.profile.display_name}
+          // The first time, an empty field: the placeholder handle from
+          // sign up is not a name anyone chose.
+          initialHandle={viewer.onboarded ? viewer.profile.handle : ""}
+          // A name from the sign in (Google) stays; one made from the
+          // placeholder handle goes.
+          initialDisplayName={
+            viewer.profile.display_name === viewer.profile.handle
+              ? ""
+              : viewer.profile.display_name
+          }
           next={next}
         />
       </div>

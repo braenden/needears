@@ -11,6 +11,13 @@ import { handleErrorText } from "@/lib/profile/errors";
 import { browserClient } from "@/lib/supabase/lazy";
 import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 
+function handleProblem(clean: string) {
+  if (!clean) return "Pick a username.";
+  if (!HANDLE_PATTERN.test(clean))
+    return "Use 3 to 20 letters, numbers or underscores.";
+  return null;
+}
+
 export function HandleForm({
   userId,
   initialHandle,
@@ -25,9 +32,7 @@ export function HandleForm({
   const id = useId();
   const router = useRouter();
   const [handle, setHandle] = useState(initialHandle);
-  const [displayName, setDisplayName] = useState(
-    initialDisplayName === initialHandle ? "" : initialDisplayName,
-  );
+  const [displayName, setDisplayName] = useState(initialDisplayName);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -35,8 +40,9 @@ export function HandleForm({
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const clean = handle.trim().toLowerCase();
-    if (!HANDLE_PATTERN.test(clean)) {
-      setError("Use 3 to 20 letters, numbers or underscores.");
+    const problem = handleProblem(clean);
+    if (problem) {
+      setError(problem);
       focusFirstInvalid(form);
       return;
     }
@@ -54,8 +60,11 @@ export function HandleForm({
       focusFirstInvalid(form);
       return;
     }
-    // Remembered on the account, so the next sign in skips this page.
+    // Remembered on the account, so the next sign in skips this page. A
+    // fresh session carries it to the server at once, so the header shows
+    // the new name on the next page.
     await supabase.auth.updateUser({ data: { onboarded: true } });
+    await supabase.auth.refreshSession();
     toast(
       `Welcome, ${name}. When a comment on your track helps you, mark it Helpful.`,
       { duration: 15_000, closeButton: true },
@@ -73,7 +82,14 @@ export function HandleForm({
         <Input
           id={`${id}-handle`}
           value={handle}
-          onChange={(e) => setHandle(e.target.value)}
+          onChange={(e) => {
+            setHandle(e.target.value);
+            // An error goes as soon as the name is fine; a name that is
+            // still not fine says why right away.
+            if (error)
+              setError(handleProblem(e.target.value.trim().toLowerCase()));
+          }}
+          required
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
@@ -82,8 +98,8 @@ export function HandleForm({
           aria-describedby={`${id}-hint${error ? ` ${id}-error` : ""}`}
         />
         <p id={`${id}-hint`} className="text-xs text-muted-foreground">
-          3 to 20 characters. Letters, numbers and underscores. Your link:
-          needears.com/u/{handle.trim().toLowerCase() || "handle"}
+          3 to 20 letters, numbers or underscores. Your link: needears.com/u/
+          {handle.trim().toLowerCase() || "yourname"}
         </p>
         {error ? (
           <p

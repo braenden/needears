@@ -59,7 +59,12 @@ const LEGAL = [
 ];
 
 export type HeaderProps = {
-  user: Pick<Profile, "handle" | "display_name" | "avatar_url"> | null;
+  user:
+    | (Pick<Profile, "handle" | "display_name" | "avatar_url"> & {
+        /** Signed in, but no username picked yet. */
+        needsHandle?: boolean;
+      })
+    | null;
   /** Shows the Admin link. */
   isAdmin?: boolean;
   unread?: number;

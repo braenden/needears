@@ -14,7 +14,9 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
   const now = currentMinute();
   return (
     <AppShell
-      user={viewer?.profile ?? null}
+      user={
+        viewer ? { ...viewer.profile, needsHandle: !viewer.onboarded } : null
+      }
       isAdmin={viewer?.isAdmin ?? false}
       unread={viewer?.unread ?? 0}
       showSearch
