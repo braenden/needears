@@ -260,8 +260,8 @@ select is(
 );
 reset role;
 select ok(
-  not has_function_privilege('authenticated', 'public.create_identity_intent(uuid, text, text)', 'execute')
-    and not has_function_privilege('anon', 'public.create_identity_intent(uuid, text, text)', 'execute')
+  not has_function_privilege('authenticated', 'public.create_identity_intent(uuid, text, text, uuid)', 'execute')
+    and not has_function_privilege('anon', 'public.create_identity_intent(uuid, text, text, uuid)', 'execute')
     and not has_function_privilege('authenticated', 'public.security_email_batch(integer, integer)', 'execute')
     and not has_table_privilege('authenticated', 'private.identity_intents', 'select'),
   'only the service role creates intents and reads security emails'

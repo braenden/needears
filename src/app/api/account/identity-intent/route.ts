@@ -54,6 +54,27 @@ export async function POST(request: Request) {
     return jsonError(403, "reauth_required", "Sign in again to continue.");
 
   const admin = createAdminClient();
+  // The session asking, so only it can reuse its intent below.
+  const sessionId = z.uuid().safeParse(claims.data?.claims.session_id).data;
+
+  // This session trying an email change again while its intent is still
+  // unused (the send failed, or the person pressed twice): the other
+  // sessions were signed out when it was made, so it stands and nothing is
+  // done again. Any other session goes the usual way below.
+  if (body.data.action === "email_change" && sessionId) {
+    const open = await admin.rpc("has_identity_intent", {
+      p_user: auth.user.id,
+      p_action: "email_change",
+      p_provider: "email",
+      p_session: sessionId,
+    });
+    if (open.error) return databaseError(open.error);
+    if (open.data)
+      return new Response(null, {
+        status: 204,
+        headers: { "Cache-Control": "no-store" },
+      });
+  }
 
   // Sign out every other session first, so a stolen one cannot use the
   // intent this session is about to get.
@@ -77,6 +98,7 @@ export async function POST(request: Request) {
     p_user: auth.user.id,
     p_action: body.data.action,
     p_provider: body.data.provider,
+    p_session: sessionId,
   });
   if (created.error) return databaseError(created.error);
 

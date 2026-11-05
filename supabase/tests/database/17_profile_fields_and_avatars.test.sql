@@ -223,8 +223,13 @@ reset role;
 
 select set_config('request.jwt.claims', '{"role": "anon"}', true);
 set local role anon;
+-- Only the test users' folders, so avatars left by other runs do not count.
 select is(
-  (select count(*)::int from storage.objects where bucket_id = 'avatars'),
+  (select count(*)::int from storage.objects
+   where bucket_id = 'avatars'
+     and split_part(name, '/', 1) in (
+       '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',
+       '33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444')),
   1,
   'anon can read current avatars only'
 );
