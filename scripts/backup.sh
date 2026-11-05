@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
-# Encrypted backup of the database and, optionally, of new Storage objects.
+# Encrypted backup of the database and, optionally, of new Storage objects
+# and new track audio in R2.
 # Run by .github/workflows/backup.yml; restore steps are documented there.
 #
 # Required:
 #   SUPABASE_DB_URL          Postgres connection string (session pooler)
 #   BACKUP_AGE_RECIPIENT     age public key the archives are encrypted to
 # Optional:
-#   BACKUP_STORAGE=true      also list every Storage object and copy new ones
+#   BACKUP_STORAGE=true      also list every Storage and R2 object and copy
+#                            new ones
 #   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 #                            needed to download objects; without them the
 #                            Storage part only writes the list
+#   R2_BACKUP_ENDPOINT, R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY,
+#   R2_BACKUP_BUCKET         a read-only R2 token for the audio bucket;
+#                            without them the R2 part is skipped
 #   BACKUP_NEW_SINCE_DAYS    what counts as new (default 8, a week plus slack)
 #   BACKUP_MAX_OBJECT_BYTES  skip the copy above this total (default 2 GB)
 #   BACKUP_OUT               output directory (default ./backup)
 #
 # Needs the Supabase CLI (and Docker, which it uses for pg_dump), psql, jq,
-# curl and age. Only encrypted files are written to BACKUP_OUT.
+# curl, age and, for R2, the AWS CLI. Only encrypted files are written to
+# BACKUP_OUT.
 set -euo pipefail
 umask 077
 
@@ -106,3 +112,69 @@ if [ "$count" -gt 0 ]; then
   fi
 fi
 encrypt "$work/storage" "needears-storage-$stamp"
+
+# R2: the track audio, the same way: a list of every object and a copy of
+# the ones added recently. Read only credentials; skipped without them.
+if [ -z "${R2_BACKUP_ENDPOINT:-}" ] || [ -z "${R2_BACKUP_ACCESS_KEY_ID:-}" ] ||
+  [ -z "${R2_BACKUP_SECRET_ACCESS_KEY:-}" ] || [ -z "${R2_BACKUP_BUCKET:-}" ]; then
+  echo "::notice::R2 backup skipped: R2_BACKUP_ENDPOINT, R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY or R2_BACKUP_BUCKET is not set."
+  exit 0
+fi
+if ! command -v aws >/dev/null; then
+  echo "::warning::R2 backup skipped: the AWS CLI is not installed."
+  exit 0
+fi
+
+r2() {
+  AWS_ACCESS_KEY_ID="$R2_BACKUP_ACCESS_KEY_ID" \
+    AWS_SECRET_ACCESS_KEY="$R2_BACKUP_SECRET_ACCESS_KEY" \
+    AWS_DEFAULT_REGION=auto \
+    AWS_REQUEST_CHECKSUM_CALCULATION=when_required \
+    AWS_RESPONSE_CHECKSUM_VALIDATION=when_required \
+    aws --endpoint-url "$R2_BACKUP_ENDPOINT" "$@"
+}
+
+mkdir -p "$work/r2/objects"
+# The CLI pages through the whole bucket and prints nothing for an empty one.
+listing="$(r2 s3api list-objects-v2 --bucket "$R2_BACKUP_BUCKET" --output json)"
+printf '%s' "${listing:-"{}"}" | jq --argjson days "$new_since_days" '
+  (now - $days * 86400) as $since
+  | [(.Contents // [])[] | {
+      key: .Key,
+      size: .Size,
+      last_modified: .LastModified,
+      new: ((.LastModified | sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601) > $since)
+    }]' >"$work/r2/objects.json"
+
+jq -c '[.[] | select(.new)]' "$work/r2/objects.json" >"$work/r2-new.json"
+count="$(jq length "$work/r2-new.json")"
+bytes="$(jq '[.[].size // 0] | add // 0' "$work/r2-new.json")"
+echo "R2: $(jq length "$work/r2/objects.json") objects, $count new in the last $new_since_days days ($bytes bytes)"
+
+if [ "$count" -gt 0 ]; then
+  if [ "$bytes" -gt "$max_object_bytes" ]; then
+    echo "::warning::The $count new R2 objects are $bytes bytes, over the limit of $max_object_bytes. They were listed but not copied."
+  else
+    copied=0
+    while IFS=$'\t' read -r key size; do
+      # Audio keys are <user id>/<uuid>.mp3. Anything else is listed but
+      # not written to disk, so a key can never point outside this folder.
+      if ! [[ "$key" =~ ^[0-9a-f-]{36}/[0-9a-f-]{36}\.mp3$ ]]; then
+        # Printable characters only, so a key cannot add workflow commands.
+        echo "::warning::Not copied, unexpected R2 key: ${key//[^[:alnum:]\/._-]/?}"
+        continue
+      fi
+      mkdir -p "$work/r2/objects/$(dirname "$key")"
+      # </dev/null keeps the CLI from reading the rest of the key list.
+      r2 s3api get-object --bucket "$R2_BACKUP_BUCKET" --key "$key" \
+        "$work/r2/objects/$key" </dev/null >/dev/null
+      if [ "$(wc -c <"$work/r2/objects/$key" | tr -d ' ')" != "$size" ]; then
+        echo "R2 object $key was not copied whole" >&2
+        exit 1
+      fi
+      copied=$((copied + 1))
+    done < <(jq -r '.[] | [.key, .size] | @tsv' "$work/r2-new.json")
+    echo "Copied $copied R2 objects"
+  fi
+fi
+encrypt "$work/r2" "needears-r2-$stamp"
