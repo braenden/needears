@@ -1,5 +1,6 @@
 "use client";
 
+import { ChangeEmail } from "./change-email";
 import { useState } from "react";
 import Link from "next/link";
 import Script from "next/script";
@@ -257,6 +258,7 @@ export function ConnectedAccounts({
               {emailOf(email) ?? "Not set up"}
             </p>
           </div>
+          {email && accountEmail ? <ChangeEmail current={accountEmail} /> : null}
         </li>
         <li className="grid gap-3 px-4 py-3">
           {!google && googleClientId && fresh ? (

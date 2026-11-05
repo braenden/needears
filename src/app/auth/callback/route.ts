@@ -25,5 +25,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(to);
     }
   }
-  return NextResponse.redirect(new URL("/login?error=link", origin));
+  // Where it was going comes along, so the page can say more (an email
+  // change opened in another browser) and go there after signing in.
+  const failed = new URL("/login?error=link", origin);
+  if (next.pathname !== "/")
+    failed.searchParams.set("next", next.pathname + next.search);
+  return NextResponse.redirect(failed);
 }

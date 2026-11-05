@@ -24,9 +24,17 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams;
   const next = nextPath(params.next);
   // ?reauth asks a signed in person to prove it again: before deleting the
-  // account (1) or connecting or disconnecting Google (connect).
+  // account (1), connecting or disconnecting Google (connect) or changing
+  // the email address (email).
   const reauth =
-    params.reauth === "1" || params.reauth === "connect" ? params.reauth : null;
+    params.reauth === "1" ||
+    params.reauth === "connect" ||
+    params.reauth === "email"
+      ? params.reauth
+      : null;
+  // A link back to Settings is the email change's: opened in another
+  // browser it cannot sign in there, though the change itself may be done.
+  const fromSettings = next.startsWith("/settings");
   if (!reauth && (await getViewer())) redirect(next === "/" ? "/feed" : next);
   return (
     // One short task: a narrow block in the middle of the page, as sign-in
@@ -39,11 +47,18 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <p className="mt-2 text-sm text-muted-foreground">
           {reauth === "connect"
             ? "Sign in again to change how you sign in. For your safety, connecting or disconnecting Google needs a recent sign-in."
-            : reauth
-              ? "To delete your account, sign in again with the same Google account or email as before."
-              : "Sign in to upload tracks and leave comments."}
+            : reauth === "email"
+              ? "Sign in again to change your email address. For your safety, it needs a recent sign-in."
+              : reauth
+                ? "To delete your account, sign in again with the same Google account or email as before."
+                : "Sign in to upload tracks and leave comments."}
         </p>
-        {params.error ? (
+        {params.error && fromSettings ? (
+          <p role="alert" className="mt-4 text-sm text-muted-foreground">
+            That link can&apos;t sign you in here, but your email change may
+            have gone through. Sign in and check the address in Settings.
+          </p>
+        ) : params.error ? (
           <p role="alert" className="mt-4 text-sm text-destructive">
             That sign-in link didn&apos;t work. It may have expired or been used
             already. Ask for a new one.
