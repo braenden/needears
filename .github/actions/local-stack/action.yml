@@ -17,7 +17,7 @@ runs:
       shell: bash
     - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
       with:
-        version: latest
+        version: 2.95.4
     # Only what the app talks to: Postgres, Auth, PostgREST, Storage, the API
     # gateway and Mailpit (for magic links).
     - run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,postgres-meta,realtime
