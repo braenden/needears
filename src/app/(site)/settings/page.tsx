@@ -39,6 +39,9 @@ function Section({
   );
 }
 
+const NAV_LINK =
+  "flex h-9 items-center rounded-md px-3 text-sm whitespace-nowrap text-muted-foreground focus-ring outline-none hover:bg-accent hover:text-foreground md:-ml-3";
+
 const SECTIONS = [
   [EDIT_PROFILE_HREF, "Profile"],
   ["#account-heading", "Account"],
@@ -81,12 +84,26 @@ export default async function SettingsPage() {
           <ul className="flex gap-1 md:flex-col">
             {SECTIONS.map(([href, label]) => (
               <li key={href} className="shrink-0">
-                <Link
-                  href={href}
-                  className="flex h-9 items-center rounded-md px-3 text-sm whitespace-nowrap text-muted-foreground focus-ring outline-none hover:bg-accent hover:text-foreground md:-ml-3"
-                >
-                  {label}
-                </Link>
+                {href === EDIT_PROFILE_HREF ? (
+                  <>
+                    {/* Like the account menu: on wide screens the editor
+                        opens as a panel over the profile, on phones it is
+                        a page of its own. */}
+                    <Link href={href} className={`${NAV_LINK} sm:hidden`}>
+                      {label}
+                    </Link>
+                    <Link
+                      href={`/u/${viewer.profile.handle}?edit=profile`}
+                      className={`${NAV_LINK} max-sm:hidden`}
+                    >
+                      {label}
+                    </Link>
+                  </>
+                ) : (
+                  <Link href={href} className={NAV_LINK}>
+                    {label}
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
