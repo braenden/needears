@@ -31,6 +31,13 @@ test("listen, swap the file and fill in the details", async ({ page }) => {
   await expect(
     page.getByText("That's 5 tags, the most a track can have."),
   ).toBeVisible();
+  // Typed one key at a time, the words after a refused comma stay out too.
+  await tags.fill("");
+  await tags.pressSequentially("one, two, three, four, five, six, seven");
+  await expect(tags).toHaveValue("one, two, three, four, five");
+  await expect(
+    page.getByText("That's 5 tags, the most a track can have."),
+  ).toBeVisible();
 
   await page.getByLabel("Choose another file").setInputFiles({
     name: "second-mix.wav",
@@ -41,6 +48,6 @@ test("listen, swap the file and fill in the details", async ({ page }) => {
   // The title was only the old file's name, so it follows; the rest stays.
   await expect(page.getByLabel("Title")).toHaveValue("second mix");
   await expect(page.getByLabel("Genre")).not.toHaveValue("");
-  await expect(tags).toHaveValue("lo-fi, tape, night, rain, slow");
+  await expect(tags).toHaveValue("one, two, three, four, five");
   await expect(page.getByText("0:05", { exact: true })).toBeVisible();
 });

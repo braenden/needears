@@ -37,6 +37,30 @@ export function capTags(value: string, max = UPLOAD_LIMITS.maxTags) {
   return { value, capped: false };
 }
 
+/** How many tags are written in the field. */
+export function tagCount(value: string) {
+  return value.split(",").filter((t) => t.trim()).length;
+}
+
+/**
+ * The field after a keystroke or a paste. Once a sixth tag was refused,
+ * typing on at the end is refused too, so the words cannot join the fifth
+ * tag ("five six"). Deleting or changing anything lets it move again.
+ */
+export function nextTags(
+  previous: { value: string; stopped: string | null },
+  typed: string,
+): { value: string; stopped: string | null } {
+  if (
+    previous.stopped !== null &&
+    typed.length > previous.stopped.length &&
+    typed.startsWith(previous.stopped)
+  )
+    return previous;
+  const { value, capped } = capTags(typed);
+  return { value, stopped: capped ? value : null };
+}
+
 /**
  * Title, genre, tags, description, feedback wanted and level. Shared by the
  * upload wizard and the owner's edit dialog on the track page.
@@ -53,7 +77,9 @@ export function DetailsFields({
   onEdit: (details: Partial<Details>) => void;
 }) {
   const id = useId();
-  const [tagsFull, setTagsFull] = useState(false);
+  // The field as it was when a sixth tag was refused.
+  const [tagsStopped, setTagsStopped] = useState<string | null>(null);
+  const tagsFull = tagCount(details.tags) >= UPLOAD_LIMITS.maxTags;
   const describe = (name: string, hasError: boolean, hasHint = false) =>
     hasError
       ? `${id}-${name}-error`
@@ -117,9 +143,12 @@ export function DetailsFields({
             id={`${id}-tags`}
             value={details.tags}
             onChange={(e) => {
-              const { value, capped } = capTags(e.target.value);
-              setTagsFull(capped);
-              onEdit({ tags: value });
+              const next = nextTags(
+                { value: details.tags, stopped: tagsStopped },
+                e.target.value,
+              );
+              setTagsStopped(next.stopped);
+              if (next.value !== details.tags) onEdit({ tags: next.value });
             }}
             aria-describedby={describe("tags", false, true)}
             autoComplete="off"
