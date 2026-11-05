@@ -93,6 +93,24 @@ export async function getProfileByHandle(
 }
 
 /**
+ * The current handle of whoever had `handle` before they changed it, so
+ * old profile links still work, or null. Asked as the visitor; the
+ * database only answers for profiles that are not banned.
+ */
+export async function currentHandleFor(handle: string): Promise<string | null> {
+  if (!/^[a-z0-9_]{3,20}$/.test(handle)) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("resolve_old_handle", {
+    p_handle: handle,
+  });
+  if (error) {
+    console.error("Old handle lookup failed", error.code);
+    return null;
+  }
+  return data && data !== handle ? data : null;
+}
+
+/**
  * Everything the profile editor starts from, for the signed in person (the
  * photo's storage key and Google picture are not on the public profile).
  */
