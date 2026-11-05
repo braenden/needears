@@ -18,6 +18,11 @@
 --    takes it. At most five per person are kept, and people see their own
 --    in their data export.
 
+-- search() below sets a pg_trgm parameter, which only an owner of the
+-- loaded extension may set. A pg_trgm call loads it in this session (a
+-- fresh session, as on a database push, has not loaded it yet).
+select extensions.similarity('a', 'b');
+
 -- 1. Latest ----------------------------------------------------------------
 
 create or replace function public.feed_latest(
