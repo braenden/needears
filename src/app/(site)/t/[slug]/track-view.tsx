@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  keepPending,
+  type PendingPost,
+  takePending,
+} from "@/lib/comments/pending";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -113,6 +118,8 @@ type TrackViewer = {
   profile: Profile;
   commentsPerHour: number;
   isAdmin: boolean;
+  /** Has picked a username. Until then nothing is posted in their name. */
+  onboarded: boolean;
 };
 
 export function TrackView({
@@ -305,8 +312,40 @@ export function TrackView({
     router.push(`/login?next=${encodeURIComponent(back)}`);
   }
 
+  // Signed in without a username yet: whatever they post would carry the
+  // made-up one. They pick a name first and come back here, with what
+  // they wrote kept.
+  const needsName = !!viewer && !viewer.onboarded;
+  function pickNameFirst(post?: PendingPost) {
+    if (post) keepPending(track.id, post);
+    const back = `${pathname}${timeMs > 0 ? `?t=${Math.floor(timeMs / 1000)}` : ""}`;
+    router.push(`/welcome?next=${encodeURIComponent(back)}`);
+  }
+  // Leaving for /welcome: the box stays busy until the page has gone.
+  const leaving = () => new Promise<SubmitResult>(() => {});
+
+  // Back with a name: what they wrote before is put back, ready to post.
+  const [kept, setKept] = useState<PendingPost | null>(null);
+  useEffect(() => {
+    if (!viewer?.onboarded) return;
+    // After the first paint, so the page renders the same on the server.
+    const frame = requestAnimationFrame(() => {
+      const post = takePending(track.id);
+      if (!post) return;
+      setKept(post);
+      if (post.kind === "comment" && post.timeMs !== null && post.endMs != null)
+        setRange({ startMs: post.timeMs, endMs: post.endMs });
+      commentsSection.current?.scrollIntoView({ block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [track.id, viewer?.onboarded]);
+
   async function submit(draft: CommentDraft): Promise<SubmitResult> {
     if (!viewer) return { ok: false, error: "failed" };
+    if (needsName) {
+      pickNameFirst({ kind: "comment", ...draft });
+      return leaving();
+    }
     const { data, error } = await (
       await browserClient()
     )
@@ -338,6 +377,10 @@ export function TrackView({
     body: string,
   ): Promise<SubmitResult> {
     if (!viewer) return { ok: false, error: "failed" };
+    if (needsName) {
+      pickNameFirst({ kind: "reply", parentId: parent.id, body });
+      return leaving();
+    }
     const { data, error } = await (
       await browserClient()
     )
@@ -449,6 +492,7 @@ export function TrackView({
   }
 
   async function toggleHelpful(comment: Comment, helpful: boolean) {
+    if (needsName) return pickNameFirst();
     setComments((list) =>
       list.map((c) =>
         c.id === comment.id ? { ...c, is_helpful: helpful } : c,
@@ -481,6 +525,7 @@ export function TrackView({
   const reactionWrites = useRef(Promise.resolve());
   function pickReaction(next: ReactionKind | null) {
     if (!viewer) return;
+    if (needsName) return pickNameFirst();
     const before = mine;
     setMine(next);
     setCounts((c) => moveReaction(c, before, next));
@@ -912,6 +957,10 @@ export function TrackView({
           </h2>
         </div>
         <CommentComposer
+          // A kept comment starts the box over with it in.
+          key={kept?.kind === "comment" ? "kept" : "new"}
+          initialBody={kept?.kind === "comment" ? kept.body : undefined}
+          initialDraft={kept?.kind === "comment" ? kept : undefined}
           ref={composer}
           currentTimeMs={timeMs}
           durationMs={playing.durationMs}
@@ -924,6 +973,7 @@ export function TrackView({
         />
         <CommentList
           className="mt-6"
+          initialReply={kept?.kind === "reply" ? kept : null}
           comments={listed}
           newCommentIds={posted}
           // This version has none, an earlier one has: say where they are,

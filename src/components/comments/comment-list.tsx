@@ -171,6 +171,7 @@ export function CommentList({
   isAdmin = false,
   onEdit,
   onDelete,
+  initialReply,
   className,
 }: {
   /** Top-level comments and replies together. Replies have parent_id set. */
@@ -215,6 +216,8 @@ export function CommentList({
   isAdmin?: boolean;
   onEdit?: (comment: ThreadComment, body: string) => Promise<SubmitResult>;
   onDelete?: (comment: ThreadComment) => Promise<DeleteResult>;
+  /** A kept reply coming back: its box opens with the text in it. */
+  initialReply?: { parentId: string; body: string } | null;
   className?: string;
 }) {
   const [deleting, setDeleting] = useState<ThreadComment | null>(null);
@@ -380,7 +383,16 @@ export function CommentList({
                             />
                           ) : (
                             <CommentItem
-                              key={comment.id}
+                              key={
+                                initialReply?.parentId === comment.id
+                                  ? `${comment.id}-kept`
+                                  : comment.id
+                              }
+                              initialReplyBody={
+                                initialReply?.parentId === comment.id
+                                  ? initialReply.body
+                                  : undefined
+                              }
                               comment={comment}
                               viewer={viewer}
                               fromOwner={
@@ -441,8 +453,10 @@ function CommentItem({
   onReply,
   onToggleResolved,
   onSignIn,
+  initialReplyBody,
 }: {
   comment: ThreadComment;
+  initialReplyBody?: string;
   viewer: Viewer;
   fromOwner: boolean;
   ownerId?: string;
@@ -457,7 +471,7 @@ function CommentItem({
 }) {
   const name = displayNameOf(comment.author);
   const resolved = !!comment.resolved_at;
-  const [replying, setReplying] = useState(false);
+  const [replying, setReplying] = useState(initialReplyBody !== undefined);
   const [editing, setEditing] = useState(false);
   const { onEdit } = useContext(Actions);
   const replyButton = useRef<HTMLButtonElement>(null);
@@ -610,6 +624,7 @@ function CommentItem({
             {replying && onReply ? (
               <ReplyComposer
                 parentName={name}
+                initialBody={initialReplyBody}
                 onSubmit={(body) => onReply(comment, body)}
                 onClose={() => {
                   setReplying(false);

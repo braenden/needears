@@ -50,6 +50,7 @@ export function CommentComposer({
   maxLength = COMMENT_MAX,
   commentsPerHour = 20,
   initialBody = "",
+  initialDraft,
   initialError,
   range = null,
   onClearRange,
@@ -66,6 +67,8 @@ export function CommentComposer({
   /** Shown in the rate limit message. */
   commentsPerHour?: number;
   initialBody?: string;
+  /** A kept draft coming back: its category and its time. */
+  initialDraft?: Pick<CommentDraft, "category" | "timeMs">;
   initialError?: ComposerError;
   /** A range picked in the waveform. Replaces the single time while set. */
   range?: { startMs: number; endMs: number } | null;
@@ -76,9 +79,15 @@ export function CommentComposer({
   const id = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [body, setBody] = useState(initialBody);
-  const [category, setCategory] = useState<CommentCategory>("vibe");
-  const [wholeTrack, setWholeTrack] = useState(false);
-  const [pinnedMs, setPinnedMs] = useState<number | null>(null);
+  const [category, setCategory] = useState<CommentCategory>(
+    initialDraft?.category ?? "vibe",
+  );
+  const [wholeTrack, setWholeTrack] = useState(
+    !!initialDraft && initialDraft.timeMs === null,
+  );
+  const [pinnedMs, setPinnedMs] = useState<number | null>(
+    initialDraft?.timeMs ?? null,
+  );
   const [editingTime, setEditingTime] = useState(false);
   const [timeInput, setTimeInput] = useState("");
   const [timeError, setTimeError] = useState<string | null>(null);

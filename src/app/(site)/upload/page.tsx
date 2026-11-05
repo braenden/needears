@@ -14,6 +14,8 @@ export const metadata: Metadata = {
 export default async function UploadPage() {
   const [viewer, genres] = await Promise.all([getViewer(), getGenres()]);
   if (!viewer) redirect("/login?next=/upload");
+  // A track is published under the username, so that comes first.
+  if (!viewer.onboarded) redirect("/welcome?next=/upload");
   // How experienced: the answer from the last track, so it is not asked
   // every time.
   const supabase = await createClient();
