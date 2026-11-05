@@ -22,14 +22,17 @@ export function LoginForm({
   next,
   googleClientId,
   scriptNonce,
+  defaultEmail = "",
 }: {
   next: string;
+  /** Signing in again: the account's address, already filled in. */
+  defaultEmail?: string;
   /** Without it, only the email link is offered. */
   googleClientId: string | null;
   scriptNonce?: string;
 }) {
   const id = useId();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail);
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
   // Google has handed over its token and the session is being made.

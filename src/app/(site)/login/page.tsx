@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/api/redirect";
 import { googleClientId } from "@/lib/auth/google-client-id";
 import { getViewer } from "@/lib/data/viewer";
+import { createClient } from "@/lib/supabase/server";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
@@ -18,6 +19,12 @@ const ORIGIN = "https://needears.invalid";
 function nextPath(value: string | string[] | undefined): string {
   const url = safeNext(typeof value === "string" ? value : null, ORIGIN);
   return url.pathname + url.search;
+}
+
+async function signedInEmail(): Promise<string | null> {
+  const { data } = await (await createClient()).auth.getClaims();
+  const email = data?.claims.email;
+  return typeof email === "string" && email ? email : null;
 }
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
@@ -36,6 +43,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   // browser it cannot sign in there, though the change itself may be done.
   const fromSettings = next.startsWith("/settings");
   if (!reauth && (await getViewer())) redirect(next === "/" ? "/feed" : next);
+  // Signing in again: the account's own address, so nobody has to type it
+  // (or signs in to another account by mistake).
+  const accountEmail = reauth ? await signedInEmail() : null;
   return (
     // One short task: a narrow block in the middle of the page, as sign-in
     // pages usually are.
@@ -71,6 +81,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           // account and sign this one out. Only the email link here.
           googleClientId={reauth === "connect" ? null : googleClientId()}
           scriptNonce={(await headers()).get("x-nonce") ?? undefined}
+          defaultEmail={accountEmail ?? undefined}
         />
         <p className="mt-8 text-xs text-muted-foreground">
           By continuing you agree to the{" "}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2Icon } from "lucide-react";
 
@@ -57,7 +57,17 @@ const INTENT_MS = 4 * 60 * 1000;
  * Change the account's email address. A link goes to both the current and
  * the new address, and the change happens when one of them is opened.
  */
-export function ChangeEmail({ current }: { current: string | null }) {
+/** The address typed before signing in again, for when they come back. */
+const TYPED_KEY = "needears:new-email";
+
+export function ChangeEmail({
+  current,
+  fresh,
+}: {
+  current: string | null;
+  /** Signed in recently enough to change it now. */
+  fresh: boolean;
+}) {
   const id = useId();
   const [open, setOpen] = useState(false);
   // When our server last gave a go-ahead. A retry within its lifetime does
@@ -69,6 +79,34 @@ export function ChangeEmail({ current }: { current: string | null }) {
     error: null,
     sending: false,
   });
+
+  // Back from signing in again: the form opens with what they typed.
+  useEffect(() => {
+    if (!fresh) return;
+    const frame = requestAnimationFrame(() => {
+      let typed: string | null = null;
+      try {
+        typed = sessionStorage.getItem(TYPED_KEY);
+        sessionStorage.removeItem(TYPED_KEY);
+      } catch {
+        // Nothing kept.
+      }
+      if (!typed) return;
+      setEmail(typed);
+      setOpen(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [fresh]);
+
+  /** Off to sign in again, keeping what was typed. */
+  function needFreshSignIn() {
+    try {
+      if (email.trim()) sessionStorage.setItem(TYPED_KEY, email.trim());
+    } catch {
+      // Not kept.
+    }
+    setState({ step: "reauth" });
+  }
 
   const problem = (value: string) => {
     const address = value.trim();
@@ -91,7 +129,7 @@ export function ChangeEmail({ current }: { current: string | null }) {
     if (Date.now() - intentAt.current > INTENT_MS) {
       const intent = await requestIdentityIntent("email_change", "email");
       if (intent === "reauth") {
-        setState({ step: "reauth" });
+        needFreshSignIn();
         return;
       }
       if (intent === "failed") {
@@ -127,6 +165,8 @@ export function ChangeEmail({ current }: { current: string | null }) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
+        // An older sign-in is told at once, before typing anything.
+        if (next && !fresh) setState({ step: "reauth" });
         if (!next) {
           setEmail("");
           setState({ step: "form", error: null, sending: false });

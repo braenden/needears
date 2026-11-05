@@ -258,7 +258,9 @@ export function ConnectedAccounts({
               {emailOf(email) ?? "Not set up"}
             </p>
           </div>
-          {email && accountEmail ? <ChangeEmail current={accountEmail} /> : null}
+          {email && accountEmail ? (
+            <ChangeEmail current={accountEmail} fresh={fresh} />
+          ) : null}
         </li>
         <li className="grid gap-3 px-4 py-3">
           {!google && googleClientId && fresh ? (
