@@ -5,9 +5,11 @@ import Link from "next/link";
 import {
   CheckIcon,
   FileAudioIcon,
+  LinkIcon,
   Loader2Icon,
   UploadIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { MiniWaveform } from "@/components/track/mini-waveform";
 import { Button } from "@/components/ui/button";
@@ -18,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 
 import { DetailsFields } from "./details-fields";
+import { FilePreview } from "./file-preview";
 import {
   type Details,
   extensionOf,
@@ -61,6 +64,9 @@ export type UploadPipeline = {
       }
   >;
 };
+
+const FILE_ACCEPT =
+  ".mp3,.wav,.aiff,.aif,.flac,audio/mpeg,audio/wav,audio/aiff,audio/flac";
 
 const STEPS = [
   { key: "file", label: "File" },
@@ -130,6 +136,8 @@ export function UploadWizard({
     ...initialState,
   });
   const fileRef = useRef<File | null>(null);
+  // The same file, for listening to it before publishing.
+  const [source, setSource] = useState<File | null>(null);
   const runRef = useRef(0);
   const encodingRef = useRef<Promise<boolean> | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -147,6 +155,9 @@ export function UploadWizard({
       return;
     }
     fileRef.current = file;
+    // A new file starts its own encoding; the old one's is of no use.
+    encodingRef.current = null;
+    setSource(file);
     dispatch({ type: "file_accepted", file: info });
     const result = await pipeline.analyze(file, (stage, progress) => {
       if (run === runRef.current) dispatch({ type: "stage", stage, progress });
@@ -296,6 +307,8 @@ export function UploadWizard({
         {state.step === "details" ? (
           <DetailsStep
             state={state}
+            source={source}
+            onSwap={(file) => void handleFile(file)}
             genres={genres}
             onEdit={(details) => dispatch({ type: "edit", details })}
             onNext={() => dispatch({ type: "to_publish" })}
@@ -304,6 +317,7 @@ export function UploadWizard({
         {state.step === "publish" ? (
           <PublishStep
             state={state}
+            source={source}
             genres={genres}
             contactEmail={contactEmail}
             onOwnWork={(value) => dispatch({ type: "own_work", value })}
@@ -420,8 +434,12 @@ export function FileStep({
         <span className="grid size-12 place-items-center rounded-full bg-secondary">
           <UploadIcon className="size-5" aria-hidden="true" />
         </span>
-        <span className="font-medium">
+        {/* Phones have nothing to drop: there, a tap picks the file. */}
+        <span className="font-medium coarse:hidden">
           Drop your file here, or click to choose one.
+        </span>
+        <span className="hidden font-medium coarse:inline">
+          Tap to choose your file.
         </span>
         <span className="text-sm text-muted-foreground">
           mp3, wav, aiff or flac. Up to 15 minutes and 150 MB.
@@ -429,7 +447,7 @@ export function FileStep({
         <input
           id={`${id}-file`}
           type="file"
-          accept=".mp3,.wav,.aiff,.aif,.flac,audio/mpeg,audio/wav,audio/aiff,audio/flac"
+          accept={FILE_ACCEPT}
           className="sr-only"
           aria-describedby={state.fileError ? `${id}-error` : undefined}
           onChange={(e) => {
@@ -481,19 +499,53 @@ function FileName({ file }: { file: UploadState["file"] }) {
   );
 }
 
-function WaveformPreview({ state }: { state: UploadState }) {
+function WaveformPreview({
+  state,
+  source,
+  onSwap,
+}: {
+  state: UploadState;
+  source: File | null;
+  onSwap: (file: File) => void;
+}) {
+  const id = useId();
   return (
     <div className="rounded-xl border bg-card p-3 @sm:p-4">
       <div className="flex items-center justify-between gap-3">
         <FileName file={state.file} />
-        {state.durationMs ? (
-          <time data-numeric className="shrink-0 text-sm text-muted-foreground">
-            {formatTime(state.durationMs)}
-          </time>
-        ) : null}
+        {/* Another file, keeping the details filled in so far. */}
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="-my-1 shrink-0 cursor-pointer has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring"
+        >
+          <label htmlFor={`${id}-swap`}>
+            Choose another file
+            <input
+              id={`${id}-swap`}
+              type="file"
+              accept={FILE_ACCEPT}
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onSwap(file);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </Button>
       </div>
-      {state.peaks ? (
-        <MiniWaveform peaks={state.peaks} bars={120} className="mt-3 h-14" />
+      {state.peaks && state.durationMs && source ? (
+        <div className="mt-3">
+          <FilePreview
+            key={`${source.name}:${source.size}:${source.lastModified}`}
+            file={source}
+            title={state.details.title || source.name}
+            peaks={state.peaks}
+            durationMs={state.durationMs}
+          />
+        </div>
       ) : null}
       {state.stage === "encoding" ? (
         <div className="mt-3 grid gap-1.5">
@@ -516,11 +568,15 @@ function WaveformPreview({ state }: { state: UploadState }) {
 
 function DetailsStep({
   state,
+  source,
+  onSwap,
   genres,
   onEdit,
   onNext,
 }: {
   state: UploadState;
+  source: File | null;
+  onSwap: (file: File) => void;
   genres: { slug: string; name: string }[];
   onEdit: (details: Partial<Details>) => void;
   onNext: () => void;
@@ -537,7 +593,7 @@ function DetailsStep({
         focusFirstInvalid(e.currentTarget);
       }}
     >
-      <WaveformPreview state={state} />
+      <WaveformPreview state={state} source={source} onSwap={onSwap} />
       {state.publishError === "encode_failed" ? (
         <p
           role="alert"
@@ -565,6 +621,7 @@ function DetailsStep({
 
 function PublishStep({
   state,
+  source,
   genres,
   contactEmail,
   onOwnWork,
@@ -572,6 +629,7 @@ function PublishStep({
   onPublish,
 }: {
   state: UploadState;
+  source: File | null;
   genres: { slug: string; name: string }[];
   contactEmail?: string;
   onOwnWork: (value: boolean) => void;
@@ -605,7 +663,17 @@ function PublishStep({
             </>
           ) : null}
         </p>
-        {state.peaks ? (
+        {state.peaks && state.durationMs && source ? (
+          <div className="mt-3">
+            <FilePreview
+              key={`${source.name}:${source.size}:${source.lastModified}`}
+              file={source}
+              title={state.details.title}
+              peaks={state.peaks}
+              durationMs={state.durationMs}
+            />
+          </div>
+        ) : state.peaks ? (
           <MiniWaveform peaks={state.peaks} bars={120} className="mt-3 h-12" />
         ) : null}
         {state.details.feedbackWants.length > 0 ? (
@@ -633,7 +701,7 @@ function PublishStep({
             className="mt-0.5 size-4 shrink-0 accent-(--primary)"
             disabled={busy}
           />
-          This is my own work, not generated by AI.
+          Made by me (samples are fine), not generated by AI.
         </label>
         {state.ownWorkError ? (
           <p
@@ -641,7 +709,7 @@ function PublishStep({
             role="alert"
             className="pl-7 text-sm text-destructive"
           >
-            Please confirm this is your own work, not generated by AI.
+            Please confirm you made this and it is not generated by AI.
           </p>
         ) : null}
       </div>
@@ -694,9 +762,29 @@ function DoneStep({ slug }: { slug: string | null }) {
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {slug ? (
-          <Button asChild>
-            <Link href={`/t/${slug}`}>View track</Link>
-          </Button>
+          <>
+            <Button asChild>
+              <Link href={`/t/${slug}`}>View track</Link>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    new URL(`/t/${slug}`, window.location.origin).href,
+                  );
+                  toast.success("Link copied.");
+                } catch {
+                  toast.error(
+                    "Couldn't copy the link. Open the track and copy it from the address bar.",
+                  );
+                }
+              }}
+            >
+              <LinkIcon />
+              Copy link
+            </Button>
+          </>
         ) : null}
         <Button variant="outline" asChild>
           <Link href="/upload">Upload another</Link>

@@ -97,6 +97,13 @@ export const initialUploadState: UploadState = {
   slug: null,
 };
 
+function titleFromName(name: string) {
+  return name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+}
+
 export function extensionOf(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "";
 }
@@ -158,6 +165,8 @@ export function uploadReducer(
     case "file_rejected":
       return {
         ...initialUploadState,
+        // A file swapped for one that does not work keeps the details.
+        details: state.details,
         file: action.file,
         fileError: action.error,
         fileDurationMs: action.durationMs ?? null,
@@ -165,7 +174,11 @@ export function uploadReducer(
     case "file_accepted":
       return {
         ...initialUploadState,
-        details: state.details,
+        // A title that was only the old file's name follows the new file.
+        details:
+          state.file && state.details.title === titleFromName(state.file.name)
+            ? { ...state.details, title: "" }
+            : state.details,
         file: action.file,
         stage: "decoding",
         encoded: action.file.isMp3,
@@ -175,11 +188,7 @@ export function uploadReducer(
     case "analyzed": {
       // Prefill the title from the file name, Nora should not have to type it twice.
       const title =
-        state.details.title ||
-        (state.file?.name ?? "")
-          .replace(/\.[^.]+$/, "")
-          .replace(/[_-]+/g, " ")
-          .trim();
+        state.details.title || titleFromName(state.file?.name ?? "");
       return {
         ...state,
         step: "details",

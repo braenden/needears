@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import { CheckIcon } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,21 @@ const FEEDBACK_ORDER: FeedbackWant[] = [
 const LEVEL_ORDER: TrackLevel[] = ["beginner", "intermediate", "advanced"];
 
 /**
+ * The tags field stops at the limit: whatever would start one tag too many
+ * (a comma after the last allowed one, or the rest of a paste) is left out.
+ */
+export function capTags(value: string, max = UPLOAD_LIMITS.maxTags) {
+  const parts = value.split(",");
+  let count = 0;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (parts[i]!.trim()) count++;
+    if (count === max)
+      return { value: parts.slice(0, i + 1).join(","), capped: true };
+  }
+  return { value, capped: false };
+}
+
+/**
  * Title, genre, tags, description, feedback wanted and level. Shared by the
  * upload wizard and the owner's edit dialog on the track page.
  */
@@ -38,6 +53,7 @@ export function DetailsFields({
   onEdit: (details: Partial<Details>) => void;
 }) {
   const id = useId();
+  const [tagsFull, setTagsFull] = useState(false);
   const describe = (name: string, hasError: boolean, hasHint = false) =>
     hasError
       ? `${id}-${name}-error`
@@ -90,12 +106,21 @@ export function DetailsFields({
               <Optional />
             </>
           }
-          hint={`Separate with commas. Up to ${UPLOAD_LIMITS.maxTags}.`}
+          hint={
+            tagsFull
+              ? `That's ${UPLOAD_LIMITS.maxTags} tags, the most a track can have.`
+              : `Separate with commas. Up to ${UPLOAD_LIMITS.maxTags}.`
+          }
+          live
         >
           <Input
             id={`${id}-tags`}
             value={details.tags}
-            onChange={(e) => onEdit({ tags: e.target.value })}
+            onChange={(e) => {
+              const { value, capped } = capTags(e.target.value);
+              setTagsFull(capped);
+              onEdit({ tags: value });
+            }}
             aria-describedby={describe("tags", false, true)}
             autoComplete="off"
           />
@@ -213,12 +238,15 @@ function Field({
   label,
   hint,
   error,
+  live = false,
   children,
 }: {
   id: string;
   label: React.ReactNode;
   hint?: string;
   error?: string;
+  /** The hint can change while typing: read it out when it does. */
+  live?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -232,7 +260,11 @@ function Field({
           {error}
         </p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+        <p
+          id={`${id}-hint`}
+          aria-live={live ? "polite" : undefined}
+          className="text-xs text-muted-foreground"
+        >
           {hint}
         </p>
       ) : null}

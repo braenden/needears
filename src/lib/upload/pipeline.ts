@@ -55,26 +55,33 @@ function createAudioWork() {
   let loudness: number | null = null;
   let source: File | null = null;
   let mp3: Blob | null = null;
+  // Counts files: work on a file that was swapped for another one before
+  // it finished is thrown away instead of landing on the new file.
+  let generation = 0;
 
   const work = {
     async analyze(
       file: File,
       onProgress: (stage: "decoding" | "waveform", progress: number) => void,
     ): ReturnType<UploadPipeline["analyze"]> {
+      const mine = ++generation;
       decoded = null;
       peaks = null;
       loudness = null;
       mp3 = null;
       source = file;
       onProgress("decoding", 0.1);
+      let audio: Decoded;
       try {
-        decoded = await decodeAudio(file);
+        audio = await decodeAudio(file);
       } catch (error) {
         return {
           ok: false,
           error: error instanceof DecodeError ? error.reason : "decode_failed",
         };
       }
+      if (mine !== generation) return { ok: false, error: "decode_failed" };
+      decoded = audio;
       onProgress("waveform", 0.5);
       peaks = computePeaks(decoded.channels, PEAKS_POINTS);
       // Measured from the decoded audio, so A/B can play versions equally loud.
@@ -95,8 +102,11 @@ function createAudioWork() {
     ): Promise<boolean> {
       if (mp3) return true;
       if (!decoded) return false;
+      const mine = generation;
       try {
-        mp3 = await encodeMp3(decoded, onProgress);
+        const encoded = await encodeMp3(decoded, onProgress);
+        if (mine !== generation) return false;
+        mp3 = encoded;
         // The PCM is only needed for encoding; let it go.
         decoded = { ...decoded, channels: [] };
         return mp3.size <= AUDIO_MAX_BYTES;
