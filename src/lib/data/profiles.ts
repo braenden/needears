@@ -1,4 +1,5 @@
 import "server-only";
+import { aborted, describeError } from "@/lib/data/errors";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cacheLife } from "next/cache";
 import { connection } from "next/server";
@@ -37,7 +38,7 @@ async function cachedGenres(): Promise<Genre[]> {
     .from("genres")
     .select("slug, name")
     .order("name");
-  if (error) throw new Error(`Genres failed: ${error.code}`);
+  if (error) throw new Error(`Genres failed: ${describeError(error)}`);
   return data;
 }
 
@@ -78,7 +79,7 @@ export async function getProfileByHandle(
     .select(PROFILE_COLUMNS)
     .eq("handle", handle)
     .maybeSingle();
-  if (error) throw new Error(`Profile failed: ${error.code}`);
+  if (error) throw new Error(`Profile failed: ${describeError(error)}`);
   if (!data) return null;
   const { working_on, daw, links, ...profile } = await withAvatar(
     supabase,
@@ -124,7 +125,7 @@ export async function getEditableProfile(
     .select("avatar_key, avatar_url, working_on, daw, links")
     .eq("id", userId)
     .single();
-  if (error) throw new Error(`Profile failed: ${error.code}`);
+  if (error) throw new Error(`Profile failed: ${describeError(error)}`);
   return {
     userId,
     profile,
@@ -190,7 +191,7 @@ export async function getCommentsBy(
     .eq("status", "live")
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`Comments failed: ${error.code}`);
+  if (error) throw new Error(`Comments failed: ${describeError(error)}`);
   return data.filter((c) => c.track);
 }
 
@@ -198,18 +199,6 @@ export type FeedbackRecord = {
   stats: ProfileStatsV2;
   badges: EarnedBadge[];
 };
-
-type QueryError = { code?: string; message?: string; details?: string };
-
-/** A request cut off because the page was left (or the server stopped it). */
-export function aborted(error: QueryError) {
-  return /abort/i.test(`${error.message ?? ""} ${error.details ?? ""}`);
-}
-
-/** The code when there is one, and always the message, for the logs. */
-export function describeError(error: QueryError) {
-  return [error.code, error.message].filter(Boolean).join(" ") || "unknown";
-}
 
 const EMPTY_RECORD: FeedbackRecord = {
   stats: {

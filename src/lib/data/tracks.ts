@@ -1,4 +1,5 @@
 import "server-only";
+import { aborted, describeError } from "@/lib/data/errors";
 import { FEED_MAX_PAGE, FEED_PAGE_SIZE } from "@/config/limits";
 import { reactionCounts } from "./parse";
 import { createClient } from "@/lib/supabase/server";
@@ -111,7 +112,9 @@ export async function getFeed(
       p_page_size: FEED_PAGE_SIZE,
     })
     .select(SUMMARY_COLUMNS);
-  if (error) throw new Error(`Feed failed: ${error.code}`);
+  // The page was left before the answer came: nobody sees it.
+  if (error && aborted(error)) return { tracks: [], hasMore: false };
+  if (error) throw new Error(`Feed failed: ${describeError(error)}`);
   const rows = data as unknown as SummaryRow[];
   return {
     tracks: await toCards(supabase, rows),
@@ -132,7 +135,7 @@ export async function getTracksByOwner(
     .in("status", ["live", "hidden"])
     .order("published_at", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`Tracks failed: ${error.code}`);
+  if (error) throw new Error(`Tracks failed: ${describeError(error)}`);
   return toCards(supabase, data as unknown as SummaryRow[]);
 }
 
@@ -179,7 +182,7 @@ export async function trackPageExists(slug: string): Promise<boolean> {
     .select("status")
     .eq("slug", slug)
     .maybeSingle();
-  if (error) throw new Error(`Track failed: ${error.code}`);
+  if (error) throw new Error(`Track failed: ${describeError(error)}`);
   return !!data && data.status !== "deleted";
 }
 
@@ -192,7 +195,7 @@ export async function getTrackPage(
     .select(TRACK_COLUMNS)
     .eq("slug", slug)
     .maybeSingle();
-  if (error) throw new Error(`Track failed: ${error.code}`);
+  if (error) throw new Error(`Track failed: ${describeError(error)}`);
   if (!data) return null;
   const row = data as unknown as SummaryRow &
     Pick<
@@ -217,9 +220,9 @@ export async function getTrackPage(
       .order("version_no"),
   ]);
   if (comments.error)
-    throw new Error(`Comments failed: ${comments.error.code}`);
+    throw new Error(`Comments failed: ${describeError(comments.error)}`);
   if (versionRows.error)
-    throw new Error(`Versions failed: ${versionRows.error.code}`);
+    throw new Error(`Versions failed: ${describeError(versionRows.error)}`);
   const versions = versionRows.data;
   // The track's keys are the latest version's; listed too in case the
   // versions query came back empty.
