@@ -62,6 +62,7 @@ export function NewVersionDialog({
   versionCount,
   pipeline,
   onPublished,
+  onLive,
   isMobile = false,
   onClose,
 }: {
@@ -69,7 +70,10 @@ export function NewVersionDialog({
   /** How many versions the track has now. */
   versionCount: number;
   pipeline: VersionPipeline;
+  /** When the dialog closes after publishing. */
   onPublished: (version: TrackVersion) => void;
+  /** The moment it is published, while the dialog still says so. */
+  onLive?: (version: TrackVersion) => void;
   isMobile?: boolean;
   /**
    * Opened from somewhere else (a menu): no button of its own, open from
@@ -89,6 +93,7 @@ export function NewVersionDialog({
         isMobile={isMobile}
         onClose={onClose}
         onPublished={onPublished}
+        onLive={onLive}
       />
     );
   }
@@ -117,6 +122,7 @@ export function NewVersionDialog({
           isMobile={isMobile}
           onClose={() => setOpen(false)}
           onPublished={onPublished}
+          onLive={onLive}
         />
       ) : null}
     </div>
@@ -130,6 +136,7 @@ function VersionDialog({
   isMobile,
   onClose,
   onPublished,
+  onLive,
 }: {
   trackTitle: string;
   nextVersionNo: number;
@@ -137,6 +144,7 @@ function VersionDialog({
   isMobile: boolean;
   onClose: () => void;
   onPublished: (version: TrackVersion) => void;
+  onLive?: (version: TrackVersion) => void;
 }) {
   const id = useId();
   const [state, dispatch] = useReducer(uploadReducer, initialUploadState);
@@ -224,6 +232,7 @@ function VersionDialog({
     if (result.ok) {
       setPublished(result.version);
       dispatch({ type: "published", slug: "" });
+      onLive?.(result.version);
     } else {
       dispatch({
         type: "publish_failed",

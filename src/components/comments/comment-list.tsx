@@ -408,7 +408,7 @@ function CommentItem({
               type="button"
               onClick={() => onJump?.(comment)}
               className="inline-flex h-6 items-center rounded-full bg-primary-soft px-2 text-xs font-medium text-primary-text focus-ring outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)]"
-              aria-label={`Jump to ${formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}`}
+              aria-label={`Play from ${formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}`}
             >
               <time data-numeric>
                 {formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}

@@ -13,12 +13,15 @@ export function NewVersion({
   trackTitle,
   versionCount,
   onPublished,
+  onLive,
   onClose,
 }: {
   trackId: string;
   trackTitle: string;
   versionCount: number;
   onPublished: (version: TrackVersion) => void;
+  /** The moment it is published, while the dialog still says so. */
+  onLive?: (version: TrackVersion) => void;
   /** Opened from the track's menu; runs when the dialog closes. */
   onClose?: () => void;
 }) {
@@ -30,6 +33,7 @@ export function NewVersion({
       versionCount={versionCount}
       pipeline={pipeline}
       onPublished={onPublished}
+      onLive={onLive}
       isMobile={isMobile}
       onClose={onClose}
     />

@@ -103,7 +103,7 @@ describe("CommentList filter", () => {
     renderWithTooltips(
       <CommentList comments={comments} viewer="signed_out" onJump={onJump} />,
     );
-    await user.click(screen.getByRole("button", { name: "Jump to 1:42" }));
+    await user.click(screen.getByRole("button", { name: "Play from 1:42" }));
     expect(onJump).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }));
   });
 });

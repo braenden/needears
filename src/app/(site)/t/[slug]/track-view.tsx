@@ -74,6 +74,7 @@ import type {
   ReportReason,
   ThreadComment,
   Track,
+  TrackVersion,
 } from "@/types/view";
 
 const COMMENT_COLUMNS =
@@ -191,6 +192,12 @@ export function TrackView({
   const [previousVersionId, setPreviousVersionId] = useState<string | null>(
     null,
   );
+  // Just published, until the page has it from the server.
+  const [newVersion, setNewVersion] = useState<TrackVersion | null>(null);
+  const pickable =
+    newVersion && !versions.some((v) => v.id === newVersion.id)
+      ? [...versions, newVersion]
+      : versions;
   const countPlay = usePlayCounter(track.id, track.duration_ms);
   // The site's shared audio element. When the feed was playing this track,
   // the page takes it over and carries on from the same address, without
@@ -590,11 +597,11 @@ export function TrackView({
         </div>
       </header>
 
-      {versioned && current ? (
+      {pickable.length > 1 && current ? (
         <VersionPicker
           className="mt-6"
-          versions={versions}
-          currentId={current.id}
+          versions={pickable}
+          currentId={versionId ?? current.id}
           previousId={previousVersionId}
           onSelect={pickVersion}
         />
@@ -780,12 +787,16 @@ export function TrackView({
           trackTitle={track.title}
           versionCount={versions.length}
           onClose={() => setAddingVersion(false)}
-          onPublished={(version) => {
+          // The page under the dialog switches while it says the version
+          // is live, so closing it moves nothing.
+          onLive={(version) => {
+            setNewVersion(version);
             setPreviousVersionId(current?.id ?? null);
             setVersionId(version.id);
             switchSound(version.id);
             router.refresh();
           }}
+          onPublished={() => {}}
         />
       ) : null}
       {viewer && !isOwner ? (
@@ -883,7 +894,12 @@ export function TrackView({
           onReply={reply}
           onToggleResolved={(c, resolved) => void toggleResolved(c, resolved)}
           onJump={(c) => {
-            if (c.time_ms !== null) player.current?.seekTo(c.time_ms);
+            // The time on a comment plays from there: that is what people
+            // click it for.
+            if (c.time_ms !== null) {
+              player.current?.seekTo(c.time_ms);
+              player.current?.play();
+            }
             setSelectedId(c.id);
           }}
           onToggleHelpful={(c, helpful) => void toggleHelpful(c, helpful)}

@@ -501,6 +501,7 @@ export function WaveformPlayer({
   return (
     <div
       ref={rootRef}
+      data-slot="waveform-player"
       role="group"
       aria-label={summary}
       onKeyDown={handleKey}
