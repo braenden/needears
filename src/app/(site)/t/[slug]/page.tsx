@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { reputationLevelFor } from "@/config/reputation";
 import { getGenres } from "@/lib/data/profiles";
-import { getTrackPage } from "@/lib/data/tracks";
+import { getMoreToHear, getTrackPage } from "@/lib/data/tracks";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { formatTime } from "@/lib/time";
@@ -100,10 +100,12 @@ export default async function TrackPage({
       }
       startSeconds={startSeconds(query.t, track.duration_ms)}
       initialFilter={filter}
-      initialShowResolved={query.resolved !== "hide"}
+      initialShowResolved={query.resolved === "show"}
       genres={genres}
       versions={versions}
       authorBadges={authorBadges}
+      // Streamed: the page does not wait for it.
+      moreToHear={getMoreToHear(track, viewer?.userId ?? null)}
     />
   );
 }

@@ -141,6 +141,40 @@ export async function getTracksByOwner(
   return toCards(supabase, data as unknown as SummaryRow[]);
 }
 
+/** How many tracks "More to hear" offers. */
+const MORE_TO_HEAR = 5;
+
+/**
+ * A next step on a track's page for someone looking around: other tracks
+ * that need ears first (not this one, not the viewer's own), then more by
+ * the same artist, then the newest. The same queries as the feed and the
+ * profile, so row level security decides what shows.
+ */
+export async function getMoreToHear(
+  track: { id: string; owner_id: string },
+  viewerId: string | null,
+): Promise<CardTrack[]> {
+  const [needs, sameArtist, latest] = await Promise.all([
+    getFeed("needs-ears", null, 1),
+    getTracksByOwner(track.owner_id, MORE_TO_HEAR + 1),
+    getFeed("latest", null, 1),
+  ]);
+  const picked: CardTrack[] = [];
+  const seen = new Set([track.id]);
+  const add = (list: CardTrack[], skipOwn: boolean) => {
+    for (const t of list) {
+      if (picked.length >= MORE_TO_HEAR) return;
+      if (seen.has(t.id) || (skipOwn && t.owner.id === viewerId)) continue;
+      seen.add(t.id);
+      picked.push(t);
+    }
+  };
+  add(needs.tracks, true);
+  add(sameArtist, false);
+  add(latest.tracks, false);
+  return picked;
+}
+
 export type TrackPageData = {
   track: Track;
   audioUrl: string | null;

@@ -9,9 +9,10 @@ const first = `The bass sits a bit low ${stamp}`;
 const edited = `The bass sits a bit low under the vocal ${stamp}`;
 const answer = `Agreed, I'll lift it ${stamp}`;
 
+/** The count beside the Comments heading. */
 function allCount(page: Page) {
   return page
-    .getByRole("tab", { name: /^All/ })
+    .getByRole("heading", { name: /^Comments/ })
     .innerText()
     .then((text) => Number(text.replace(/\D+/g, "")));
 }
@@ -50,7 +51,7 @@ test("edit, delete and a deleted comment that keeps its replies", async ({
     await mia.getByRole("button", { name: "Save" }).click();
     await expect(mia.getByText(edited)).toBeVisible();
     const row = mia.getByRole("listitem").filter({ hasText: edited }).last();
-    await expect(row.getByText("edited", { exact: true })).toBeVisible();
+    await expect(row.getByText(/· edited$/)).toBeVisible();
     // Stored.
     await mia.reload();
     await pageIn(mia);
@@ -75,16 +76,19 @@ test("edit, delete and a deleted comment that keeps its replies", async ({
   await test.step("Mia deletes it: the reply stays under Comment deleted", async () => {
     await mia.reload();
     await pageIn(mia);
+    // The reloaded page, with the reply in it.
+    await expect(mia.getByText(answer)).toBeVisible();
     await menuFor(mia, edited).click();
     await mia.getByRole("menuitem", { name: "Delete" }).click();
     const dialog = mia.getByRole("dialog", { name: "Delete comment?" });
     await dialog.getByRole("button", { name: "Delete" }).click();
     await expect(dialog).toBeHidden();
     await expect(mia.getByText(edited)).toHaveCount(0);
-    await expect(
-      mia.getByText("Comment deleted", { exact: true }),
-    ).toBeVisible();
-    await expect(mia.getByText(answer)).toBeVisible();
+    const kept = mia
+      .getByRole("listitem")
+      .filter({ hasText: "Comment deleted" })
+      .filter({ hasText: answer });
+    await expect(kept).toBeVisible();
     expect(await allCount(mia)).toBe(before);
 
     // The same for everyone else, with nothing to act on.
@@ -93,6 +97,7 @@ test("edit, delete and a deleted comment that keeps its replies", async ({
     const gone = jonas
       .getByRole("listitem")
       .filter({ hasText: "Comment deleted" })
+      .filter({ hasText: answer })
       .first();
     await expect(gone).toBeVisible();
     await expect(gone.getByText(answer)).toBeVisible();

@@ -28,16 +28,20 @@ function setup(
 }
 
 describe("CommentComposer", () => {
-  it("anchors to the current second and asks what you hear there", () => {
-    setup();
+  it("is one line until used, anchored to the current second", async () => {
+    const { user, textbox } = setup();
+    expect(textbox).toHaveAttribute("placeholder", "Add a comment at 1:42");
+    expect(screen.queryByRole("button", { name: "Comment" })).toBeNull();
+    await user.click(textbox!);
+    expect(textbox).toHaveAttribute("placeholder", "What do you hear at 1:42?");
     expect(
-      screen.getByPlaceholderText("What do you hear at 1:42?"),
+      screen.getByRole("button", { name: "Comment at 1:42" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /at 1:42/ })).toBeInTheDocument();
   });
 
   it("refuses an empty comment", async () => {
-    const { user, onSubmit } = setup();
+    const { user, onSubmit, textbox } = setup();
+    await user.click(textbox!);
     await user.click(screen.getByRole("button", { name: "Comment" }));
     expect(screen.getByText("Write something first.")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
@@ -57,10 +61,11 @@ describe("CommentComposer", () => {
 
   it("sends the picked category, and no time for the whole track", async () => {
     const { user, onSubmit, textbox } = setup();
-    await user.click(screen.getByRole("radio", { name: "Mix" }));
-    await user.click(
-      screen.getByRole("checkbox", { name: "Comment on the whole track" }),
-    );
+    await user.click(textbox!);
+    await user.click(screen.getByRole("button", { name: "Type: Vibe" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Mix" }));
+    await user.click(screen.getByRole("button", { name: "Comment at 1:42" }));
+    await user.click(screen.getByRole("menuitem", { name: "Whole track" }));
     await user.type(textbox!, "Low end is muddy overall");
     await user.click(screen.getByRole("button", { name: "Comment" }));
     expect(onSubmit).toHaveBeenCalledWith({
@@ -72,7 +77,9 @@ describe("CommentComposer", () => {
 
   it("lets you change the time, and rejects times outside the track", async () => {
     const { user, onSubmit, textbox } = setup();
-    await user.click(screen.getByRole("button", { name: /at 1:42/ }));
+    await user.click(textbox!);
+    await user.click(screen.getByRole("button", { name: "Comment at 1:42" }));
+    await user.click(screen.getByRole("menuitem", { name: "Change the time" }));
     const time = screen.getByRole("textbox", { name: "at" });
     await user.clear(time);
     await user.type(time, "9:99{Enter}");

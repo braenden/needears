@@ -39,7 +39,7 @@ export function moveReaction(
 }
 
 /**
- * Quick reactions on the whole track, plus Copy link. Lets Nora say "love
+ * Quick reactions on the whole track. Lets Nora say "love
  * this" without writing a comment. One reaction per person: picking another
  * moves it, picking the same one again takes it back.
  */
@@ -81,13 +81,13 @@ export function ReactionBar({
     pressTimer.current = null;
   };
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+    <div className={cn("flex flex-wrap items-center gap-1", className)}>
       <TooltipProvider delayDuration={300}>
         <div
           role="group"
           aria-label="React to this track"
           aria-describedby={`${id}-one`}
-          className="flex flex-wrap gap-1.5"
+          className="flex flex-wrap gap-0.5"
         >
           <span id={`${id}-one`} className="sr-only">
             One reaction each. Picking another one replaces yours.
@@ -149,9 +149,11 @@ export function ReactionBar({
                           onPick?.(pressed ? null : kind);
                         }}
                         className={cn(
-                          "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm focus-ring transition-[background-color,border-color,transform] duration-fast outline-none select-none active:scale-95",
+                          // No frame: the emoji and the count, yours on a
+                          // faint background.
+                          "inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-sm focus-ring transition-[background-color,transform] duration-fast outline-none select-none active:scale-95",
                           pressed
-                            ? "border-transparent bg-primary-soft text-primary-text"
+                            ? "bg-accent text-foreground"
                             : "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
                         )}
                       >
@@ -207,7 +209,7 @@ export function ReactionBar({
           Copy link
         </Button>
       ) : null}
-      {actions}
+      {actions ? <div className="ml-auto">{actions}</div> : null}
     </div>
   );
 }

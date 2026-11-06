@@ -55,11 +55,11 @@ export function VersionPicker({
 
   return (
     <div className={cn("@container grid gap-2", className)}>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div
           role="radiogroup"
           aria-label="Version"
-          className="flex flex-wrap gap-1.5"
+          className="flex flex-wrap gap-4"
         >
           {sorted.map((version) => {
             const checked = version.id === current.id;
@@ -93,19 +93,17 @@ export function VersionPicker({
                   );
                 }}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[13px] font-medium focus-ring transition-colors duration-fast outline-none",
+                  // Plain text tabs, the picked one underlined.
+                  "inline-flex h-8 items-center gap-1 border-b-2 text-sm focus-ring transition-colors duration-fast outline-none",
                   checked
-                    ? "border-transparent bg-foreground text-background"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "border-foreground font-semibold text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
                 v{version.version_no}
                 {version.id === latest.id ? (
                   <span
-                    className={cn(
-                      "text-xs font-normal",
-                      checked ? "" : "text-muted-foreground",
-                    )}
+                    className="text-xs font-normal text-muted-foreground"
                   >
                     latest
                   </span>
@@ -117,10 +115,10 @@ export function VersionPicker({
         {partner ? (
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => onSelect(partner.id)}
-            className="rounded-full"
+            className="text-muted-foreground hover:text-foreground"
           >
             <ArrowLeftRightIcon />
             A/B

@@ -14,7 +14,7 @@ import { useSharedAudio } from "@/components/player/shared-audio";
 import { useListenVolume } from "@/hooks/use-volume";
 import { cn } from "@/lib/utils";
 import type { TrackSummary } from "@/types/view";
-import { TrackRow } from "./track-row";
+import { CompactTrackRow, TrackRow } from "./track-row";
 
 export type PlayableTrack = TrackSummary & { audioUrl: string | null };
 
@@ -31,6 +31,8 @@ export function TrackList({
   tracks,
   label,
   showOwner = true,
+  variant = "row",
+  beforePlay,
   className,
 }: {
   tracks: PlayableTrack[];
@@ -38,6 +40,13 @@ export function TrackList({
   label: string;
   /** Off where every track is by the same person, like on a profile. */
   showOwner?: boolean;
+  /** "compact": play, title and artist only, for a side list. */
+  variant?: "row" | "compact";
+  /**
+   * Runs before a track starts, so a player of the page's own can step
+   * aside first (it may be using the same element).
+   */
+  beforePlay?: () => Promise<void> | void;
   className?: string;
 }) {
   const shared = useSharedAudio();
@@ -106,6 +115,8 @@ export function TrackList({
       id: track.id,
       at: at ?? (cued?.id === track.id ? cued.at : undefined),
     };
+    await beforePlay?.();
+    if (starting.current?.id !== track.id) return;
     let url = tracks.find((t) => t.id === track.id)?.audioUrl ?? null;
     if (!url || Date.now() - loadedAt.current > STALE_MS)
       url = await freshAudioUrl(track.slug);
@@ -228,24 +239,35 @@ export function TrackList({
   }
 
   return (
-    <ul aria-label={label} className={cn("divide-y", className)}>
+    <ul
+      aria-label={label}
+      className={cn(variant === "row" && "divide-y", className)}
+    >
       {tracks.map((track) => (
         <li key={track.id}>
-          <TrackRow
-            track={track}
-            playing={playingId === track.id && isPlaying}
-            progress={
-              playingId === track.id
-                ? progress
-                : cued?.id === track.id
-                  ? cued.at
-                  : 0
-            }
-            onPlay={(t) => void play(t)}
-            onSeek={seek}
-            onCue={cue}
-            showOwner={showOwner}
-          />
+          {variant === "compact" ? (
+            <CompactTrackRow
+              track={track}
+              playing={playingId === track.id && isPlaying}
+              onPlay={(t) => void play(t)}
+            />
+          ) : (
+            <TrackRow
+              track={track}
+              playing={playingId === track.id && isPlaying}
+              progress={
+                playingId === track.id
+                  ? progress
+                  : cued?.id === track.id
+                    ? cued.at
+                    : 0
+              }
+              onPlay={(t) => void play(t)}
+              onSeek={seek}
+              onCue={cue}
+              showOwner={showOwner}
+            />
+          )}
         </li>
       ))}
     </ul>

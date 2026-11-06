@@ -3,18 +3,14 @@
 import { createContext, useContext, useId, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowDownUpIcon,
-  CheckIcon,
+  ChevronDownIcon,
   CircleCheckIcon,
   EllipsisIcon,
   FlagIcon,
   Loader2Icon,
   PencilIcon,
-  ReplyIcon,
   RotateCcwIcon,
-  ThumbsUpIcon,
   Trash2Icon,
-  UndoIcon,
 } from "lucide-react";
 
 import { RelativeTime } from "@/components/common/relative-time";
@@ -22,7 +18,6 @@ import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { BadgeIcons, type BadgeKind } from "@/components/profile/badges";
 import { ReputationBadge } from "@/components/reputation-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,17 +29,17 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { CATEGORY_LABELS } from "@/config/labels";
 import { COMMENT_MAX } from "@/config/limits";
 import { isTrusted } from "@/config/reputation";
 import { formatSpan } from "@/lib/time";
@@ -55,6 +50,12 @@ import type { SubmitResult } from "./comment-composer";
 import { ReplyComposer } from "./reply-composer";
 
 export type CommentFilter = "all" | "helpful" | "trusted";
+
+const FILTER_LABELS: Record<CommentFilter, string> = {
+  all: "All",
+  helpful: "Helpful",
+  trusted: "From trusted ears",
+};
 
 /**
  * Deleted by its author while it had replies: it keeps its place so the
@@ -165,13 +166,15 @@ export function CommentList({
   onReply,
   onToggleResolved,
   showResolved: showResolvedProp,
-  defaultShowResolved = true,
+  defaultShowResolved = false,
   onShowResolvedChange,
   viewerId,
   isAdmin = false,
   onEdit,
   onDelete,
   initialReply,
+  heading,
+  composer,
   className,
 }: {
   /** Top-level comments and replies together. Replies have parent_id set. */
@@ -216,6 +219,10 @@ export function CommentList({
   isAdmin?: boolean;
   onEdit?: (comment: ThreadComment, body: string) => Promise<SubmitResult>;
   onDelete?: (comment: ThreadComment) => Promise<DeleteResult>;
+  /** The list's heading, with the count beside it. */
+  heading?: { id: string; text: string };
+  /** The box to write a comment in, between the heading and the list. */
+  composer?: React.ReactNode;
   /** A kept reply coming back: its box opens with the text in it. */
   initialReply?: { parentId: string; body: string } | null;
   className?: string;
@@ -259,11 +266,11 @@ export function CommentList({
   const activeIndex = visible.findIndex((c) => c.id === activeCommentId);
   const upTo = Math.max(limit, activeIndex + 1);
   const remaining = visible.length - upTo;
-  const filters: [CommentFilter, string][] = [
-    ["all", "All"],
-    ["helpful", "Helpful"],
-    ["trusted", "From trusted ears"],
-  ];
+  const total = present.filter((c) => !isWithdrawn(c)).length;
+  const changeShowResolved = (next: boolean) => {
+    setShowResolvedState(next);
+    onShowResolvedChange?.(next);
+  };
 
   return (
     <Actions
@@ -276,153 +283,178 @@ export function CommentList({
     >
       <AuthorBadges value={authorBadges}>
         <div className={cn("@container", className)}>
-          <Tabs
-            value={filter}
-            onValueChange={(v) => setFilter(v as CommentFilter)}
-            className="gap-0"
-          >
-            <div className="flex items-end justify-between gap-3 border-b">
-              <TabsList
-                variant="line"
-                aria-label="Filter comments"
-                className="min-w-0 border-b-0"
-              >
-                {filters.map(([value, label]) => (
-                  <TabsTrigger key={value} value={value}>
-                    {label}
-                    <span
-                      data-numeric
-                      className="text-xs text-muted-foreground"
-                    >
-                      {counts[value]}
-                    </span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mb-1 shrink-0 text-muted-foreground"
-                  >
-                    <ArrowDownUpIcon />
-                    <span className="hidden @sm:inline">
-                      {sort === "time" ? "By time" : "Newest"}
-                    </span>
-                    <span className="sr-only @sm:hidden">Sort comments</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Sort comments</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={sort}
-                    onValueChange={(v) => setSort(v as CommentSort)}
-                  >
-                    <DropdownMenuRadioItem value="time">
-                      By time in the track
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="newest">
-                      Newest first
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {resolvedCount > 0 ? (
-              <div className="flex justify-end pt-2">
-                <label className="touch-hit inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
-                  <input
-                    type="checkbox"
-                    checked={showResolved}
-                    onChange={(e) => {
-                      setShowResolvedState(e.target.checked);
-                      onShowResolvedChange?.(e.target.checked);
-                    }}
-                    className="size-4 accent-(--primary)"
-                  />
-                  Show resolved
-                  <span data-numeric>({resolvedCount})</span>
-                </label>
-              </div>
-            ) : null}
-
-            {filters.map(([value]) => (
-              <TabsContent key={value} value={value}>
-                {loading ? (
-                  <CommentListSkeleton />
-                ) : visible.length === 0 && filter === "all" && emptyAll ? (
-                  emptyAll
-                ) : visible.length === 0 ? (
-                  <CommentsEmpty
-                    filter={filter}
-                    viewer={viewer}
-                    onShowAll={() => setFilter("all")}
-                    onSignIn={onSignIn}
-                    onCopyLink={onCopyLink}
-                  />
-                ) : (
-                  <>
-                    <ol className="divide-y">
-                      {visible
-                        .slice(0, upTo)
-                        .map((comment) =>
-                          isWithdrawn(comment) ? (
-                            <WithdrawnItem
-                              key={comment.id}
-                              replies={replies.get(comment.id) ?? []}
-                              viewer={viewer}
-                              ownerId={ownerId}
-                              newCommentIds={newCommentIds}
-                              onReport={onReport}
-                            />
-                          ) : (
-                            <CommentItem
-                              key={
-                                initialReply?.parentId === comment.id
-                                  ? `${comment.id}-kept`
-                                  : comment.id
-                              }
-                              initialReplyBody={
-                                initialReply?.parentId === comment.id
-                                  ? initialReply.body
-                                  : undefined
-                              }
-                              comment={comment}
-                              viewer={viewer}
-                              fromOwner={
-                                !!ownerId && comment.author_id === ownerId
-                              }
-                              ownerId={ownerId}
-                              newCommentIds={newCommentIds}
-                              onJump={onJump}
-                              onToggleHelpful={onToggleHelpful}
-                              onReport={onReport}
-                              replies={replies.get(comment.id) ?? []}
-                              onReply={onReply}
-                              onToggleResolved={onToggleResolved}
-                              onSignIn={onSignIn}
-                            />
-                          ),
-                        )}
-                    </ol>
-                    {remaining > 0 ? (
-                      <div className="flex justify-center border-t pt-4">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setLimit(upTo + COMMENTS_PAGE)}
+          <div className="flex items-end justify-between gap-3 border-b pb-2">
+            {heading ? (
+              <h2 id={heading.id} className="text-lg font-semibold">
+                {heading.text}{" "}
+                <span
+                  data-numeric
+                  className="font-normal text-muted-foreground"
+                >
+                  {total}
+                </span>
+              </h2>
+            ) : (
+              <span />
+            )}
+            {/* Order, which comments, and the resolved ones: one menu. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-mb-1 shrink-0 gap-1 px-1.5 text-[13px] font-normal text-muted-foreground"
+                >
+                  <span className="sr-only">Comments: </span>
+                  {filter !== "all" ? `${FILTER_LABELS[filter]} · ` : ""}
+                  {sort === "time" ? "By time" : "Newest"}
+                  <ChevronDownIcon className="size-3.5" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuLabel>Order</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={sort}
+                  onValueChange={(v) => setSort(v as CommentSort)}
+                >
+                  <DropdownMenuRadioItem value="time">
+                    By time in the track
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="newest">
+                    Newest first
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Show</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={filter}
+                  onValueChange={(v) => setFilter(v as CommentFilter)}
+                >
+                  {(Object.keys(FILTER_LABELS) as CommentFilter[]).map(
+                    (value) => (
+                      <DropdownMenuRadioItem key={value} value={value}>
+                        {FILTER_LABELS[value]}
+                        <span
+                          data-numeric
+                          className="ml-auto pl-3 text-xs text-muted-foreground"
                         >
-                          Show {Math.min(COMMENTS_PAGE, remaining)} more
-                        </Button>
-                      </div>
-                    ) : null}
+                          {counts[value]}
+                        </span>
+                      </DropdownMenuRadioItem>
+                    ),
+                  )}
+                </DropdownMenuRadioGroup>
+                {resolvedCount > 0 ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuCheckboxItem
+                      checked={showResolved}
+                      onCheckedChange={(checked) =>
+                        changeShowResolved(checked === true)
+                      }
+                    >
+                      Show resolved
+                      <span
+                        data-numeric
+                        className="ml-auto pl-3 text-xs text-muted-foreground"
+                      >
+                        {resolvedCount}
+                      </span>
+                    </DropdownMenuCheckboxItem>
                   </>
-                )}
-              </TabsContent>
-            ))}
-          </Tabs>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {composer ? <div className="mt-4">{composer}</div> : null}
+
+          <div className="mt-6">
+            {loading ? (
+              <CommentListSkeleton />
+            ) : visible.length === 0 && filter === "all" && emptyAll ? (
+              emptyAll
+            ) : visible.length === 0 ? (
+              <CommentsEmpty
+                filter={filter}
+                viewer={viewer}
+                onShowAll={() => setFilter("all")}
+                onSignIn={onSignIn}
+                onCopyLink={onCopyLink}
+              />
+            ) : (
+              <>
+                {/* No lines between the threads: space does it. */}
+                <ol
+                  aria-label="Comments"
+                  className="grid grid-cols-[minmax(0,1fr)] gap-7"
+                >
+                  {visible
+                    .slice(0, upTo)
+                    .map((comment) =>
+                      isWithdrawn(comment) ? (
+                        <WithdrawnItem
+                          key={comment.id}
+                          replies={replies.get(comment.id) ?? []}
+                          viewer={viewer}
+                          ownerId={ownerId}
+                          newCommentIds={newCommentIds}
+                          onReport={onReport}
+                        />
+                      ) : (
+                        <CommentItem
+                          key={
+                            initialReply?.parentId === comment.id
+                              ? `${comment.id}-kept`
+                              : comment.id
+                          }
+                          initialReplyBody={
+                            initialReply?.parentId === comment.id
+                              ? initialReply.body
+                              : undefined
+                          }
+                          comment={comment}
+                          viewer={viewer}
+                          ownerId={ownerId}
+                          newCommentIds={newCommentIds}
+                          onJump={onJump}
+                          onToggleHelpful={onToggleHelpful}
+                          onReport={onReport}
+                          replies={replies.get(comment.id) ?? []}
+                          onReply={onReply}
+                          onToggleResolved={onToggleResolved}
+                          onSignIn={onSignIn}
+                        />
+                      ),
+                    )}
+                </ol>
+                {remaining > 0 ? (
+                  <div className="mt-6 flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setLimit(upTo + COMMENTS_PAGE)}
+                    >
+                      Show {Math.min(COMMENTS_PAGE, remaining)} more
+                    </Button>
+                  </div>
+                ) : null}
+              </>
+            )}
+            {/* The resolved ones wait at the bottom, a tap away. */}
+            {resolvedCount > 0 ? (
+              <button
+                type="button"
+                aria-expanded={showResolved}
+                onClick={() => changeShowResolved(!showResolved)}
+                className="mt-4 -ml-1.5 inline-flex h-7 items-center rounded-md px-1.5 text-[13px] text-muted-foreground focus-ring outline-none hover:text-foreground"
+              >
+                {showResolved
+                  ? "Hide resolved comments"
+                  : `${resolvedCount} resolved ${resolvedCount === 1 ? "comment" : "comments"}`}
+              </button>
+            ) : null}
+          </div>
         </div>
         {onDelete ? (
           <DeleteCommentDialog
@@ -439,7 +471,6 @@ export function CommentList({
 function CommentItem({
   comment,
   viewer,
-  fromOwner,
   ownerId,
   newCommentIds,
   onJump,
@@ -454,7 +485,6 @@ function CommentItem({
   comment: ThreadComment;
   initialReplyBody?: string;
   viewer: Viewer;
-  fromOwner: boolean;
   ownerId?: string;
   newCommentIds: string[];
   onJump?: (comment: Comment) => void;
@@ -471,29 +501,20 @@ function CommentItem({
   const [editing, setEditing] = useState(false);
   const { onEdit } = useContext(Actions);
   const replyButton = useRef<HTMLButtonElement>(null);
-  const canResolve = viewer === "owner" && !!onToggleResolved;
+  const span =
+    comment.time_ms !== null
+      ? formatSpan(comment.time_ms, (comment as RangeComment).end_ms)
+      : null;
 
-  const profileHref = `/u/${comment.author.handle}`;
   return (
     <li
       className={cn(
-        "relative flex gap-3 py-4",
+        "relative flex gap-3",
         newCommentIds.includes(comment.id) &&
           "-mx-3 animate-comment-in rounded-lg px-3",
       )}
     >
-      {/* The name next to it is the link for keyboard and screen readers. */}
-      <Link
-        href={profileHref}
-        tabIndex={-1}
-        aria-hidden="true"
-        className="mt-0.5 shrink-0 self-start rounded-full"
-      >
-        <UserAvatar
-          profile={comment.author}
-          className={cn(resolved && "grayscale")}
-        />
-      </Link>
+      <Avatar profile={comment.author} muted={resolved} />
       <div className="min-w-0 flex-1">
         <CommentHeader
           comment={comment}
@@ -501,39 +522,8 @@ function CommentItem({
           onReport={onReport}
           onEditStart={() => setEditing(true)}
           muted={resolved}
-          fromOwner={fromOwner}
+          onToggleResolved={viewer === "owner" ? onToggleResolved : undefined}
         />
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {comment.time_ms !== null ? (
-            <button
-              type="button"
-              onClick={() => onJump?.(comment)}
-              className="inline-flex h-6 items-center rounded-full bg-primary-soft px-2 text-xs font-medium text-primary-text focus-ring outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)]"
-              aria-label={`Play from ${formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}`}
-            >
-              <time data-numeric>
-                {formatSpan(comment.time_ms, (comment as RangeComment).end_ms)}
-              </time>
-            </button>
-          ) : (
-            <Badge variant="secondary" className="h-6 px-2">
-              Whole track
-            </Badge>
-          )}
-          <Badge variant="outline" className="h-6 px-2">
-            {CATEGORY_LABELS[comment.category]}
-          </Badge>
-          {comment.is_helpful ? (
-            <Badge variant="default" className="h-6 px-2">
-              <CheckIcon /> Helpful
-            </Badge>
-          ) : null}
-          {resolved ? (
-            <Badge variant="secondary" className="h-6 px-2">
-              <CircleCheckIcon /> Resolved
-            </Badge>
-          ) : null}
-        </div>
         {editing && onEdit ? (
           <CommentEditor
             comment={comment}
@@ -543,62 +533,65 @@ function CommentItem({
         ) : (
           <p
             className={cn(
-              "mt-2 text-sm leading-relaxed break-words whitespace-pre-line",
+              "mt-1 text-[15px] leading-relaxed break-words whitespace-pre-line",
               resolved && "text-muted-foreground",
             )}
           >
+            {/* The time plays from there. */}
+            {span ? (
+              <button
+                type="button"
+                onClick={() => onJump?.(comment)}
+                aria-label={`Play from ${span}`}
+                className="mr-1.5 rounded-xs font-medium text-primary-text focus-ring outline-none hover:underline hover:underline-offset-4"
+              >
+                <time data-numeric>{span}</time>
+              </button>
+            ) : null}
             {comment.body}
           </p>
         )}
 
         {viewer === "owner" || onReply ? (
-          <div className="mt-2 -ml-2 flex flex-wrap items-center gap-1">
+          <div className="mt-1 -ml-1.5 flex flex-wrap items-center gap-1">
             {onReply && !replying ? (
-              <Button
+              <button
                 ref={replyButton}
                 type="button"
-                variant="ghost"
-                size="xs"
                 onClick={() =>
                   viewer === "signed_out" ? onSignIn?.() : setReplying(true)
                 }
-                className="touch-hit text-muted-foreground"
+                className={ACTION}
               >
-                <ReplyIcon />
                 {viewer === "signed_out" ? "Sign in to reply" : "Reply"}
-              </Button>
+              </button>
             ) : null}
+            {/* The artist marks a comment Helpful with one tap. */}
             {viewer === "owner" ? (
-              <Button
+              <button
                 type="button"
-                variant="ghost"
-                size="xs"
+                aria-pressed={comment.is_helpful}
+                title={
+                  comment.is_helpful ? "Remove Helpful" : "Mark as Helpful"
+                }
                 onClick={() => onToggleHelpful?.(comment, !comment.is_helpful)}
-                className="touch-hit text-muted-foreground"
+                className={cn(
+                  ACTION,
+                  comment.is_helpful &&
+                    "text-primary-text hover:text-primary-text",
+                )}
               >
-                {comment.is_helpful ? <UndoIcon /> : <ThumbsUpIcon />}
-                {comment.is_helpful ? "Remove Helpful" : "Mark as Helpful"}
-              </Button>
-            ) : null}
-            {canResolve ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => onToggleResolved(comment, !resolved)}
-                className="touch-hit text-muted-foreground"
-              >
-                {resolved ? <RotateCcwIcon /> : <CircleCheckIcon />}
-                {resolved ? "Reopen" : "Mark as resolved"}
-              </Button>
+                Helpful
+              </button>
             ) : null}
           </div>
         ) : null}
 
         {replies.length > 0 || replying ? (
-          // One column that may shrink: a grid track is otherwise as wide as
-          // its longest name or link, and pushes the page sideways.
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 border-l-2 pl-3 @sm:pl-4">
+          // A thin line down from the comment, close to it. One column
+          // that may shrink: a grid track is otherwise as wide as its
+          // longest name or link, and pushes the page sideways.
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-3 border-l pl-4">
             {replies.length > 0 ? (
               <ol
                 aria-label={`Replies to ${name}`}
@@ -636,67 +629,88 @@ function CommentItem({
   );
 }
 
+/** Quiet text buttons under a comment. */
+const ACTION =
+  "touch-hit inline-flex h-7 items-center rounded-md px-1.5 text-[13px] text-muted-foreground focus-ring outline-none hover:text-foreground";
+
+/** The author's picture, which goes to their profile. */
+function Avatar({
+  profile,
+  muted,
+}: {
+  profile: Comment["author"];
+  muted?: boolean;
+}) {
+  return (
+    // The name beside it is the link for keyboard and screen readers.
+    <Link
+      href={`/u/${profile.handle}`}
+      tabIndex={-1}
+      aria-hidden="true"
+      className="mt-0.5 shrink-0 self-start rounded-full"
+    >
+      <UserAvatar
+        profile={profile}
+        size="sm"
+        className={cn(muted && "grayscale")}
+      />
+    </Link>
+  );
+}
+
+/**
+ * Who, when, and the menu: the name, the grey time, "Helpful" in blue
+ * when the artist marked it, and "Artist" on the artist's own replies.
+ */
 function CommentHeader({
   comment,
   viewer,
   onReport,
   onEditStart,
+  onToggleResolved,
   muted,
-  fromOwner,
+  fromArtist = false,
 }: {
   comment: ThreadComment;
   viewer: Viewer;
   onReport?: (comment: Comment) => void;
   onEditStart?: () => void;
+  /** The artist resolves or reopens a thread from the menu. */
+  onToggleResolved?: (comment: ThreadComment, resolved: boolean) => void;
   muted?: boolean;
-  fromOwner?: boolean;
+  fromArtist?: boolean;
 }) {
   const { viewerId, isAdmin, onEdit, askDelete } = useContext(Actions);
   const own = !!viewerId && comment.author_id === viewerId;
   const canEdit = own && !!onEdit && !!onEditStart;
   const canDelete = (own || isAdmin) && !!askDelete;
   const name = displayNameOf(comment.author);
-  const profileHref = `/u/${comment.author.handle}`;
+  const resolved = !!comment.resolved_at;
   const badges = useContext(AuthorBadges)[comment.author_id] ?? [];
   return (
     <div className="flex items-start gap-2">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        {/* Display names are not unique, so the handle and the Uploader
-            badge show who is really speaking. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-sm">
         <Link
-          href={profileHref}
-          className="group/author flex min-w-0 items-baseline gap-1.5 rounded-xs focus-ring outline-none"
+          href={`/u/${comment.author.handle}`}
+          className={cn(
+            "truncate rounded-xs font-semibold focus-ring outline-none hover:underline hover:underline-offset-4",
+            muted && "text-muted-foreground",
+          )}
         >
-          {/* Only the name is underlined on hover, not the handle. */}
-          <span
-            className={cn(
-              "truncate text-sm font-semibold group-hover/author:underline",
-              muted && "text-muted-foreground",
-            )}
-          >
-            {name}
-          </span>
-          {/* Narrow: name, time and one badge. The rest is on the profile. */}
-          <span className="hidden truncate text-xs text-muted-foreground @sm:block">
-            @{comment.author.handle}
-          </span>
+          {name}
         </Link>
-        {fromOwner ? (
-          <Badge variant="solid" className="h-5 px-2 text-[11px]">
-            Uploader
-          </Badge>
+        {/* Only the levels worth knowing: Trusted and Golden ears. */}
+        {isTrusted(comment.author.reputation) ? (
+          <ReputationBadge helpful={comment.author.reputation} />
         ) : null}
-        <ReputationBadge
-          helpful={comment.author.reputation}
-          className={fromOwner ? "hidden @sm:inline-flex" : undefined}
-        />
         <BadgeIcons badges={badges} className="hidden @sm:flex" />
-        <RelativeTime
-          date={comment.created_at}
-          className="text-xs text-muted-foreground"
-        />
-        {comment.edited_at ? (
-          <span className="text-xs text-muted-foreground">edited</span>
+        <span className="text-muted-foreground">
+          {fromArtist ? "· Artist " : ""}·{" "}
+          <RelativeTime date={comment.created_at} />
+          {comment.edited_at ? " · edited" : ""}
+        </span>
+        {comment.is_helpful ? (
+          <span className="text-primary-text">· Helpful</span>
         ) : null}
       </div>
       {viewer !== "signed_out" ? (
@@ -707,12 +721,21 @@ function CommentHeader({
               variant="ghost"
               size="icon-xs"
               aria-label={`More actions for the comment by ${name}`}
-              className="touch-hit -mt-1 -mr-1.5 shrink-0 text-muted-foreground"
+              title="More"
+              className="touch-hit -mt-0.5 -mr-1.5 shrink-0 text-muted-foreground"
             >
               <EllipsisIcon />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {onToggleResolved ? (
+              <DropdownMenuItem
+                onSelect={() => onToggleResolved(comment, !resolved)}
+              >
+                {resolved ? <RotateCcwIcon /> : <CircleCheckIcon />}
+                {resolved ? "Reopen" : "Mark as resolved"}
+              </DropdownMenuItem>
+            ) : null}
             {canEdit ? (
               <DropdownMenuItem onSelect={onEditStart}>
                 <PencilIcon /> Edit
@@ -739,7 +762,7 @@ function CommentHeader({
   );
 }
 
-/** A reply: no time, category or Helpful, just who said what. */
+/** A reply: no time, type or Helpful, just who said what. */
 function ReplyItem({
   reply,
   viewer,
@@ -764,23 +787,12 @@ function ReplyItem({
         fresh && "-mx-2 animate-comment-in rounded-lg px-2 py-1",
       )}
     >
-      <Link
-        href={`/u/${reply.author.handle}`}
-        tabIndex={-1}
-        aria-hidden="true"
-        className="mt-0.5 shrink-0 self-start rounded-full"
-      >
-        <UserAvatar
-          profile={reply.author}
-          size="sm"
-          className={cn(muted && "grayscale")}
-        />
-      </Link>
+      <Avatar profile={reply.author} muted={muted} />
       <div className="min-w-0 flex-1">
         <CommentHeader
           comment={reply}
           viewer={viewer}
-          fromOwner={fromOwner}
+          fromArtist={fromOwner}
           onReport={onReport}
           onEditStart={() => setEditing(true)}
           muted={muted}
@@ -794,7 +806,7 @@ function ReplyItem({
         ) : (
           <p
             className={cn(
-              "mt-1 text-sm leading-relaxed break-words whitespace-pre-line",
+              "mt-1 text-[15px] leading-relaxed break-words whitespace-pre-line",
               muted && "text-muted-foreground",
             )}
           >
@@ -1112,14 +1124,14 @@ function WithdrawnItem({
   onReport?: (comment: Comment) => void;
 }) {
   return (
-    <li className="flex gap-3 py-4">
+    <li className="flex gap-3">
       <span
         aria-hidden="true"
-        className="mt-0.5 size-8 shrink-0 rounded-full border border-dashed"
+        className="mt-0.5 size-6 shrink-0 rounded-full border border-dashed"
       />
       <div className="min-w-0 flex-1">
         <p className="text-sm text-muted-foreground italic">Comment deleted</p>
-        <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-3 border-l-2 pl-3 @sm:pl-4">
+        <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-3 border-l pl-4">
           <ol
             aria-label="Replies to a deleted comment"
             className="grid grid-cols-[minmax(0,1fr)] gap-3"

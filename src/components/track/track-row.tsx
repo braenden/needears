@@ -158,6 +158,46 @@ export function TrackRow({
   );
 }
 
+/**
+ * A track in a short side list: a small play button, the title (to the
+ * track) and the artist. Nothing else.
+ */
+export function CompactTrackRow({
+  track,
+  playing = false,
+  onPlay,
+}: {
+  track: Track;
+  playing?: boolean;
+  onPlay?: (track: Track) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      <Button
+        type="button"
+        size="icon-sm"
+        variant={playing ? "default" : "secondary"}
+        onClick={() => onPlay?.(track)}
+        aria-label={`${playing ? "Pause" : "Play"} ${track.title}`}
+        className="touch-hit size-8 shrink-0 rounded-full [&_svg]:size-3.5"
+      >
+        <PlayPauseIcon playing={playing} />
+      </Button>
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/t/${track.slug}`}
+          className="block truncate rounded-xs text-sm font-medium focus-ring outline-none hover:underline hover:underline-offset-4"
+        >
+          {track.title}
+        </Link>
+        <p className="truncate text-[13px] text-muted-foreground">
+          {displayNameOf(track.owner)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function TrackRowSkeleton({ className }: { className?: string }) {
   return (
     <div

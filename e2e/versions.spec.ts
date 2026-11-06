@@ -55,9 +55,12 @@ test("new version, picker, A/B and comments per version", async ({ page }) => {
     await expect(dialog.getByText("v2 is live")).toBeVisible({
       timeout: 60_000,
     });
-    // The page behind the dialog is ready by now: closing it moves
+    // The page behind the dialog is ready by now (hidden from the
+    // accessibility tree while the dialog is open): closing it moves
     // nothing, and nothing moves once it is closed.
-    await expect(page.getByRole("radio", { name: /v2/ })).toBeChecked();
+    await expect(
+      page.getByRole("radio", { name: /v2/, includeHidden: true }),
+    ).toBeChecked();
     const player = page.locator('[data-slot="waveform-player"]');
     const before = (await player.boundingBox())!.y;
     await dialog.getByRole("button", { name: "Done" }).click();

@@ -10,7 +10,6 @@ import {
 } from "react";
 import type WaveSurfer from "wavesurfer.js";
 import {
-  KeyboardIcon,
   Loader2Icon,
   RotateCcwIcon,
   Volume2Icon,
@@ -25,6 +24,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 import { formatTime, formatTimeSpoken } from "@/lib/time";
 import { setListenVolume, useListenVolume } from "@/hooks/use-volume";
 import { cn } from "@/lib/utils";
@@ -53,6 +58,8 @@ export type WaveformPlayerHandle = {
   pause: () => void;
   /** Fades to silence and plays on, before switching to another source. */
   fadeOut: () => Promise<void>;
+  /** The keyboard shortcuts, from a menu (the ? key opens them too). */
+  showShortcuts: () => void;
 };
 
 type Status = "loading" | "ready" | "error";
@@ -394,6 +401,7 @@ export function WaveformPlayer({
         const media = wsRef.current?.getMediaElement();
         if (media) await fadeToSilence(media);
       },
+      showShortcuts: () => setHelpOpen(true),
     }),
     [seekTo, play, pause],
   );
@@ -506,12 +514,15 @@ export function WaveformPlayer({
       aria-label={summary}
       onKeyDown={handleKey}
       className={cn(
-        "@container rounded-xl border bg-card text-card-foreground",
-        size === "compact" ? "p-2" : "p-3 @sm:p-4",
+        // The page's player stands on its own, without a box; the compact
+        // one sits in a card.
+        "@container",
+        size === "compact" &&
+          "rounded-xl border bg-card p-2 text-card-foreground",
         className,
       )}
     >
-      <div className="flex items-start gap-3 @sm:gap-4">
+      <div className="flex items-start gap-3 @sm:gap-5">
         <Button
           type="button"
           size={size === "compact" ? "icon" : "icon-lg"}
@@ -519,8 +530,8 @@ export function WaveformPlayer({
           disabled={shownStatus !== "ready"}
           aria-label={playing ? "Pause" : "Play"}
           className={cn(
-            "mt-1 rounded-full disabled:opacity-100",
-            size === "default" && "@sm:size-12",
+            "rounded-full disabled:opacity-100",
+            size === "compact" ? "mt-1" : "mt-4 size-14 [&_svg]:size-6",
             shownStatus !== "ready" && "bg-secondary text-muted-foreground",
           )}
         >
@@ -631,45 +642,15 @@ export function WaveformPlayer({
                 <time>{durationLabel}</time>
               </p>
             )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={toggleMute}
-              aria-pressed={muted}
-              aria-label="Mute"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {muted || listenVolume === 0 ? <VolumeXIcon /> : <Volume2Icon />}
-            </Button>
-            {/* Phones and tablets set the volume with their own buttons
-                (and iOS and iPadOS ignore it), so the slider is for wide
-                screens with a mouse or trackpad. */}
-            <input
-              type="range"
-              data-volume=""
-              min={0}
-              max={100}
-              step={5}
-              value={muted ? 0 : Math.round(listenVolume * 100)}
-              onChange={(e) => {
-                setListenVolume(Number(e.target.value) / 100);
+            <VolumeControl
+              muted={muted}
+              volume={listenVolume}
+              onToggleMute={toggleMute}
+              onVolume={(value) => {
+                setListenVolume(value);
                 if (muted) toggleMute();
               }}
-              aria-label="Volume"
-              aria-valuetext={`${muted ? 0 : Math.round(listenVolume * 100)}%`}
-              className="hidden h-1 w-20 cursor-pointer accent-(--primary) fine:@sm:block"
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setHelpOpen(true)}
-              aria-label="Keyboard shortcuts"
-              className="hidden text-muted-foreground hover:text-foreground fine:@sm:inline-flex"
-            >
-              <KeyboardIcon />
-            </Button>
           </div>
         </div>
       </div>
@@ -699,6 +680,89 @@ export function WaveformPlayer({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * The speaker. With a mouse it opens the volume slider; on touch screens
+ * the device's own buttons set the volume (iOS ignores it anyway), so it
+ * mutes.
+ */
+function VolumeControl({
+  muted,
+  volume,
+  onToggleMute,
+  onVolume,
+}: {
+  muted: boolean;
+  volume: number;
+  onToggleMute: () => void;
+  onVolume: (volume: number) => void;
+}) {
+  const coarse = useCoarsePointer();
+  const silent = muted || volume === 0;
+  const icon = silent ? <VolumeXIcon /> : <Volume2Icon />;
+  const button = "text-muted-foreground hover:text-foreground";
+  if (coarse) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={onToggleMute}
+        aria-pressed={muted}
+        aria-label="Mute"
+        className={cn("touch-hit", button)}
+      >
+        {icon}
+      </Button>
+    );
+  }
+  const percent = muted ? 0 : Math.round(volume * 100);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Volume"
+          title="Volume"
+          className={button}
+        >
+          {icon}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="end"
+        className="flex w-auto max-w-none items-center gap-2 bg-popover p-2 text-popover-foreground"
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onToggleMute}
+          aria-pressed={muted}
+          aria-label="Mute"
+          className={button}
+        >
+          {icon}
+        </Button>
+        <input
+          type="range"
+          data-volume=""
+          min={0}
+          max={100}
+          step={5}
+          value={percent}
+          onChange={(e) => onVolume(Number(e.target.value) / 100)}
+          aria-label="Volume"
+          aria-valuetext={`${percent}%`}
+          className="h-1 w-28 cursor-pointer accent-(--primary)"
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -1,9 +1,17 @@
 "use client";
 
 import { useId, useImperativeHandle, useRef, useState } from "react";
-import { Loader2Icon } from "lucide-react";
+import { ChevronDownIcon, Loader2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CATEGORY_LABELS } from "@/config/labels";
@@ -54,6 +62,7 @@ export function CommentComposer({
   initialError,
   range = null,
   onClearRange,
+  avatar,
   ref,
   className,
 }: {
@@ -73,6 +82,8 @@ export function CommentComposer({
   /** A range picked in the waveform. Replaces the single time while set. */
   range?: { startMs: number; endMs: number } | null;
   onClearRange?: () => void;
+  /** The writer's picture, beside the box. */
+  avatar?: React.ReactNode;
   ref?: React.Ref<CommentComposerHandle>;
   className?: string;
 }) {
@@ -95,6 +106,9 @@ export function CommentComposer({
     initialError ?? null,
   );
   const [submitting, setSubmitting] = useState(false);
+  // One line until it is used; then the text box and its one row of
+  // choices. A kept draft comes back open.
+  const [open, setOpen] = useState(!!initialBody);
 
   const timeMs = pinnedMs ?? Math.floor(currentTimeMs / 1000) * 1000;
   const time = formatTime(timeMs);
@@ -103,25 +117,24 @@ export function CommentComposer({
     focusAt: (ms) => {
       setWholeTrack(false);
       setPinnedMs(Math.floor(ms / 1000) * 1000);
+      setOpen(true);
       textareaRef.current?.focus();
     },
   }));
 
   if (!signedIn) {
+    // Where the box would be, the same size: a tap goes to sign in.
     return (
-      <div
+      <button
+        type="button"
+        onClick={onSignIn}
         className={cn(
-          "@container flex flex-col items-start gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between",
+          "flex h-11 w-full items-center rounded-lg border bg-card px-4 text-left text-sm text-muted-foreground focus-ring outline-none hover:text-foreground",
           className,
         )}
       >
-        <p className="text-sm text-muted-foreground">
-          Listen, then leave a comment at the exact second.
-        </p>
-        <Button type="button" onClick={onSignIn}>
-          Sign in to comment
-        </Button>
-      </div>
+        Sign in to comment
+      </button>
     );
   }
 
@@ -159,6 +172,8 @@ export function CommentComposer({
         setBody("");
         setPinnedMs(null);
         setCategory("vibe");
+        setWholeTrack(false);
+        setOpen(false);
         if (range) onClearRange?.();
       } else {
         setError(result.error);
@@ -186,6 +201,30 @@ export function CommentComposer({
   const errorId = `${id}-error`;
   const countId = `${id}-count`;
 
+  function cancel() {
+    setBody("");
+    setPinnedMs(null);
+    setWholeTrack(false);
+    setCategory("vibe");
+    setError(null);
+    setEditingTime(false);
+    setTimeError(null);
+    setOpen(false);
+  }
+
+  const where = wholeTrack
+    ? "on the whole track"
+    : range
+      ? `from ${formatSpan(range.startMs, range.endMs)}`
+      : `at ${time}`;
+  const whenLabel = wholeTrack
+    ? "Whole track"
+    : range
+      ? formatSpan(range.startMs, range.endMs)
+      : `at ${time}`;
+  const quiet =
+    "inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] whitespace-nowrap focus-ring outline-none hover:bg-accent";
+
   return (
     <form
       noValidate
@@ -194,194 +233,220 @@ export function CommentComposer({
         void submit();
       }}
       className={cn(
-        "@container rounded-xl border bg-card p-3 @sm:p-4",
+        // The focus ring goes round the whole box, not the text inside.
+        "rounded-lg border bg-card has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-ring",
         className,
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        {!wholeTrack && range ? (
-          <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary-soft pr-1 pl-3 text-sm font-medium text-primary-text">
-            <span>
-              <span className="sr-only">Comment on </span>
-              <span data-numeric>{formatSpan(range.startMs, range.endMs)}</span>
-            </span>
-            {onClearRange ? (
-              <button
-                type="button"
-                onClick={onClearRange}
-                aria-label="Clear range"
-                className="rounded-full px-2 py-0.5 text-xs font-normal underline decoration-1 underline-offset-2 focus-ring outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)]"
-              >
-                clear
-              </button>
-            ) : null}
-          </span>
-        ) : !wholeTrack ? (
-          editingTime ? (
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor={`${id}-time`}
-                className="text-sm text-muted-foreground"
-              >
-                at
-              </label>
-              <Input
-                id={`${id}-time`}
-                autoFocus
-                inputMode="numeric"
-                autoComplete="off"
-                spellCheck={false}
-                value={timeInput}
-                onChange={(e) => {
-                  setTimeInput(e.target.value);
-                  if (timeError) {
-                    const parsed = parseTime(e.target.value);
-                    if (parsed !== null && parsed <= durationMs)
-                      setTimeError(null);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    confirmTime();
-                  }
-                  if (e.key === "Escape") {
-                    setEditingTime(false);
-                    setTimeError(null);
-                  }
-                }}
-                onBlur={confirmTime}
-                aria-invalid={timeError ? true : undefined}
-                aria-describedby={timeError ? `${id}-time-error` : undefined}
-                className="h-8 w-20"
-                data-numeric
-              />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setTimeInput(time);
-                setEditingTime(true);
-              }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary-soft px-3 text-sm font-medium text-primary-text focus-ring outline-none hover:bg-[color-mix(in_oklab,var(--primary-soft),var(--primary)_14%)]"
-            >
-              <span>
-                <span className="sr-only">Comment </span>
-                at <time data-numeric>{time}</time>
-              </span>
-              <span className="text-xs font-normal underline decoration-1 underline-offset-2">
-                change
-              </span>
-            </button>
-          )
-        ) : null}
-        <label className="touch-hit inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
-          <input
-            type="checkbox"
-            checked={wholeTrack}
-            onChange={(e) => setWholeTrack(e.target.checked)}
-            className="size-4 accent-(--primary)"
-          />
-          Comment on the whole track
+      <div className="flex items-start gap-3 px-3 py-2.5">
+        {avatar ? <span className="shrink-0">{avatar}</span> : null}
+        <label htmlFor={`${id}-body`} className="sr-only">
+          Comment
         </label>
-      </div>
-      {timeError ? (
-        <p id={`${id}-time-error`} className="mt-1.5 text-xs text-destructive">
-          {timeError}
-        </p>
-      ) : null}
-
-      <fieldset className="mt-3">
-        <legend className="sr-only">Category</legend>
-        <div className="flex flex-wrap gap-1.5">
-          {CATEGORY_ORDER.map((value) => (
-            <label key={value} className="relative">
-              <input
-                type="radio"
-                name={`${id}-category`}
-                value={value}
-                checked={category === value}
-                onChange={() => setCategory(value)}
-                className="peer sr-only"
-              />
-              <span className="inline-flex h-8 cursor-pointer items-center rounded-full border px-3 text-[13px] font-medium text-muted-foreground transition-colors duration-fast select-none peer-checked:border-transparent peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring hover:text-foreground peer-checked:hover:text-background">
-                {CATEGORY_LABELS[value]}
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <label htmlFor={`${id}-body`} className="sr-only">
-        Comment
-      </label>
-      <Textarea
-        ref={textareaRef}
-        id={`${id}-body`}
-        value={body}
-        onChange={(e) => {
-          if (pinnedMs === null && !wholeTrack) setPinnedMs(timeMs);
-          setBody(e.target.value);
-          if (error === "empty" || error === "too_long") setError(null);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            void submit();
+        <Textarea
+          ref={textareaRef}
+          id={`${id}-body`}
+          value={body}
+          rows={1}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            if (pinnedMs === null && !wholeTrack) setPinnedMs(timeMs);
+            setBody(e.target.value);
+            if (error === "empty" || error === "too_long") setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void submit();
+            }
+            if (e.key === "Escape" && !body) {
+              e.preventDefault();
+              cancel();
+              textareaRef.current?.blur();
+            }
+          }}
+          placeholder={
+            open ? `What do you hear ${where}?` : `Add a comment ${where}`
           }
-        }}
-        placeholder={
-          wholeTrack
-            ? "What do you hear in this track?"
-            : range
-              ? `What do you hear from ${formatSpan(range.startMs, range.endMs)}?`
-              : `What do you hear at ${time}?`
-        }
-        aria-invalid={
-          error === "empty" || error === "too_long" ? true : undefined
-        }
-        aria-describedby={
-          [error ? errorId : null, showCount ? countId : null]
-            .filter(Boolean)
-            .join(" ") || undefined
-        }
-        className="mt-3 max-h-64 min-h-24 bg-background"
-      />
+          aria-invalid={
+            error === "empty" || error === "too_long" ? true : undefined
+          }
+          aria-describedby={
+            [error ? errorId : null, showCount ? countId : null]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+          aria-keyshortcuts="Meta+Enter Control+Enter"
+          className={cn(
+            "min-h-6 resize-none rounded-none border-0 bg-transparent p-0 py-0.5 text-[15px] focus-visible:outline-none sm:text-[15px]",
+            open ? "max-h-64 min-h-16" : "h-6 overflow-hidden",
+          )}
+        />
+      </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-        <div className="mr-auto min-h-5 text-sm" aria-live="polite">
-          {error ? (
-            <p id={errorId} className="text-destructive">
-              {errorText[error]}
+      {open ? (
+        <div className={cn("pr-3 pb-3", avatar ? "pl-12" : "pl-3")}>
+          <div className="flex flex-wrap items-center gap-1">
+            {editingTime ? (
+              <span className="flex items-center gap-1.5 px-1">
+                <label
+                  htmlFor={`${id}-time`}
+                  className="text-[13px] text-muted-foreground"
+                >
+                  at
+                </label>
+                <Input
+                  id={`${id}-time`}
+                  autoFocus
+                  inputMode="numeric"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={timeInput}
+                  onChange={(e) => {
+                    setTimeInput(e.target.value);
+                    if (timeError) {
+                      const parsed = parseTime(e.target.value);
+                      if (parsed !== null && parsed <= durationMs)
+                        setTimeError(null);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      confirmTime();
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setEditingTime(false);
+                      setTimeError(null);
+                    }
+                  }}
+                  onBlur={confirmTime}
+                  aria-invalid={timeError ? true : undefined}
+                  aria-describedby={timeError ? `${id}-time-error` : undefined}
+                  className="h-8 w-20"
+                  data-numeric
+                />
+              </span>
+            ) : (
+              // The time, or the whole track, or the range from the
+              // waveform: one menu.
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(quiet, "text-primary-text")}
+                  >
+                    <span className="sr-only">Comment</span>{" "}
+                    <span data-numeric>{whenLabel}</span>
+                    <ChevronDownIcon className="size-3.5" aria-hidden="true" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {range && !wholeTrack && onClearRange ? (
+                    <DropdownMenuItem onSelect={onClearRange}>
+                      At one second instead
+                    </DropdownMenuItem>
+                  ) : null}
+                  {wholeTrack ? (
+                    <DropdownMenuItem onSelect={() => setWholeTrack(false)}>
+                      At {time}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setWholeTrack(false);
+                      setTimeInput(time);
+                      setEditingTime(true);
+                    }}
+                  >
+                    Change the time
+                  </DropdownMenuItem>
+                  {!wholeTrack ? (
+                    <DropdownMenuItem onSelect={() => setWholeTrack(true)}>
+                      Whole track
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(quiet, "text-muted-foreground")}
+                >
+                  <span className="sr-only">Type:</span>{" "}
+                  {CATEGORY_LABELS[category]}
+                  <ChevronDownIcon className="size-3.5" aria-hidden="true" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuRadioGroup
+                  value={category}
+                  onValueChange={(value) =>
+                    setCategory(value as CommentCategory)
+                  }
+                >
+                  {CATEGORY_ORDER.map((value) => (
+                    <DropdownMenuRadioItem key={value} value={value}>
+                      {CATEGORY_LABELS[value]}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={cancel}
+              className="ml-auto text-muted-foreground"
+            >
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={submitting}>
+              {submitting ? <Loader2Icon className="animate-spin" /> : null}
+              {submitting ? "Sending…" : "Comment"}
+            </Button>
+          </div>
+          {timeError ? (
+            <p
+              id={`${id}-time-error`}
+              className="mt-1.5 text-xs text-destructive"
+            >
+              {timeError}
             </p>
           ) : null}
+          {error || showCount ? (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 text-sm">
+              {error ? (
+                <p
+                  id={errorId}
+                  role="alert"
+                  className="mr-auto text-destructive"
+                >
+                  {errorText[error]}
+                </p>
+              ) : null}
+              {showCount ? (
+                <span
+                  id={countId}
+                  data-numeric
+                  className={cn(
+                    "ml-auto text-xs",
+                    remaining < 0
+                      ? "text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {remaining} characters left
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
-        {showCount ? (
-          <span
-            id={countId}
-            data-numeric
-            className={cn(
-              "text-xs",
-              remaining < 0 ? "text-destructive" : "text-muted-foreground",
-            )}
-          >
-            {remaining} characters left
-          </span>
-        ) : null}
-        <span className="hidden text-xs text-muted-foreground fine:@md:inline">
-          <kbd className="font-sans">Cmd</kbd> or{" "}
-          <kbd className="font-sans">Ctrl</kbd> + Enter
-        </span>
-        <Button
-          type="submit"
-          disabled={submitting}
-          aria-keyshortcuts="Meta+Enter Control+Enter"
-        >
-          {submitting ? <Loader2Icon className="animate-spin" /> : null}
-          {submitting ? "Sending…" : "Comment"}
-        </Button>
-      </div>
+      ) : null}
     </form>
   );
 }
