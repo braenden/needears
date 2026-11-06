@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInWithMagicLink } from "./helpers";
+import { pageIn, signInWithMagicLink } from "./helpers";
 
 // Replies and Resolved on a seed track: Jonas comments on Nora's track,
 // Nora replies and marks it resolved, Jonas gets told about the reply.
@@ -46,6 +46,7 @@ test("reply, resolve, resolved comments in the URL and the reply notice", async 
     await expect(nora).toHaveURL(/resolved=show/);
     // Stored, not just shown.
     await nora.reload();
+    await pageIn(nora);
     await expect(nora.getByText(question)).toBeVisible();
     await nora
       .getByRole("listitem")
