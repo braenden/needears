@@ -60,7 +60,7 @@ test("right after signing in, Connect opens Google's account chooser", async ({
   const sentAfter = Date.now() - 1_000;
   await page.goto(`${GOOGLE_URL}/login?next=%2Fsettings`);
   await page.getByLabel("Email", { exact: true }).fill("mia@example.com");
-  await page.getByRole("button", { name: "Email me a sign-in link" }).click();
+  await page.getByRole("button", { name: "Continue with email" }).click();
   await expect(page.getByText("Check your email.")).toBeVisible();
   await page.goto(await magicLinkFor("mia@example.com", sentAfter));
   await expect(page).toHaveURL(`${GOOGLE_URL}/settings`);
@@ -107,7 +107,7 @@ test("signing in again to connect Google offers only the email link", async ({
     page.getByText(/Sign in again to change how you sign in/),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Email me a sign-in link" }),
+    page.getByRole("button", { name: "Continue with email" }),
   ).toBeVisible();
   await expect(page.getByTestId("google-button")).toHaveCount(0);
   // The usual sign-in page on the same server does offer Google.

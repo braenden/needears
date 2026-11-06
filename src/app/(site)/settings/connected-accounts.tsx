@@ -13,7 +13,7 @@ import {
   GoogleGlyph,
   type GoogleCodeResponse,
   GSI_SCRIPT,
-} from "@/components/auth/google-id-button";
+} from "@/components/auth/google-code-client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

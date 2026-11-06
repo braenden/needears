@@ -10,7 +10,7 @@ test("an email typed before the page has loaded is the one sent", async ({
   await page.route("**/_next/static/chunks/**", async (route) => {
     const response = await route.fetch();
     const body = await response.text();
-    if (body.includes("Email me a sign-in link"))
+    if (body.includes("Continue with email"))
       await new Promise((resolve) => setTimeout(resolve, 3000));
     await route.fulfill({ response, body });
   });
@@ -24,7 +24,7 @@ test("an email typed before the page has loaded is the one sent", async ({
       Object.keys(el).some((key) => key.startsWith("__reactProps")),
     ),
   ).toBe(false);
-  const send = page.getByRole("button", { name: "Email me a sign-in link" });
+  const send = page.getByRole("button", { name: "Continue with email" });
   await expect(send).toBeEnabled({ timeout: 30_000 });
   await expect(field).toHaveValue(email);
   await send.click();

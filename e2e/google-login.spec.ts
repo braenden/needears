@@ -1,95 +1,72 @@
 import { expect, test } from "@playwright/test";
-import { E2E_GOOGLE_CLIENT_ID, GOOGLE_URL } from "../playwright.config";
+import { GOOGLE_URL } from "../playwright.config";
 import { magicLinkFor } from "./helpers";
 
-// Sign in with Google Identity Services. Google's popup cannot run in CI, so
-// Google's script is replaced by a stand-in that records what the page asks
-// for; the token and nonce handling is covered by unit tests.
-const GSI = "https://accounts.google.com/gsi/client";
-
-const fakeGsi = `
-  window.__gsi = [];
-  window.__widths = [];
-  window.google = { accounts: { id: {
-    initialize: (config) => window.__gsi.push(config),
-    renderButton: (parent, options) => {
-      window.__widths.push(options.width);
-      const button = document.createElement("button");
-      button.textContent = "Sign in with Google";
-      button.style.width = options.width + "px";
-      parent.appendChild(button);
-    },
-  } } };
-`;
+// Sign in with Google: Supabase sends the browser to Google and back to
+// /auth/callback (PKCE). Google itself cannot answer in CI, so these check
+// what is asked of Supabase, and how the page remembers the way in.
 
 test("without a client ID, only the email link is offered", async ({
   page,
 }) => {
-  const response = await page.goto("/login");
-  expect(response?.headers()["content-security-policy"]).not.toContain(
-    "accounts.google.com",
-  );
+  await page.goto("/login");
   await expect(
-    page.getByRole("button", { name: "Email me a sign-in link" }),
+    page.getByRole("button", { name: "Continue with email" }),
   ).toBeVisible();
   await expect(page.getByTestId("google-button")).toHaveCount(0);
   await expect(page.getByText("or", { exact: true })).toHaveCount(0);
 });
 
-test("with a client ID, Google's button is offered with a hashed nonce", async ({
+test("Continue with Google goes to Google through Supabase, and back", async ({
   page,
 }) => {
-  let requested = false;
-  await page.route(`${GSI}**`, (route) => {
-    requested = true;
-    return route.fulfill({ contentType: "text/javascript", body: fakeGsi });
+  let asked: URL | null = null;
+  await page.route("**/auth/v1/authorize**", (route) => {
+    asked = new URL(route.request().url());
+    return route.fulfill({ contentType: "text/html", body: "<p>Google</p>" });
   });
-  const response = await page.goto(`${GOOGLE_URL}/login?next=%2Fupload`);
-  const csp = response?.headers()["content-security-policy"] ?? "";
-  expect(csp).toContain("frame-src 'self' https://accounts.google.com/gsi/");
-
-  await expect(
-    page.getByTestId("google-button").getByRole("button", {
-      name: "Sign in with Google",
-    }),
-  ).toBeVisible();
-  expect(requested).toBe(true);
-
-  // The script tag carries the page's CSP nonce.
-  const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+  await page.goto(`${GOOGLE_URL}/login?next=%2Fupload`);
+  const google = page.getByRole("button", { name: "Continue with Google" });
+  await expect(google).toBeEnabled();
+  await google.click();
+  await expect.poll(() => asked).not.toBeNull();
+  const url = asked as unknown as URL;
+  expect(url.searchParams.get("provider")).toBe("google");
+  // PKCE: a challenge goes out, the verifier stays in this browser.
+  expect(url.searchParams.get("code_challenge")).toBeTruthy();
+  expect(url.searchParams.get("code_challenge_method")).toMatch(/s256/i);
+  const back = new URL(url.searchParams.get("redirect_to")!);
+  expect(back.origin + back.pathname).toBe(`${GOOGLE_URL}/auth/callback`);
+  expect(back.searchParams.get("next")).toBe("/upload");
+  expect(back.searchParams.get("via")).toBe("google");
+  // Nothing is remembered before the sign-in has worked.
   expect(
-    await page
-      .locator(`script[src^="${GSI}"]`)
-      .evaluate((el: HTMLScriptElement) => el.nonce),
-  ).toBe(nonce);
+    await page.evaluate(() => localStorage.getItem("needears:last-login")),
+  ).toBeNull();
+});
 
-  const config = await page.evaluate(
-    () =>
-      (window as unknown as { __gsi: { client_id: string; nonce: string }[] })
-        .__gsi[0],
-  );
-  expect(config?.client_id).toBe(E2E_GOOGLE_CLIENT_ID);
-  expect(config?.nonce).toMatch(/^[0-9a-f]{64}$/);
-
-  // The email link is still there.
+test("a sign-in that worked is remembered as Google or email", async ({
+  page,
+}) => {
+  // What /auth/callback adds once Google's sign-in has worked.
+  await page.goto(`${GOOGLE_URL}/feed#signed-in=google`);
+  await expect(page).toHaveURL(`${GOOGLE_URL}/feed`);
+  await page.goto(`${GOOGLE_URL}/login`);
   await expect(
-    page.getByRole("button", { name: "Email me a sign-in link" }),
+    page.getByText("You signed in with Google last time."),
   ).toBeVisible();
 });
 
 test("after a magic link, the login page marks email as last used", async ({
   page,
 }) => {
-  await page.route(`${GSI}**`, (route) =>
-    route.fulfill({ contentType: "text/javascript", body: fakeGsi }),
-  );
   // Signs in on the server with Google set up, so the hint can show there
   // (the browser keeps it per origin).
   const sentAfter = Date.now() - 1_000;
   await page.goto(`${GOOGLE_URL}/login?next=%2Ffeed`);
   await expect(page.getByText(/last time/)).toHaveCount(0);
   await page.getByLabel("Email", { exact: true }).fill("jonas@example.com");
-  await page.getByRole("button", { name: "Email me a sign-in link" }).click();
+  await page.getByRole("button", { name: "Continue with email" }).click();
   await expect(page.getByText("Check your email.")).toBeVisible();
   await page.goto(await magicLinkFor("jonas@example.com", sentAfter));
   await expect(page).toHaveURL(`${GOOGLE_URL}/feed`);
@@ -99,30 +76,6 @@ test("after a magic link, the login page marks email as last used", async ({
   await expect(
     page.getByText("You signed in with email last time."),
   ).toBeVisible();
-});
-
-test("Google gets the full width after a client-side navigation", async ({
-  page,
-}) => {
-  await page.route(`${GSI}**`, (route) =>
-    route.fulfill({ contentType: "text/javascript", body: fakeGsi }),
-  );
-  await page.goto(`${GOOGLE_URL}/feed`);
-  // Wait for the page to hydrate, then go to /login without a full load.
-  await expect(async () => {
-    await page.getByRole("link", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(`${GOOGLE_URL}/login`, { timeout: 2000 });
-  }).toPass();
-  const button = page
-    .getByTestId("google-button")
-    .getByRole("button", { name: "Sign in with Google" });
-  await expect(button).toBeVisible();
-  const container = await page.getByTestId("google-button").boundingBox();
-  const widths = await page.evaluate(
-    () => (window as unknown as { __widths: number[] }).__widths,
-  );
-  // As wide as the column, not Google's 200 pixel minimum.
-  expect(widths.at(-1)).toBe(Math.round(container!.width));
 });
 
 test("Google's popup keeps its opener, so it can hand back the token", async ({

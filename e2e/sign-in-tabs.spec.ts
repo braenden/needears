@@ -15,9 +15,7 @@ test("the waiting tab follows a sign-in in another tab", async ({
   const sentAfter = Date.now() - 1_000;
   await waiting.goto("/login?next=/upload");
   await waiting.getByLabel("Email", { exact: true }).fill(email);
-  await waiting
-    .getByRole("button", { name: "Email me a sign-in link" })
-    .click();
+  await waiting.getByRole("button", { name: "Continue with email" }).click();
   await expect(waiting.getByText("Check your email.")).toBeVisible();
 
   const link = await context.newPage();

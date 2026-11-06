@@ -44,7 +44,7 @@ export async function signInWithMagicLink(
   const sentAfter = Date.now() - 1_000;
   await page.goto(`/login?next=${encodeURIComponent(next)}`);
   await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByRole("button", { name: "Email me a sign-in link" }).click();
+  await page.getByRole("button", { name: "Continue with email" }).click();
   await expect(page.getByText("Check your email.")).toBeVisible();
   await page.goto(await magicLinkFor(email, sentAfter));
   await pageIn(page);

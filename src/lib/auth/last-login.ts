@@ -23,6 +23,18 @@ export function readLastLogin(): LoginMethod | null {
   }
 }
 
-// /auth/callback runs on the server, so after a magic link it adds this to
-// the address it sends people on to, and the page saves it and removes it.
-export const SIGNED_IN_HASH = "#signed-in=email";
+// /auth/callback runs on the server, so after a sign-in that worked it adds
+// this to the address it sends people on to, and the page (RememberLogin)
+// saves it and removes it. Nothing is saved before the sign-in is done.
+const SIGNED_IN = "#signed-in=";
+
+export function signedInHash(method: LoginMethod): string {
+  return `${SIGNED_IN}${method}`;
+}
+
+/** The way someone just signed in, from the address's hash. */
+export function signedInMethod(hash: string): LoginMethod | null {
+  if (!hash.startsWith(SIGNED_IN)) return null;
+  const method = hash.slice(SIGNED_IN.length);
+  return method === "google" || method === "email" ? method : null;
+}

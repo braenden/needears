@@ -17,7 +17,7 @@ vi.mock("@/lib/supabase/lazy", () => ({
   browserClient: async () => ({ auth }),
 }));
 vi.mock("next/script", () => ({ default: () => null }));
-vi.mock("@/components/auth/google-id-button", () => ({
+vi.mock("@/components/auth/google-code-client", () => ({
   GoogleGlyph: () => null,
   GSI_SCRIPT: "https://accounts.google.com/gsi/client",
 }));
@@ -42,7 +42,6 @@ const popup = vi.hoisted(() => ({
 function installGoogle() {
   window.google = {
     accounts: {
-      id: {} as never,
       oauth2: {
         initCodeClient: (config) => {
           popup.config = config as CodeConfig;
