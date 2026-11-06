@@ -1,53 +1,45 @@
 "use client";
 
-import { Suspense } from "react";
+import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { BellIcon, MenuIcon, PlusIcon, SearchIcon } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { BellIcon, PlusIcon, SearchIcon } from "lucide-react";
 
 import { Logo } from "@/components/brand/logo";
-import { SearchField } from "@/components/search/search-field";
-
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types/view";
 
-import { ThemeToggle } from "./theme-toggle";
-
-import { NAV, SIGN_OUT_FORM } from "./nav";
+import { SIGN_OUT_FORM } from "./nav";
+import { ThemeSegments } from "./theme-toggle";
 
 // The menus need Radix dialogs and dropdowns, a big share of the page's
-// JavaScript. They load after the page has painted, behind look-alike
-// buttons, so they never hold up the first render.
+// JavaScript. They load after the page has painted, behind a look-alike
+// avatar, so they never hold up the first render.
+const avatarPlaceholder = () => (
+  <Button
+    variant="ghost"
+    size="icon"
+    className="touch-hit rounded-full"
+    aria-label="Account menu"
+    disabled
+  >
+    <span className="size-6 rounded-full bg-muted" />
+  </Button>
+);
 const MobileMenu = dynamic(() => import("./menus").then((m) => m.MobileMenu), {
   ssr: false,
-  loading: () => (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="touch-hit @min-[40rem]:hidden"
-      aria-label="Menu"
-      disabled
-    >
-      <MenuIcon />
-    </Button>
-  ),
+  loading: avatarPlaceholder,
 });
-
 const UserMenu = dynamic(() => import("./menus").then((m) => m.UserMenu), {
   ssr: false,
-  loading: () => (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="touch-hit rounded-full"
-      aria-label="Account menu"
-      disabled
-    >
-      <span className="size-8 rounded-full bg-muted" />
-    </Button>
-  ),
+  loading: avatarPlaceholder,
 });
 
 const LEGAL = [
@@ -68,51 +60,68 @@ export type HeaderProps = {
   /** Shows the Admin link. */
   isAdmin?: boolean;
   unread?: number;
-  /** Name for the nav landmark. Needs to be unique if there are several on a page. */
+  /** Name for the header's landmark. Unique if a page has several. */
   navLabel?: string;
-  /** Search box (wide) or search button (narrow). */
+  /** The search button. */
   showSearch?: boolean;
-  /** Let / focus the search box. Only one header on a page should. */
+  /** Let / open the search. Only one header on a page should. */
   searchShortcut?: boolean;
-  /** Where the search form goes. */
+  /** Where the search lives. */
   searchAction?: string;
 };
 
-const SEARCH_CLASSES = "hidden w-full @min-[40rem]:block";
-
-/**
- * The search box in the top bar. On the results page it holds the search,
- * so there is only one box to change it in, and it is ready to type in
- * when nothing has been searched yet.
- */
-function HeaderSearch({
-  action,
-  ...props
-}: {
-  shortcut: boolean;
-  action: string;
-  className: string;
-}) {
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const onResults = pathname === action;
-  // The results page reads at most 100 characters too.
-  const query = onResults ? (params.get("q") ?? "").slice(0, 100) : "";
+function isEditable(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
   return (
-    <SearchField
-      key={query}
-      defaultValue={query}
-      autoFocus={onResults && !query}
-      action={action}
-      {...props}
-    />
+    target.isContentEditable ||
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
   );
 }
 
+/** / anywhere opens the search, as the search box in the top bar did. */
+function useSearchShortcut(enabled: boolean, action: string) {
+  const router = useRouter();
+  useEffect(() => {
+    if (!enabled) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey)
+        return;
+      if (isEditable(event.target) || document.querySelector("[role=dialog]"))
+        return;
+      event.preventDefault();
+      router.push(action);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [enabled, action, router]);
+}
+
+/** An icon button with its name on hover, for a mouse. */
+function IconTip({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactElement;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+const ICON = "touch-hit text-muted-foreground hover:text-foreground";
+
 /**
- * Top bar. Wide: logo, nav, upload, bell, theme, avatar menu. Narrow (below
- * 640 pixels, a container query so it also works inside the /design phone
- * frame): logo, upload, bell, menu button that opens the rest in a sheet.
+ * Top bar: the logo (to the feed) on the left; search, Upload, the bell
+ * and the account on the right. Signed out: search and Sign in. On the
+ * sign in page only the logo, so there is nothing to wander off to. Below
+ * 640 pixels (a container query, so it also works in the /design phone
+ * frame) Upload is just the plus and the account menu opens as a sheet.
  */
 export function SiteHeader({
   user,
@@ -125,147 +134,123 @@ export function SiteHeader({
 }: HeaderProps) {
   const pathname = usePathname();
   const uploading = pathname === "/upload";
+  const bare = pathname === "/login";
+  const searching = pathname === searchAction;
+  // On the search page its own field takes /.
+  useSearchShortcut(
+    showSearch && searchShortcut && !bare && !searching,
+    searchAction,
+  );
 
   return (
-    <header className="@container sticky top-0 z-40 border-b bg-background">
-      {/* Wide: three zones, with the search in the middle on the same axis
-          as the page column below. Narrow: logo left, buttons right. */}
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 @min-[40rem]:grid @min-[40rem]:grid-cols-[1fr_minmax(0,30rem)_1fr] @min-[40rem]:gap-6">
-        <div className="flex items-center gap-6">
-          <Link
-            href="/"
-            className="-ml-1 shrink-0 rounded-md p-1 focus-ring outline-none"
-          >
-            <Logo />
-          </Link>
-
-          <nav aria-label={navLabel} className="hidden @min-[40rem]:block">
-            <ul className="flex items-center gap-1">
-              {NAV.map((item) => (
-                <li key={item.href}>
+    <header
+      aria-label={navLabel}
+      className="@container sticky top-0 z-40 border-b bg-background"
+    >
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-1 px-4">
+        <Link
+          href="/feed"
+          className="mr-auto -ml-1 shrink-0 rounded-md p-1 focus-ring outline-none"
+        >
+          <Logo />
+        </Link>
+        {bare ? null : (
+          <>
+            {showSearch ? (
+              <IconTip label="Search (/)">
+                <Button variant="ghost" size="icon" asChild className={ICON}>
                   <Link
-                    href={item.href}
-                    aria-current={pathname === item.href ? "page" : undefined}
-                    className="touch-hit rounded-md px-2.5 py-1.5 text-sm text-muted-foreground focus-ring outline-none hover:text-foreground aria-[current=page]:text-foreground"
+                    href={searchAction}
+                    aria-label="Search"
+                    aria-current={searching ? "page" : undefined}
+                    aria-keyshortcuts={searchShortcut ? "/" : undefined}
                   >
-                    {item.label}
+                    <SearchIcon />
                   </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-
-        {showSearch ? (
-          <Suspense
-            fallback={
-              <SearchField
-                shortcut={searchShortcut}
-                action={searchAction}
-                className={SEARCH_CLASSES}
-              />
-            }
-          >
-            <HeaderSearch
-              shortcut={searchShortcut}
-              action={searchAction}
-              className={SEARCH_CLASSES}
-            />
-          </Suspense>
-        ) : (
-          <div className="hidden @min-[40rem]:block" />
-        )}
-
-        <div className="ml-auto flex items-center justify-end gap-1">
-          {showSearch ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className="touch-hit @min-[40rem]:hidden"
-            >
-              <Link href={searchAction} aria-label="Search">
-                <SearchIcon />
-              </Link>
-            </Button>
-          ) : null}
-          {/* Just the plus on the narrowest phones, so the bell fits. On the
-              upload page it steps back: it would only lead to itself. */}
-          <Button
-            asChild
-            size="sm"
-            variant={uploading ? "secondary" : "default"}
-            className="touch-hit mr-1 w-8 px-0 @min-[25rem]:w-auto @min-[25rem]:px-3"
-          >
-            <Link href="/upload" aria-current={uploading ? "page" : undefined}>
-              <PlusIcon />
-              <span className="sr-only @min-[25rem]:not-sr-only">Upload</span>
-            </Link>
-          </Button>
-          {user ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className="touch-hit relative"
-            >
-              <Link
-                href="/notifications"
-                aria-current={
-                  pathname === "/notifications" ? "page" : undefined
-                }
-                aria-label={
-                  unread ? `Notifications, ${unread} new` : "Notifications"
-                }
-              >
-                <BellIcon />
-                {unread ? (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
-                  />
-                ) : null}
-              </Link>
-            </Button>
-          ) : (
-            // Signed out on a phone: Sign in where the bell would be, not
-            // only inside the menu.
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="touch-hit px-2 @min-[40rem]:hidden"
-            >
-              <Link href="/login">Sign in</Link>
-            </Button>
-          )}
-          {/* Signed in, the theme is in the account menu. */}
-          <div className="hidden items-center gap-1 @min-[40rem]:flex">
-            {user ? (
-              <UserMenu user={user} isAdmin={isAdmin} />
-            ) : (
-              <>
-                <ThemeToggle />
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/login">Sign in</Link>
                 </Button>
+              </IconTip>
+            ) : null}
+            {user ? (
+              <>
+                {/* Quiet: blue is for play. Just the plus on phones. */}
+                <IconTip label="Upload">
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="ghost"
+                    className={cn(
+                      ICON,
+                      "w-9 px-0 @min-[40rem]:w-auto @min-[40rem]:px-3",
+                      uploading && "text-foreground",
+                    )}
+                  >
+                    <Link
+                      href="/upload"
+                      aria-current={uploading ? "page" : undefined}
+                    >
+                      <PlusIcon />
+                      <span className="sr-only @min-[40rem]:not-sr-only">
+                        Upload
+                      </span>
+                    </Link>
+                  </Button>
+                </IconTip>
+                <IconTip label="Notifications">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    asChild
+                    className={cn(ICON, "relative")}
+                  >
+                    <Link
+                      href="/notifications"
+                      aria-current={
+                        pathname === "/notifications" ? "page" : undefined
+                      }
+                      aria-label={
+                        unread
+                          ? `Notifications, ${unread} new`
+                          : "Notifications"
+                      }
+                    >
+                      <BellIcon />
+                      {unread ? (
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
+                        />
+                      ) : null}
+                    </Link>
+                  </Button>
+                </IconTip>
+                <div className="hidden @min-[40rem]:block">
+                  <UserMenu user={user} isAdmin={isAdmin} />
+                </div>
+                <div className="@min-[40rem]:hidden">
+                  <MobileMenu
+                    user={user}
+                    isAdmin={isAdmin}
+                    pathname={pathname}
+                  />
+                </div>
               </>
+            ) : (
+              <Button variant="ghost" size="sm" asChild className="touch-hit">
+                <Link href="/login">Sign in</Link>
+              </Button>
             )}
-          </div>
-
-          <MobileMenu
-            user={user}
-            isAdmin={isAdmin}
-            navLabel={navLabel}
-            pathname={pathname}
-          />
-        </div>
+          </>
+        )}
       </div>
     </header>
   );
 }
 
-function SiteFooter() {
+/** Signed out, the theme is chosen down here (signed in, in the menu). */
+function SiteFooter({ signedIn }: { signedIn: boolean }) {
+  const pathname = usePathname();
+  // Signing in is one task: nothing else on the page.
+  if (pathname === "/login") return null;
   return (
     <footer className="mt-24 border-t">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
@@ -284,6 +269,7 @@ function SiteFooter() {
             ))}
           </ul>
         </nav>
+        {signedIn ? null : <ThemeSegments size="sm" className="w-fit" />}
       </div>
     </footer>
   );
@@ -314,7 +300,7 @@ export function AppShell({
       >
         {children}
       </main>
-      <SiteFooter />
+      <SiteFooter signedIn={!!header.user} />
     </div>
   );
 }

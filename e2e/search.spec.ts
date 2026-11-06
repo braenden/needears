@@ -1,21 +1,25 @@
 import { expect, test } from "@playwright/test";
 import { pageIn } from "./helpers";
 
-// Search from the top bar, signed out, against the seed data.
+// Search from the top bar's search button and /, signed out, against the
+// seed data.
 test.describe("search", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("/ jumps to the search box and finds a track", async ({ page }) => {
+  test("/ opens the search, ready to type in, and finds a track", async ({
+    page,
+  }) => {
     await page.goto("/feed");
     const box = page
-      .getByRole("search", { name: "Search" })
+      .getByRole("search", { name: "Search tracks and people" })
       .getByRole("searchbox");
     // The shortcut works once the page has hydrated.
     await expect(async () => {
       await page.locator("main").click({ position: { x: 5, y: 5 } });
       await page.keyboard.press("/");
-      await expect(box).toBeFocused({ timeout: 1000 });
+      await expect(page).toHaveURL(/\/search$/, { timeout: 2000 });
     }).toPass();
+    await expect(box).toBeFocused();
     await page.keyboard.type("night");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/search\?q=night$/);

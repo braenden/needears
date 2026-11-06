@@ -48,8 +48,14 @@ export function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
-/** Dark, Light or System side by side, for the phone menu. */
-export function ThemeSegments({ className }: { className?: string }) {
+/** Dark, Light or System side by side: the phone menu, and small in the footer. */
+export function ThemeSegments({
+  className,
+  size = "default",
+}: {
+  className?: string;
+  size?: "default" | "sm";
+}) {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
   return (
@@ -70,7 +76,11 @@ export function ThemeSegments({ className }: { className?: string }) {
             role="radio"
             aria-checked={checked}
             onClick={() => setTheme(value)}
-            className="flex h-9 items-center justify-center gap-1.5 rounded-md text-sm text-muted-foreground focus-ring transition-colors duration-fast outline-none hover:text-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-sm"
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-md text-muted-foreground",
+              "focus-ring transition-colors duration-fast outline-none hover:text-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-sm",
+              size === "sm" ? "h-7 px-2.5 text-[13px]" : "h-9 text-sm",
+            )}
           >
             <Icon className="size-4" aria-hidden="true" />
             {label}
