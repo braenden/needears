@@ -14,11 +14,13 @@ export function searchMock(query: string): {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return { tracks: [], profiles: [] };
   return {
-    tracks: tracks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        t.genre.name.toLowerCase().includes(q),
-    ),
+    tracks: tracks
+      .filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.genre.name.toLowerCase().includes(q),
+      )
+      .map((t) => ({ ...t, audioUrl: null })),
     profiles: people.filter(
       (p) =>
         p.handle.toLowerCase().includes(q) ||

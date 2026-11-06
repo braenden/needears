@@ -141,6 +141,22 @@ export async function getTracksByOwner(
   return toCards(supabase, data as unknown as SummaryRow[]);
 }
 
+/** Live tracks by id, as rows to play, in the order of `ids`. */
+export async function getTracksByIds(ids: string[]): Promise<CardTrack[]> {
+  if (ids.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tracks")
+    .select(SUMMARY_COLUMNS)
+    .in("id", ids)
+    .eq("status", "live");
+  if (error) throw new Error(`Tracks failed: ${describeError(error)}`);
+  const rows = (data as unknown as SummaryRow[]).sort(
+    (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
+  );
+  return toCards(supabase, rows);
+}
+
 /** How many tracks "More to hear" offers. */
 const MORE_TO_HEAR = 5;
 

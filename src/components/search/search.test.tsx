@@ -1,8 +1,11 @@
 /** @vitest-environment jsdom */
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { searchMock } from "@/mocks/search";
+
+// The rows play through a server action; nothing plays in these tests.
+vi.mock("@/app/actions/media", () => ({ freshAudioUrl: vi.fn() }));
 
 import { SearchField } from "./search-field";
 import { highlightParts, SearchResults } from "./search-results";
