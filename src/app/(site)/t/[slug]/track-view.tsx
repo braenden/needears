@@ -313,6 +313,9 @@ export function TrackView({
   // A deleted comment kept for its replies counts and marks nothing.
   const topLevel = comments.filter((c) => !c.parent_id && !isWithdrawn(c));
   const listed = comments.filter(onVersion);
+  // On the waveform: what the list shows. Resolved ones while they are
+  // folded away get no marker.
+  const marked = topLevel.filter((c) => showResolved || !c.resolved_at);
   // The version open has no comments, but others do: say where they are,
   // so an empty list does not read as "nobody commented".
   const elsewhere =
@@ -325,9 +328,7 @@ export function TrackView({
           .filter(({ count }) => count > 0)
       : [];
   const activeId =
-    selectedId ??
-    activeCommentAt(topLevel.filter(onVersion), timeMs)?.id ??
-    null;
+    selectedId ?? activeCommentAt(marked.filter(onVersion), timeMs)?.id ?? null;
   const owner = displayNameOf(track.owner);
   const shareUrl = `${siteUrl()}/t/${track.slug}`;
 
@@ -789,7 +790,7 @@ export function TrackView({
           range={range}
           onRangeChange={setRange}
           initialTimeMs={startSeconds * 1000}
-          comments={topLevel}
+          comments={marked}
           activeCommentId={activeId}
           keyboardScope="global"
           onPlayingChange={(on) => {
@@ -946,7 +947,7 @@ export function TrackView({
             type="button"
             onClick={() => setShowingMore((open) => !open)}
             aria-expanded={showingMore}
-            className="mt-1 rounded-xs text-[13px] text-muted-foreground focus-ring outline-none hover:text-foreground lg:hidden"
+            className="touch-hit mt-1 rounded-xs text-[13px] text-muted-foreground focus-ring outline-none hover:text-foreground lg:hidden"
           >
             {showingMore ? "Less" : "More about this track"}
           </button>
@@ -1011,7 +1012,7 @@ export function TrackView({
             playing={playerPlaying}
             timeMs={timeMs}
             durationMs={playing.durationMs}
-            markerTimes={topLevel
+            markerTimes={marked
               .filter((c) => onVersion(c) && c.time_ms !== null)
               .map((c) => c.time_ms!)}
             onToggle={() =>
@@ -1028,7 +1029,11 @@ export function TrackView({
             ref={commentsSection}
             id="comments"
             aria-labelledby="comments-heading"
-            className="mt-8 scroll-mt-[8.5rem]"
+            // Without a note, level with the column on the right.
+            className={cn(
+              "mt-8 scroll-mt-[8.5rem]",
+              !track.description && "lg:mt-0",
+            )}
           >
             <CommentList
               heading={{ id: "comments-heading", text: "Comments" }}
@@ -1144,7 +1149,9 @@ export function TrackView({
           />
         </div>
         <aside className="hidden lg:block" aria-label="About this track">
-          <div className="sticky top-24 grid grid-cols-[minmax(0,1fr)] gap-10">
+          {/* Below the top bar and the slim player bar (56 and 64 pixels),
+              so nothing slides under them. */}
+          <div className="sticky top-[8.5rem] grid grid-cols-[minmax(0,1fr)] gap-10">
             <TrackFacts track={track} version={versionNote} short />
             <MoreToHear tracks={moreToHear} beforePlay={stepAside} />
           </div>

@@ -150,6 +150,8 @@ export function SiteHeader({
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-1 px-4">
         <Link
           href="/feed"
+          // Safari does not read the name from the SVG's title.
+          aria-label="Need Ears"
           className="mr-auto -ml-1 shrink-0 rounded-md p-1 focus-ring outline-none"
         >
           <Logo />

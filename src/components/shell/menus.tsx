@@ -23,6 +23,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import type { HeaderProps } from "./app-shell";
 import { SIGN_OUT_FORM } from "./nav";
@@ -43,7 +48,6 @@ function AccountButton({
       variant="ghost"
       size="icon"
       className="touch-hit rounded-full"
-      title="Account"
       {...props}
     >
       <UserAvatar profile={user} size="sm" anonymous={user.needsHandle} />
@@ -169,9 +173,15 @@ export function UserMenu({
   const mounted = useMounted();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <AccountButton user={user} />
-      </DropdownMenuTrigger>
+      {/* Its name on hover, like the other icons in the top bar. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <AccountButton user={user} />
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Account</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuItem asChild>
           <Link

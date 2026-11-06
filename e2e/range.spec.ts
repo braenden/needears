@@ -23,7 +23,7 @@ test("range comment, reference track and marker export", async ({
     await dialog.getByLabel(/Reference track/).fill(reference);
     await dialog.getByRole("button", { name: "Save changes" }).click();
     await expect(dialog).toBeHidden();
-    const link = nora.getByRole("link", { name: /Reference track/ });
+    const link = nora.getByRole("link", { name: /a track on/ }).first();
     await expect(link).toHaveAttribute("href", reference);
     await expect(link).toHaveAttribute("rel", /nofollow/);
   });

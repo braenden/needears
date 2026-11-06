@@ -66,7 +66,8 @@ export function TrackRow({
   /** Off where every track is by the same person, like on a profile. */
   showOwner?: boolean;
 }) {
-  const comments = track.listener_comment_count;
+  // Every live comment and reply, as the track page counts them.
+  const comments = track.comment_count;
   return (
     <article aria-labelledby={`track-${track.id}-title`} className={GRID}>
       <Button

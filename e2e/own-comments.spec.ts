@@ -89,7 +89,8 @@ test("edit, delete and a deleted comment that keeps its replies", async ({
       .filter({ hasText: "Comment deleted" })
       .filter({ hasText: answer });
     await expect(kept).toBeVisible();
-    expect(await allCount(mia)).toBe(before);
+    // The reply counts, the deleted comment does not.
+    expect(await allCount(mia)).toBe(before + 1);
 
     // The same for everyone else, with nothing to act on.
     await jonas.reload();

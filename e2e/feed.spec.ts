@@ -38,13 +38,23 @@ test.describe("feed layout and badges", () => {
     expect(width).toBeLessThanOrEqual(375);
   });
 
-  test("comments show the author's badges", async ({ page }) => {
+  test("badges are on the profile, not beside every comment", async ({
+    page,
+  }) => {
     await page.goto("/t/night-bus-seed0002");
+    await expect(
+      page.getByRole("list", { name: "Comments" }).first(),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("list", { name: "Comments" })
+        .getByRole("list", { name: "Badges" }),
+    ).toHaveCount(0);
+    await page.goto("/u/mia?tab=about");
     await expect(
       page
         .getByRole("list", { name: "Badges" })
-        .getByRole("button", { name: "First ears" })
-        .first(),
+        .getByRole("button", { name: "First ears" }),
     ).toBeVisible();
   });
 });

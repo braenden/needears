@@ -56,8 +56,11 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
     <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-8">
       <h1 className="sr-only">Feed</h1>
       <div className="flex items-end justify-between gap-3 border-b">
-        <nav aria-label="Feed tabs" className="relative min-w-0">
-          <ul className="-mb-px flex gap-5">
+        <nav
+          aria-label="Feed tabs"
+          className="relative min-w-0 [scrollbar-width:none] overflow-x-auto"
+        >
+          <ul className="-mb-px flex gap-5 whitespace-nowrap">
             {FEED_TABS.map((t) => (
               <li key={t}>
                 <Link

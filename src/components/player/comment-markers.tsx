@@ -237,10 +237,11 @@ export function CommentMarkers({
             key={`span-${comment.id}`}
             aria-hidden="true"
             className={cn(
-              "absolute bottom-0 h-1 rounded-full",
+              // Thin, in the dots' tone: a span of time, not a scrollbar.
+              "absolute bottom-0.5 h-0.5 rounded-full",
               comment.id === activeCommentId || comment.id === previewId
                 ? "bg-primary-text"
-                : "bg-wave",
+                : "bg-muted-foreground/50",
             )}
             style={{
               left: `${(start / durationMs) * 100}%`,

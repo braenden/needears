@@ -223,7 +223,7 @@ export function CommentComposer({
       ? formatSpan(range.startMs, range.endMs)
       : `at ${time}`;
   const quiet =
-    "inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] whitespace-nowrap focus-ring outline-none hover:bg-accent";
+    "inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1.5 text-[13px] whitespace-nowrap focus-ring outline-none hover:bg-accent";
 
   return (
     <form
@@ -285,8 +285,9 @@ export function CommentComposer({
       </div>
 
       {open ? (
-        <div className={cn("pr-3 pb-3", avatar ? "pl-12" : "pl-3")}>
-          <div className="flex flex-wrap items-center gap-1">
+        // Under the text on a phone, so the row fits on one line there.
+        <div className={cn("pr-2 pb-2.5 pl-2", avatar && "sm:pl-12")}>
+          <div className="flex items-center gap-0.5">
             {editingTime ? (
               <span className="flex items-center gap-1.5 px-1">
                 <label
@@ -401,7 +402,7 @@ export function CommentComposer({
               variant="ghost"
               size="sm"
               onClick={cancel}
-              className="ml-auto text-muted-foreground"
+              className="ml-auto px-2 text-muted-foreground"
             >
               Cancel
             </Button>

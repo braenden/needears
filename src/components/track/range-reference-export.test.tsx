@@ -140,7 +140,7 @@ describe("ReferenceLink", () => {
       <ReferenceLink url="https://www.youtube.com/watch?v=abc" />,
     );
     const link = screen.getByRole("link", {
-      name: /Reference track on YouTube/,
+      name: /a track on YouTube/,
     });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link.getAttribute("rel")).toContain("nofollow");

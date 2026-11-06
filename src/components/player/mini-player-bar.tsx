@@ -10,8 +10,8 @@ import { PlayPauseIcon } from "./play-pause-icon";
  * The track page's player in one slim line under the header, once the
  * full player has scrolled away: play or pause, the time, and a thin
  * progress line with a tick for each timed comment. Tapping the title goes
- * back up to the full player. Full width on phones, in the page column on
- * wider screens. Laid over the page, so it showing up moves nothing.
+ * back up to the full player. Full width on phones, as wide as the top bar
+ * on wider screens. Laid over the page, so it showing up moves nothing.
  */
 export function MiniPlayerBar({
   title,
@@ -44,7 +44,7 @@ export function MiniPlayerBar({
         visible ? "opacity-100" : "pointer-events-none opacity-0",
       )}
     >
-      <div className="relative mx-auto flex h-full max-w-3xl items-center gap-3 px-4">
+      <div className="relative mx-auto flex h-full max-w-6xl items-center gap-3 px-4">
         <Button
           type="button"
           size="icon-lg"

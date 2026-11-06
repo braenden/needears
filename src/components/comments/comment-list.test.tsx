@@ -130,10 +130,23 @@ describe("CommentList filter", () => {
 const renderThread = (ui: React.ReactElement) =>
   render(<TooltipProvider>{ui}</TooltipProvider>);
 
+/**
+ * What the heading counts: the comments the list shows (resolved ones are
+ * folded away) and their replies.
+ */
+function shownCount(list: typeof threadedComments) {
+  const top = list.filter((c) => !c.parent_id && !c.resolved_at);
+  const ids = new Set(top.map((c) => c.id));
+  return (
+    top.filter((c) => c.status !== "withdrawn").length +
+    list.filter((c) => c.parent_id && ids.has(c.parent_id)).length
+  );
+}
+
 describe("CommentList threads", () => {
   const topLevel = threadedComments.filter((c) => !c.parent_id);
 
-  it("groups replies under their comment and leaves them out of the counts", () => {
+  it("groups replies under their comment and counts what the list shows", () => {
     renderThread(
       <CommentList
         comments={threadedComments}
@@ -142,7 +155,7 @@ describe("CommentList threads", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: /Comments/ })).toHaveTextContent(
-      `Comments ${topLevel.length}`,
+      `Comments ${shownCount(threadedComments)}`,
     );
     const replies = screen.getByRole("list", { name: "Replies to Mia" });
     expect(within(replies).getAllByRole("listitem")).toHaveLength(2);
@@ -204,9 +217,7 @@ describe("CommentList threads", () => {
         onSignIn={onSignIn}
       />,
     );
-    await user.click(
-      screen.getAllByRole("button", { name: "Sign in to reply" })[0]!,
-    );
+    await user.click(screen.getAllByRole("button", { name: "Reply" })[0]!);
     expect(onSignIn).toHaveBeenCalled();
   });
 
@@ -358,7 +369,7 @@ describe("CommentList with a deleted comment", () => {
         : c,
     );
 
-  it("keeps its replies under Comment deleted and leaves it out of the count", () => {
+  it("keeps its replies under Comment deleted and counts only the replies", () => {
     const list = withdraw("c1");
     renderWithTooltips(
       <CommentList
@@ -373,9 +384,8 @@ describe("CommentList with a deleted comment", () => {
     ).toBeInTheDocument();
     // Nothing to act on.
     expect(within(kept).queryByRole("button", { name: /^Reply$/ })).toBeNull();
-    const top = list.filter((c) => !c.parent_id).length;
     expect(screen.getByRole("heading", { name: /Comments/ })).toHaveTextContent(
-      `Comments ${top - 1}`,
+      `Comments ${shownCount(list)}`,
     );
   });
 

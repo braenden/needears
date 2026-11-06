@@ -16,7 +16,7 @@ import {
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
-import { BadgeIcons, type BadgeKind } from "@/components/profile/badges";
+import type { BadgeKind } from "@/components/profile/badges";
 import { ReputationBadge } from "@/components/reputation-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -260,13 +260,18 @@ export function CommentList({
     trusted: filterComments(shown, "trusted").length,
   };
   const visible = sortComments(filterComments(shown, filter), sort);
+  // The heading counts what the list shows: comments and their replies,
+  // the way the track's rows count them.
+  const total = visible.reduce(
+    (n, c) => n + (isWithdrawn(c) ? 0 : 1) + (replies.get(c.id)?.length ?? 0),
+    0,
+  );
   // A busy track draws its comments 30 at a time, but always far enough
   // to include the one playing or picked on the waveform.
   const [limit, setLimit] = useState(COMMENTS_PAGE);
   const activeIndex = visible.findIndex((c) => c.id === activeCommentId);
   const upTo = Math.max(limit, activeIndex + 1);
   const remaining = visible.length - upTo;
-  const total = present.filter((c) => !isWithdrawn(c)).length;
   const changeShowResolved = (next: boolean) => {
     setShowResolvedState(next);
     onShowResolvedChange?.(next);
@@ -563,7 +568,8 @@ function CommentItem({
                 }
                 className={ACTION}
               >
-                {viewer === "signed_out" ? "Sign in to reply" : "Reply"}
+                {/* Signed out it goes to sign in, and back here. */}
+                Reply
               </button>
             ) : null}
             {/* The artist marks a comment Helpful with one tap. */}
@@ -686,14 +692,14 @@ function CommentHeader({
   const canDelete = (own || isAdmin) && !!askDelete;
   const name = displayNameOf(comment.author);
   const resolved = !!comment.resolved_at;
-  const badges = useContext(AuthorBadges)[comment.author_id] ?? [];
   return (
     <div className="flex items-start gap-2">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-sm">
+      {/* One line: a long name gives way, the time stays. */}
+      <div className="flex min-w-0 flex-1 items-center gap-x-1.5 text-sm">
         <Link
           href={`/u/${comment.author.handle}`}
           className={cn(
-            "truncate rounded-xs font-semibold focus-ring outline-none hover:underline hover:underline-offset-4",
+            "min-w-0 truncate rounded-xs font-semibold focus-ring outline-none hover:underline hover:underline-offset-4",
             muted && "text-muted-foreground",
           )}
         >
@@ -701,16 +707,20 @@ function CommentHeader({
         </Link>
         {/* Only the levels worth knowing: Trusted and Golden ears. */}
         {isTrusted(comment.author.reputation) ? (
-          <ReputationBadge helpful={comment.author.reputation} />
+          <ReputationBadge
+            helpful={comment.author.reputation}
+            className="shrink-0"
+          />
         ) : null}
-        <BadgeIcons badges={badges} className="hidden @sm:flex" />
-        <span className="text-muted-foreground">
+        <span className="shrink-0 whitespace-nowrap text-muted-foreground">
           {fromArtist ? "· Artist " : ""}·{" "}
           <RelativeTime date={comment.created_at} />
           {comment.edited_at ? " · edited" : ""}
         </span>
         {comment.is_helpful ? (
-          <span className="text-primary-text">· Helpful</span>
+          <span className="shrink-0 whitespace-nowrap text-primary-text">
+            · Helpful
+          </span>
         ) : null}
       </div>
       {viewer !== "signed_out" ? (
