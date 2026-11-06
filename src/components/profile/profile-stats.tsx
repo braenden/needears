@@ -15,8 +15,9 @@ const percent = new Intl.NumberFormat("en", {
 });
 
 /**
- * Four numbers about how someone gives feedback. The Helpful share is the one
- * that says something about quality, so it gets a short explanation.
+ * Four numbers about how someone gives feedback, as plain text. The
+ * Helpful share is the one that says something about quality, so it gets
+ * a short explanation.
  */
 export function ProfileStatsBlock({
   stats,
@@ -47,20 +48,17 @@ export function ProfileStatsBlock({
   return (
     <dl
       className={cn(
-        "@container grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border @lg:grid-cols-4",
+        "grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4",
         className,
       )}
     >
       {items.map((item) => (
-        <div
-          key={item.label}
-          className="flex flex-col-reverse gap-0.5 bg-card px-3 py-3 @sm:px-4"
-        >
+        <div key={item.label} className="flex flex-col-reverse gap-0.5">
           <dt className="text-xs leading-tight text-muted-foreground">
             {item.label}
             {item.note ? <span className="block">{item.note}</span> : null}
           </dt>
-          <dd data-numeric className="text-xl font-semibold @sm:text-2xl">
+          <dd data-numeric className="text-xl font-semibold">
             {item.value}
           </dd>
         </div>

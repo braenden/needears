@@ -65,14 +65,20 @@ test("photo, working on, DAW and links show on the profile", async ({
       await page.context().browser()!.newContext()
     ).newPage();
     await visitor.goto("/u/mia");
-    await expect(visitor.getByText(workingOn)).toBeVisible();
-    await expect(visitor.getByText(/Bitwig/)).toBeVisible();
+    // The photo and the links are at the top; the rest is under About.
     const link = visitor.getByRole("link", { name: /SoundCloud/ });
     await expect(link).toHaveAttribute("href", "https://soundcloud.com/mia-k");
     await expect(link).toHaveAttribute("rel", /nofollow/);
     await expect(
       visitor.locator('img[src*="/object/sign/avatars/"]').first(),
     ).toBeVisible();
+    await visitor
+      .getByRole("navigation", { name: "Profile sections" })
+      .getByRole("link", { name: "About" })
+      .click();
+    await expect(visitor).toHaveURL(/tab=about/);
+    await expect(visitor.getByText(workingOn)).toBeVisible();
+    await expect(visitor.getByText(/Bitwig/)).toBeVisible();
     await expect(visitor.getByText("Week streak")).toBeVisible();
   });
 });

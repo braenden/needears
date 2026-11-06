@@ -6,8 +6,6 @@ import { displayNameOf } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { TrackList } from "@/components/track/track-list";
 import { Button } from "@/components/ui/button";
-import { BadgeList } from "@/components/profile/badges";
-import { ProfileStatsBlock } from "@/components/profile/profile-stats";
 import {
   getCommentsBy,
   getEditableProfile,
@@ -19,6 +17,7 @@ import { getViewer } from "@/lib/data/viewer";
 import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { loadProfile } from "./load";
+import { ProfileAbout } from "./about";
 import { OwnProfileHeader } from "./own-profile-header";
 
 const PAGE = 30;
@@ -59,7 +58,8 @@ export default async function ProfilePage({
   ]);
   const profile = await loadProfile(handle);
   if (!profile) notFound();
-  const tab = query.tab === "comments" ? "comments" : "tracks";
+  const tab =
+    query.tab === "comments" || query.tab === "about" ? query.tab : "tracks";
   // "Load more" asks for the next page: 30 more each time, up to 300.
   const count = Math.min(
     300,
@@ -68,7 +68,7 @@ export default async function ProfilePage({
   const isOwn = viewer?.userId === profile.id;
   const [stats, record, tracks, comments, editable] = await Promise.all([
     getProfileStats(profile),
-    getFeedbackRecord(profile.id),
+    tab === "about" ? getFeedbackRecord(profile.id) : Promise.resolve(null),
     tab === "tracks"
       ? getTracksByOwner(profile.id, count + 1)
       : Promise.resolve([]),
@@ -80,7 +80,7 @@ export default async function ProfilePage({
       : Promise.resolve(null),
   ]);
   const name = displayNameOf(profile);
-  const listed = tab === "tracks" ? tracks : comments;
+  const listed = tab === "tracks" ? tracks : tab === "comments" ? comments : [];
   const hasMore = listed.length > count && count < 300;
   const moreHref = `/u/${profile.handle}?${new URLSearchParams({
     ...(tab === "comments" ? { tab } : {}),
@@ -88,26 +88,16 @@ export default async function ProfilePage({
   })}`;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
-      <OwnProfileHeader
-        profile={profile}
-        stats={stats}
-        isOwn={isOwn}
-        editable={editable}
-      />
-      <ProfileStatsBlock stats={record.stats} className="mt-6" />
-      <BadgeList badges={record.badges} showLocked={isOwn} className="mt-4" />
+    <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-10">
+      <OwnProfileHeader profile={profile} isOwn={isOwn} editable={editable} />
 
-      <nav aria-label="Profile sections" className="relative mt-10 border-b">
-        <ul className="-mb-px flex gap-1">
+      <nav aria-label="Profile sections" className="relative mt-8 border-b">
+        <ul className="-mb-px flex gap-5">
           {(
             [
               ["tracks", "Tracks", `/u/${profile.handle}`],
-              [
-                "comments",
-                "Comments given",
-                `/u/${profile.handle}?tab=comments`,
-              ],
+              ["comments", "Comments", `/u/${profile.handle}?tab=comments`],
+              ["about", "About", `/u/${profile.handle}?tab=about`],
             ] as const
           ).map(([key, label, href]) => (
             <li key={key}>
@@ -115,8 +105,8 @@ export default async function ProfilePage({
                 href={href}
                 aria-current={tab === key ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground focus-ring outline-none hover:text-foreground",
-                  "aria-[current=page]:border-primary aria-[current=page]:text-foreground in-data-[underline=ready]:aria-[current=page]:border-transparent",
+                  "inline-flex h-11 items-center border-b-2 border-transparent text-[15px] text-muted-foreground focus-ring outline-none hover:text-foreground",
+                  "aria-[current=page]:border-foreground aria-[current=page]:font-semibold aria-[current=page]:text-foreground in-data-[underline=ready]:aria-[current=page]:border-transparent",
                 )}
               >
                 {label}
@@ -126,21 +116,34 @@ export default async function ProfilePage({
         </ul>
         <SlidingUnderline
           selector='[aria-current="page"]'
-          className="-bottom-px"
+          className="-bottom-px bg-foreground"
         />
       </nav>
 
-      <div className="mt-6">
+      <div>
         <h2 className="sr-only">
-          {tab === "tracks" ? "Tracks" : "Comments given"}
+          {tab === "tracks"
+            ? "Tracks"
+            : tab === "comments"
+              ? "Comments"
+              : "About"}
         </h2>
-        {tab === "tracks" ? (
+        {tab === "about" && record ? (
+          <ProfileAbout
+            stats={record.stats}
+            badges={record.badges}
+            helpfulReceived={profile.reputation}
+            isOwn={isOwn}
+            workingOn={profile.workingOn}
+            daw={profile.daw}
+            createdAt={profile.created_at}
+          />
+        ) : tab === "tracks" ? (
           tracks.length > 0 ? (
             <TrackList
               tracks={tracks.slice(0, count)}
               label={`Tracks by ${name}`}
               showOwner={false}
-              className="grid gap-3"
             />
           ) : isOwn ? (
             <EmptyState
@@ -163,7 +166,7 @@ export default async function ProfilePage({
             />
           )
         ) : comments.length > 0 ? (
-          <ul className="divide-y">
+          <ul className="max-w-3xl divide-y">
             {comments.slice(0, count).map((comment) => (
               <li key={comment.id} className="py-4">
                 <p className="text-sm text-muted-foreground">

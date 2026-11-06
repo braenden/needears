@@ -28,8 +28,8 @@ const FEED_FUNCTIONS = {
 
 const OWNER =
   "owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
-const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, listener_comment_count, needs_ears, play_count, published_at, feedback_wants, level, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), track_versions(count), ${OWNER}`;
-const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, description, tags, level, status, owner_id, reference_url`;
+const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, listener_comment_count, needs_ears, play_count, published_at, feedback_wants, level, description, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), track_versions(count), ${OWNER}`;
+const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, tags, status, owner_id, reference_url`;
 
 // Bars in the card waveform (MiniWaveform's default).
 const CARD_BARS = 72;
@@ -48,6 +48,7 @@ type SummaryRow = {
   published_at: string;
   feedback_wants: TrackSummary["feedback_wants"];
   level: TrackSummary["level"];
+  description: TrackSummary["description"];
   reaction_counts: Json;
   // How many versions, counted by PostgREST.
   track_versions: { count: number }[];
@@ -90,6 +91,7 @@ async function toCards(
     published_at: row.published_at,
     feedback_wants: row.feedback_wants,
     level: row.level,
+    description: row.description,
     version_count: row.track_versions[0]?.count ?? 1,
     reaction_counts: reactionCounts(row.reaction_counts),
     genre: row.genre!,

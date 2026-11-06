@@ -18,13 +18,6 @@ const TAB_LABELS: Record<FeedTab, string> = {
   trending: "Trending",
 };
 
-const TAB_INTROS: Record<FeedTab, string> = {
-  "needs-ears":
-    "Tracks that haven't had much feedback yet. Give feedback, and your own tracks get seen more.",
-  latest: "The newest tracks, most recent first.",
-  trending: "Tracks getting the most feedback and reactions this week.",
-};
-
 export async function generateMetadata({
   searchParams,
 }: PageProps<"/feed">): Promise<Metadata> {
@@ -58,47 +51,42 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
   const { tracks, hasMore } = await getFeed(tab, genre?.slug ?? null, page);
 
   return (
-    // The same column as every other page: the tracks get all of it.
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Feed</h1>
+    // The tracks, and nothing else: the tabs on top, the genre beside
+    // them, and a row per track.
+    <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-8">
+      <h1 className="sr-only">Feed</h1>
+      <div className="flex items-end justify-between gap-3 border-b">
+        <nav aria-label="Feed tabs" className="relative min-w-0">
+          <ul className="-mb-px flex gap-5">
+            {FEED_TABS.map((t) => (
+              <li key={t}>
+                <Link
+                  href={feedHref(t, genre?.slug ?? null)}
+                  aria-current={t === tab ? "page" : undefined}
+                  className={cn(
+                    "inline-flex h-11 items-center border-b-2 border-transparent text-[15px] whitespace-nowrap text-muted-foreground focus-ring outline-none hover:text-foreground",
+                    "aria-[current=page]:border-foreground aria-[current=page]:font-semibold aria-[current=page]:text-foreground in-data-[underline=ready]:aria-[current=page]:border-transparent",
+                  )}
+                >
+                  {TAB_LABELS[t]}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <SlidingUnderline
+            selector='[aria-current="page"]'
+            className="-bottom-px bg-foreground"
+          />
+        </nav>
         <GenreFilter genres={genres} value={genre?.slug ?? ""} tab={tab} />
       </div>
-
-      <nav aria-label="Feed tabs" className="relative mt-6 border-b">
-        <ul className="-mb-px flex gap-1">
-          {FEED_TABS.map((t) => (
-            <li key={t}>
-              <Link
-                href={feedHref(t, genre?.slug ?? null)}
-                aria-current={t === tab ? "page" : undefined}
-                className={cn(
-                  "inline-flex h-10 items-center border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground focus-ring outline-none hover:text-foreground",
-                  "aria-[current=page]:border-primary aria-[current=page]:text-foreground in-data-[underline=ready]:aria-[current=page]:border-transparent",
-                )}
-              >
-                {TAB_LABELS[t]}
-              </Link>
-            </li>
-          ))}
-        </ul>
-        <SlidingUnderline
-          selector='[aria-current="page"]'
-          className="-bottom-px"
-        />
-      </nav>
-      {/* Two lines kept for every tab, so the tracks start in the same
-          place whichever tab is open. */}
-      <p className="mt-3 min-h-[2lh] text-sm text-muted-foreground">
-        {TAB_INTROS[tab]}
-      </p>
-      <div className="mt-6">
+      <div>
         <h2 className="sr-only">
           {TAB_LABELS[tab]}
           {genre ? `, ${genre.name}` : ""}
         </h2>
         {page > 1 ? (
-          <Button asChild variant="ghost" size="sm" className="mb-4">
+          <Button asChild variant="ghost" size="sm" className="mt-4">
             <Link href={feedHref(tab, genre?.slug ?? null)}>
               <ChevronUpIcon /> Back to the top
             </Link>

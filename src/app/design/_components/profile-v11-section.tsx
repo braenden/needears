@@ -8,13 +8,7 @@ import { BadgeList } from "@/components/profile/badges";
 import { ProfileEditor } from "@/components/profile/profile-editor";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { ProfileStatsBlock } from "@/components/profile/profile-stats";
-import {
-  jonas,
-  mia,
-  newcomer,
-  profileExtras,
-  statsFor,
-} from "@/mocks/profiles";
+import { jonas, mia, newcomer, profileExtras } from "@/mocks/profiles";
 import type { Profile } from "@/types/view";
 
 import { Example, Section } from "./section";
@@ -33,13 +27,9 @@ function ProfilePage({
     <div className="grid gap-5">
       <ProfileHeader
         profile={profile}
-        stats={statsFor[profile.id]!}
         isOwn={isOwn}
         headingLevel={3}
-        workingOn={extras.workingOn}
-        daw={extras.daw}
         links={extras.links}
-        showStats={false}
       />
       <ProfileStatsBlock stats={extras.stats} />
       <BadgeList badges={extras.badges} showLocked={isOwn} />

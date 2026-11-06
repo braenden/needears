@@ -47,7 +47,7 @@ export default async function HomePage() {
           <TrackList
             tracks={featured}
             label="Featured tracks"
-            className="mt-4 grid gap-3"
+            className="mt-4"
           />
           <Link
             href="/feed"

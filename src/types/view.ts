@@ -44,6 +44,7 @@ export type TrackSummary = Pick<
   | "published_at"
   | "feedback_wants"
   | "level"
+  | "description"
 > & {
   /** How many versions, where loaded (cards). 1 if never replaced. */
   version_count?: number;

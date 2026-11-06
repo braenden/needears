@@ -12,8 +12,9 @@ import {
 import { freshAudioUrl } from "@/app/actions/media";
 import { useSharedAudio } from "@/components/player/shared-audio";
 import { useListenVolume } from "@/hooks/use-volume";
+import { cn } from "@/lib/utils";
 import type { TrackSummary } from "@/types/view";
-import { TrackCard } from "./track-card";
+import { TrackRow } from "./track-row";
 
 export type PlayableTrack = TrackSummary & { audioUrl: string | null };
 
@@ -21,15 +22,15 @@ export type PlayableTrack = TrackSummary & { audioUrl: string | null };
 const STALE_MS = 50 * 60 * 1000;
 
 /**
- * A list of track cards that can be played in place, on the site's shared
- * audio element, so starting a track stops the one before it, and a track
- * keeps playing when its page is opened.
+ * A list of tracks, one row each, that can be played in place, on the
+ * site's shared audio element, so starting a track stops the one before
+ * it, and a track keeps playing when its page is opened. Thin lines
+ * between the rows, no box around them.
  */
 export function TrackList({
   tracks,
   label,
   showOwner = true,
-  showNeedsEars = true,
   className,
 }: {
   tracks: PlayableTrack[];
@@ -37,8 +38,6 @@ export function TrackList({
   label: string;
   /** Off where every track is by the same person, like on a profile. */
   showOwner?: boolean;
-  /** Off where every track needs ears anyway (that tab of the feed). */
-  showNeedsEars?: boolean;
   className?: string;
 }) {
   const shared = useSharedAudio();
@@ -229,10 +228,10 @@ export function TrackList({
   }
 
   return (
-    <ul aria-label={label} className={className}>
+    <ul aria-label={label} className={cn("divide-y", className)}>
       {tracks.map((track) => (
         <li key={track.id}>
-          <TrackCard
+          <TrackRow
             track={track}
             playing={playingId === track.id && isPlaying}
             progress={
@@ -246,7 +245,6 @@ export function TrackList({
             onSeek={seek}
             onCue={cue}
             showOwner={showOwner}
-            showNeedsEars={showNeedsEars}
           />
         </li>
       ))}

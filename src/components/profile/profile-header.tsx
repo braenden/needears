@@ -1,140 +1,68 @@
-import { AudioLinesIcon, PencilIcon } from "lucide-react";
-
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
-import { ReputationBadge } from "@/components/reputation-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { reputationFor } from "@/config/reputation";
 import { cn } from "@/lib/utils";
-import type { Profile, ProfileStats } from "@/types/view";
+import type { Profile } from "@/types/view";
 
 import type { ProfileLink } from "./link-hosts";
 import { ProfileLinks } from "./profile-links";
 
-const memberSince = new Intl.DateTimeFormat("en", {
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
+/**
+ * Who it is: picture, name, @handle, the bio and the links. The numbers,
+ * badges and the rest are under About. Edit profile sits on the right on
+ * wide screens and under the bio on phones.
+ */
 export function ProfileHeader({
   profile,
-  stats,
   isOwn = false,
   onEdit,
   headingLevel = 1,
-  workingOn,
-  daw,
   links = [],
-  showStats = true,
   className,
 }: {
-  profile: Profile;
-  stats: ProfileStats;
+  profile: Pick<Profile, "handle" | "display_name" | "avatar_url" | "bio">;
   isOwn?: boolean;
   onEdit?: () => void;
   /** 1 on the profile page. Lower when shown inside another page. */
   headingLevel?: 1 | 2 | 3;
-  /** One line about what they are making now. */
-  workingOn?: string | null;
-  daw?: string | null;
   links?: ProfileLink[];
-  /** Turn off when ProfileStatsBlock is shown under the header instead. */
-  showStats?: boolean;
   className?: string;
 }) {
   const Heading = `h${headingLevel}` as const;
-  const name = displayNameOf(profile);
-  const rep = reputationFor(stats.helpfulReceived);
-  const toNext = rep.next ? rep.next.minHelpful - stats.helpfulReceived : 0;
+  const edit = (extra: string) =>
+    isOwn ? (
+      <Button variant="outline" size="sm" onClick={onEdit} className={extra}>
+        Edit profile
+      </Button>
+    ) : null;
 
   return (
     <header className={cn("@container", className)}>
-      <div className="flex flex-col gap-4 @md:flex-row @md:items-end">
+      <div className="flex items-center gap-4 @md:gap-6">
         <UserAvatar
           profile={profile}
           size="xl"
-          className="ring-4 ring-background"
+          className="@md:size-24 @md:text-2xl"
         />
         <div className="min-w-0 flex-1">
           <Heading className="font-display text-3xl leading-[1.05] font-bold tracking-tight break-words @md:text-4xl">
-            {name}
+            {displayNameOf(profile)}
           </Heading>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
-            <span className="break-all">@{profile.handle}</span>
-            <ReputationBadge helpful={stats.helpfulReceived} showNew={isOwn} />
-            <span>
-              Member since{" "}
-              <time dateTime={profile.created_at}>
-                {memberSince.format(new Date(profile.created_at))}
-              </time>
-            </span>
-          </div>
+          <p className="mt-1 text-[15px] break-all text-muted-foreground">
+            @{profile.handle}
+          </p>
         </div>
-        {isOwn ? (
-          <Button
-            variant="outline"
-            onClick={onEdit}
-            className="self-start @md:self-end"
-          >
-            <PencilIcon /> Edit profile
-          </Button>
-        ) : null}
+        {edit("hidden shrink-0 @md:inline-flex")}
       </div>
-
       {profile.bio ? (
-        <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-pretty break-words">
+        <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-pretty break-words">
           {profile.bio}
         </p>
       ) : null}
-
-      {workingOn ? (
-        <p className="mt-3 max-w-prose text-sm text-pretty break-words">
-          <span className="text-muted-foreground">Working on </span>
-          {workingOn}
-        </p>
-      ) : null}
-      {daw ? (
-        <p className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-          <AudioLinesIcon className="size-4 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 break-words">Makes music in {daw}</span>
-        </p>
-      ) : null}
       {links.length > 0 ? (
-        <ProfileLinks links={links} className="mt-3" />
+        <ProfileLinks links={links} className="mt-2" />
       ) : null}
-
-      {showStats ? (
-        <dl className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-xl border bg-border">
-          {(
-            [
-              ["Tracks", stats.tracks],
-              ["Comments given", stats.commentsGiven],
-              ["Helpful received", stats.helpfulReceived],
-            ] as const
-          ).map(([label, value]) => (
-            <div
-              key={label}
-              className="flex flex-col-reverse gap-0.5 bg-card px-3 py-3 @sm:px-4"
-            >
-              <dt className="text-xs leading-tight text-muted-foreground">
-                {label}
-              </dt>
-              <dd data-numeric className="text-xl font-semibold @sm:text-2xl">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-
-      {isOwn ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          {rep.next
-            ? `${toNext} more Helpful ${toNext === 1 ? "mark" : "marks"} to reach ${rep.next.name}.`
-            : "You're a Golden ear. Thank you."}
-        </p>
-      ) : null}
+      {edit("mt-4 w-full @md:hidden")}
     </header>
   );
 }
@@ -142,15 +70,14 @@ export function ProfileHeader({
 export function ProfileHeaderSkeleton() {
   return (
     <div role="status" aria-label="Loading profile">
-      <div className="flex items-end gap-4">
+      <div className="flex items-center gap-4">
         <Skeleton className="size-20 rounded-full" />
         <div className="flex-1 space-y-2">
           <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-64 max-w-full" />
+          <Skeleton className="h-4 w-32" />
         </div>
       </div>
-      <Skeleton className="mt-4 h-4 w-full max-w-prose" />
-      <Skeleton className="mt-5 h-20 w-full rounded-xl" />
+      <Skeleton className="mt-4 h-4 w-full max-w-2xl" />
     </div>
   );
 }

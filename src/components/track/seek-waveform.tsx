@@ -22,6 +22,7 @@ export function SeekWaveform({
   onSeek,
   onMove,
   onToggle,
+  barsClassName = "h-10 @sm:h-12",
   className,
 }: {
   track: Pick<TrackSummary, "title" | "peaks" | "duration_ms">;
@@ -33,6 +34,8 @@ export function SeekWaveform({
   onMove: (at: number) => void;
   /** Space or Enter: play or pause. */
   onToggle: () => void;
+  /** The height of the bars. */
+  barsClassName?: string;
   className?: string;
 }) {
   const bar = useRef<HTMLDivElement>(null);
@@ -86,7 +89,7 @@ export function SeekWaveform({
       <MiniWaveform
         peaks={track.peaks}
         progress={progress}
-        className="pointer-events-none h-10 @sm:h-12"
+        className={cn("pointer-events-none", barsClassName)}
       />
     </div>
   );

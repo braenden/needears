@@ -16,7 +16,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { FullProfile } from "@/lib/data/profiles";
-import type { ProfileStats } from "@/types/view";
 
 /** Opens the editor as a panel over the profile. */
 const EDIT_PARAM = "edit";
@@ -25,12 +24,10 @@ const EDIT_PARAM = "edit";
 // screens, so the changes show behind it; its own page on phones.
 export function OwnProfileHeader({
   profile,
-  stats,
   isOwn,
   editable,
 }: {
   profile: FullProfile;
-  stats: ProfileStats;
   isOwn: boolean;
   /** Only on your own profile. */
   editable: EditableProfile | null;
@@ -41,7 +38,6 @@ export function OwnProfileHeader({
     <>
       <ProfileHeader
         profile={profile}
-        stats={stats}
         isOwn={isOwn}
         onEdit={() => {
           if (window.matchMedia("(min-width: 40rem)").matches) {
@@ -52,10 +48,7 @@ export function OwnProfileHeader({
             router.push(EDIT_PROFILE_HREF);
           }
         }}
-        workingOn={profile.workingOn}
-        daw={profile.daw}
         links={profile.links}
-        showStats={false}
       />
       {editable ? (
         <Suspense>

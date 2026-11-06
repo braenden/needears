@@ -68,7 +68,7 @@ test.describe("with a mouse and the keyboard", () => {
   }) => {
     await page.goto(FEED);
     await card(page)
-      .getByRole("link", { name: /comments?$/ })
+      .getByRole("link", { name: /^\d+ comments?/ })
       .click();
     await expect(page).toHaveURL(/\/t\/night-bus-seed0002#comments$/);
     await expectCommentsAtTop(page);
@@ -104,7 +104,7 @@ test.describe("with a finger", () => {
   test("the comment count lands below the sticky player", async ({ page }) => {
     await page.goto(FEED);
     await card(page)
-      .getByRole("link", { name: /comments?$/ })
+      .getByRole("link", { name: /^\d+ comments?/ })
       .tap();
     await expect(page).toHaveURL(/#comments$/);
     await expectCommentsAtTop(page);
