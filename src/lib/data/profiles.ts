@@ -1,4 +1,5 @@
 import "server-only";
+import { aborted, describeError } from "@/lib/data/errors";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cacheLife } from "next/cache";
 import { connection } from "next/server";
@@ -37,7 +38,7 @@ async function cachedGenres(): Promise<Genre[]> {
     .from("genres")
     .select("slug, name")
     .order("name");
-  if (error) throw new Error(`Genres failed: ${error.code}`);
+  if (error) throw new Error(`Genres failed: ${describeError(error)}`);
   return data;
 }
 
@@ -78,7 +79,7 @@ export async function getProfileByHandle(
     .select(PROFILE_COLUMNS)
     .eq("handle", handle)
     .maybeSingle();
-  if (error) throw new Error(`Profile failed: ${error.code}`);
+  if (error) throw new Error(`Profile failed: ${describeError(error)}`);
   if (!data) return null;
   const { working_on, daw, links, ...profile } = await withAvatar(
     supabase,
@@ -90,6 +91,24 @@ export async function getProfileByHandle(
     daw,
     links: parseLinks(links),
   };
+}
+
+/**
+ * The current handle of whoever had `handle` before they changed it, so
+ * old profile links still work, or null. Asked as the visitor; the
+ * database only answers for profiles that are not banned.
+ */
+export async function currentHandleFor(handle: string): Promise<string | null> {
+  if (!/^[a-z0-9_]{3,20}$/.test(handle)) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("resolve_old_handle", {
+    p_handle: handle,
+  });
+  if (error) {
+    console.error("Old handle lookup failed", error.code);
+    return null;
+  }
+  return data && data !== handle ? data : null;
 }
 
 /**
@@ -106,7 +125,7 @@ export async function getEditableProfile(
     .select("avatar_key, avatar_url, working_on, daw, links")
     .eq("id", userId)
     .single();
-  if (error) throw new Error(`Profile failed: ${error.code}`);
+  if (error) throw new Error(`Profile failed: ${describeError(error)}`);
   return {
     userId,
     profile,
@@ -172,13 +191,23 @@ export async function getCommentsBy(
     .eq("status", "live")
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`Comments failed: ${error.code}`);
+  if (error) throw new Error(`Comments failed: ${describeError(error)}`);
   return data.filter((c) => c.track);
 }
 
 export type FeedbackRecord = {
   stats: ProfileStatsV2;
   badges: EarnedBadge[];
+};
+
+const EMPTY_RECORD: FeedbackRecord = {
+  stats: {
+    commentsGiven: 0,
+    helpfulReceived: 0,
+    helpfulShare: 0,
+    weekStreak: 0,
+  },
+  badges: [],
 };
 
 // How someone gives feedback (profile_stats) and the badges they have.
@@ -194,8 +223,17 @@ export async function getFeedbackRecord(
       .eq("user_id", userId)
       .order("awarded_at"),
   ]);
-  if (stats.error) throw new Error(`Stats failed: ${stats.error.code}`);
-  if (badges.error) throw new Error(`Badges failed: ${badges.error.code}`);
+  // The page was left before the answer came: nobody sees it, so nothing
+  // to report.
+  if (
+    (stats.error && aborted(stats.error)) ||
+    (badges.error && aborted(badges.error))
+  )
+    return EMPTY_RECORD;
+  if (stats.error)
+    throw new Error(`Stats failed: ${describeError(stats.error)}`);
+  if (badges.error)
+    throw new Error(`Badges failed: ${describeError(badges.error)}`);
   const row = stats.data[0];
   return {
     stats: {

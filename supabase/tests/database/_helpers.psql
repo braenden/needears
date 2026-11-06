@@ -8,7 +8,8 @@ begin
   insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data, created_at, updated_at)
   values ('00000000-0000-0000-0000-000000000000', p_id, 'authenticated', 'authenticated',
     p_handle || '@test.local', jsonb_build_object('handle', p_handle), now(), now());
-  update public.profiles set created_at = now() - p_age where id = p_id;
+  -- Test users have chosen their username, unless a test says otherwise.
+  update public.profiles set created_at = now() - p_age, onboarded_at = now() where id = p_id;
   return p_id;
 end;
 $$;

@@ -37,7 +37,8 @@ test("without Google set up, the card only lists the email link", async ({
   const card = page.getByRole("region", { name: "Account", exact: true });
   await expect(card.getByText("jonas@example.com")).toBeVisible();
   await expect(card.getByText("Not connected")).toBeVisible();
-  await expect(card.getByRole("button")).toHaveCount(0);
+  // Only changing the address, nothing for Google.
+  await expect(card.getByRole("button")).toHaveText(["Change"]);
   await expect(card.getByRole("link")).toHaveCount(0);
 
   // The data export names the address of each way to sign in.

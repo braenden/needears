@@ -90,10 +90,10 @@ describe("range comments in the list and markers", () => {
       </TooltipProvider>,
     );
     expect(
-      screen.getByRole("button", { name: "Jump to 1:04 to 1:36" }),
+      screen.getByRole("button", { name: "Play from 1:04 to 1:36" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Jump to 1:42" }),
+      screen.getByRole("button", { name: "Play from 1:42" }),
     ).toBeInTheDocument();
   });
 

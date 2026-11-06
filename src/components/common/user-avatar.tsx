@@ -1,3 +1,5 @@
+import { UserIcon } from "lucide-react";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Profile } from "@/types/view";
 
@@ -20,17 +22,22 @@ export function UserAvatar({
   profile,
   size = "default",
   className,
+  anonymous = false,
 }: {
   profile: Pick<Profile, "display_name" | "handle" | "avatar_url">;
   size?: "sm" | "default" | "lg" | "xl";
   className?: string;
+  /** No name chosen yet: a plain figure instead of initials. */
+  anonymous?: boolean;
 }) {
   return (
     <Avatar size={size} className={className} aria-hidden="true">
       {profile.avatar_url ? (
         <AvatarImage src={profile.avatar_url} alt="" />
       ) : null}
-      <AvatarFallback>{initials(profile)}</AvatarFallback>
+      <AvatarFallback>
+        {anonymous ? <UserIcon className="size-[55%]" /> : initials(profile)}
+      </AvatarFallback>
     </Avatar>
   );
 }

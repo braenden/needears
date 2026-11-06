@@ -17,6 +17,7 @@ import {
   linkError,
   LINKS_MAX,
   type ProfileLink,
+  withHttps,
 } from "./link-hosts";
 
 export const WORKING_ON_MAX = 120;
@@ -109,7 +110,15 @@ export function ProfileEditor({
     setLinks((list) =>
       list.map((l, i) => (i === index ? { ...l, ...patch } : l)),
     );
-    setLinkErrors((errors) => errors.map((e, i) => (i === index ? null : e)));
+    // A link with an error is checked again as it changes: the error goes
+    // once the link is fine, and says what is still wrong until then.
+    setLinkErrors((errors) =>
+      errors.map((e, i) =>
+        i === index && e && patch.url !== undefined
+          ? linkError({ label: "", url: withHttps(patch.url) })
+          : e,
+      ),
+    );
   }
 
   async function save(event: React.FormEvent) {
@@ -125,7 +134,7 @@ export function ProfileEditor({
     // One address per link. The profile shows the service's name, so there
     // is no label to fill in.
     const cleaned = links
-      .map((l) => ({ label: "", url: l.url.trim() }))
+      .map((l) => ({ label: "", url: withHttps(l.url) }))
       .filter((l) => l.url);
     const errors = cleaned.map(linkError);
     if (errors.some(Boolean)) {
@@ -188,7 +197,15 @@ export function ProfileEditor({
         <Input
           id={`${id}-handle`}
           value={handle}
-          onChange={(e) => setHandle(e.target.value)}
+          onChange={(e) => {
+            setHandle(e.target.value);
+            // The error goes as soon as the name is fine.
+            if (
+              handleError &&
+              HANDLE_PATTERN.test(e.target.value.trim().toLowerCase())
+            )
+              setHandleError(null);
+          }}
           maxLength={20}
           autoCapitalize="none"
           autoComplete="username"
@@ -294,7 +311,7 @@ export function ProfileEditor({
                 <li key={index} className="grid gap-1">
                   <div className="@container flex flex-wrap items-center gap-2">
                     <span className="grid size-10 shrink-0 place-items-center rounded-md border text-muted-foreground">
-                      <HostIcon host={hostOf(link.url)} />
+                      <HostIcon host={hostOf(withHttps(link.url))} />
                     </span>
                     <Input
                       aria-label={`Link ${n} address`}
@@ -302,6 +319,11 @@ export function ProfileEditor({
                       inputMode="url"
                       placeholder="https://soundcloud.com/you"
                       onChange={(e) => editLink(index, { url: e.target.value })}
+                      // Shows the https:// it will be saved with.
+                      onBlur={() => {
+                        const full = withHttps(link.url);
+                        if (full !== link.url) editLink(index, { url: full });
+                      }}
                       aria-invalid={linkErrorText ? true : undefined}
                       aria-describedby={
                         linkErrorText ? `${id}-link-${index}-error` : undefined

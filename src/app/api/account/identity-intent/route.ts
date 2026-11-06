@@ -4,19 +4,29 @@ import { BodyError, databaseError, jsonError, readJson } from "@/lib/api/http";
 import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const bodySchema = z
-  .object({
-    action: z.enum(["link", "unlink"]),
-    provider: z.enum(["google"]),
-  })
-  .strict();
+const bodySchema = z.union([
+  z
+    .object({
+      action: z.enum(["link", "unlink"]),
+      provider: z.enum(["google"]),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("email_change"),
+      provider: z.literal("email"),
+    })
+    .strict(),
+]);
 
-// Step 1 of linking or unlinking a way to sign in. Checks that the session
-// making this request signed in within REAUTH_WINDOW_MS (its own `amr`
-// claim, so a stolen or forgotten session cannot pass because the owner
-// signed in somewhere else), signs out the account's other sessions, then
-// leaves a one time intent the database requires for the change. The intent lasts five minutes. Step 2 is the
-// Supabase Auth call itself (linkIdentity or unlinkIdentity).
+// Step 1 of linking or unlinking a way to sign in, or of changing the
+// account email. Checks that the session making this request signed in
+// within REAUTH_WINDOW_MS (its own `amr` claim, so a stolen or forgotten
+// session cannot pass because the owner signed in somewhere else), signs
+// out the account's other sessions, then leaves a one time intent the
+// database requires for the change. The intent lasts five minutes. Step 2
+// is the Supabase Auth call itself (linkIdentity, unlinkIdentity, or
+// updateUser with a new email).
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if (auth instanceof Response) return auth;
@@ -33,7 +43,7 @@ export async function POST(request: Request) {
     return jsonError(
       400,
       "invalid_intent",
-      "Choose link or unlink and a provider.",
+      "Choose link, unlink or email_change, and a provider.",
     );
 
   const claims = await auth.supabase.auth.getClaims(auth.token ?? undefined);
@@ -44,6 +54,27 @@ export async function POST(request: Request) {
     return jsonError(403, "reauth_required", "Sign in again to continue.");
 
   const admin = createAdminClient();
+  // The session asking, so only it can reuse its intent below.
+  const sessionId = z.uuid().safeParse(claims.data?.claims.session_id).data;
+
+  // This session trying an email change again while its intent is still
+  // unused (the send failed, or the person pressed twice): the other
+  // sessions were signed out when it was made, so it stands and nothing is
+  // done again. Any other session goes the usual way below.
+  if (body.data.action === "email_change" && sessionId) {
+    const open = await admin.rpc("has_identity_intent", {
+      p_user: auth.user.id,
+      p_action: "email_change",
+      p_provider: "email",
+      p_session: sessionId,
+    });
+    if (open.error) return databaseError(open.error);
+    if (open.data)
+      return new Response(null, {
+        status: 204,
+        headers: { "Cache-Control": "no-store" },
+      });
+  }
 
   // Sign out every other session first, so a stolen one cannot use the
   // intent this session is about to get.
@@ -67,6 +98,7 @@ export async function POST(request: Request) {
     p_user: auth.user.id,
     p_action: body.data.action,
     p_provider: body.data.provider,
+    p_session: sessionId,
   });
   if (created.error) return databaseError(created.error);
 

@@ -48,7 +48,9 @@ export function MobileMenu({
     ...NAV,
     ...(user
       ? [
-          { href: EDIT_PROFILE_HREF, label: "Edit profile" },
+          ...(user.needsHandle
+            ? []
+            : [{ href: EDIT_PROFILE_HREF, label: "Edit profile" }]),
           { href: "/settings", label: "Settings" },
           ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
         ]
@@ -72,7 +74,23 @@ export function MobileMenu({
           Navigation and account
         </DialogDescription>
         {/* Every row starts on the same edge. */}
-        {user ? (
+        {user?.needsHandle ? (
+          <Link
+            href="/welcome"
+            onClick={close}
+            aria-current={pathname === "/welcome" ? "page" : undefined}
+            className="mr-10 flex items-center gap-3 rounded-md px-3 py-2 focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent"
+          >
+            <UserAvatar profile={user} size="lg" anonymous />
+            <span className="min-w-0 flex-1 font-semibold">
+              Pick a username
+            </span>
+            <ChevronRightIcon
+              className="size-4 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+          </Link>
+        ) : user ? (
           <Link
             href={`/u/${user.handle}`}
             onClick={close}
@@ -143,26 +161,36 @@ export function UserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="touch-hit rounded-full">
-          <UserAvatar profile={user} />
+          <UserAvatar profile={user} anonymous={user.needsHandle} />
           <span className="sr-only">Account menu</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
-        <DropdownMenuItem asChild>
-          <Link href={`/u/${user.handle}`} className="grid gap-0">
-            <span className="truncate font-semibold">
-              {displayNameOf(user)}
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
-              @{user.handle}
-            </span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          {/* The profile with the editor open over it. */}
-          <Link href={`/u/${user.handle}?edit=profile`}>Edit profile</Link>
-        </DropdownMenuItem>
+        {user.needsHandle ? (
+          <DropdownMenuItem asChild>
+            <Link href="/welcome" className="font-semibold">
+              Pick a username
+            </Link>
+          </DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuItem asChild>
+              <Link href={`/u/${user.handle}`} className="grid gap-0">
+                <span className="truncate font-semibold">
+                  {displayNameOf(user)}
+                </span>
+                <span className="truncate text-xs text-muted-foreground">
+                  @{user.handle}
+                </span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              {/* The profile with the editor open over it. */}
+              <Link href={`/u/${user.handle}?edit=profile`}>Edit profile</Link>
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuItem asChild>
           <Link href="/settings">Settings</Link>
         </DropdownMenuItem>

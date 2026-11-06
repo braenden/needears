@@ -93,6 +93,8 @@ export default async function TrackPage({
               profile: viewer.profile,
               commentsPerHour: reputationLevelFor(viewer.profile.reputation)
                 .limits.commentsPerHour,
+              isAdmin: viewer.isAdmin,
+              onboarded: viewer.onboarded,
             }
           : null
       }

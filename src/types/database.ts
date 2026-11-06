@@ -37,7 +37,7 @@ export type Database = {
       };
       comments: {
         Row: {
-          author_id: string;
+          author_id: string | null;
           body: string;
           category: Database["public"]["Enums"]["feedback_category"];
           created_at: string;
@@ -55,7 +55,7 @@ export type Database = {
           version_id: string | null;
         };
         Insert: {
-          author_id?: string;
+          author_id?: string | null;
           body: string;
           category?: Database["public"]["Enums"]["feedback_category"];
           created_at?: string;
@@ -73,7 +73,7 @@ export type Database = {
           version_id?: string | null;
         };
         Update: {
-          author_id?: string;
+          author_id?: string | null;
           body?: string;
           category?: Database["public"]["Enums"]["feedback_category"];
           created_at?: string;
@@ -196,6 +196,32 @@ export type Database = {
         };
         Relationships: [];
       };
+      handle_history: {
+        Row: {
+          changed_at: string;
+          handle: string;
+          profile_id: string;
+        };
+        Insert: {
+          changed_at?: string;
+          handle: string;
+          profile_id: string;
+        };
+        Update: {
+          changed_at?: string;
+          handle?: string;
+          profile_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "handle_history_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       link_hosts: {
         Row: {
           any_subdomain: boolean;
@@ -298,6 +324,7 @@ export type Database = {
           handle: string;
           id: string;
           links: Json;
+          onboarded_at: string | null;
           reputation: number;
           role: Database["public"]["Enums"]["user_role"];
           working_on: string;
@@ -314,6 +341,7 @@ export type Database = {
           handle: string;
           id: string;
           links?: Json;
+          onboarded_at?: string | null;
           reputation?: number;
           role?: Database["public"]["Enums"]["user_role"];
           working_on?: string;
@@ -330,6 +358,7 @@ export type Database = {
           handle?: string;
           id?: string;
           links?: Json;
+          onboarded_at?: string | null;
           reputation?: number;
           role?: Database["public"]["Enums"]["user_role"];
           working_on?: string;
@@ -752,9 +781,15 @@ export type Database = {
         Returns: boolean;
       };
       create_identity_intent: {
-        Args: { p_action: string; p_provider: string; p_user: string };
+        Args: {
+          p_action: string;
+          p_provider: string;
+          p_session?: string;
+          p_user: string;
+        };
         Returns: undefined;
       };
+      delete_comment: { Args: { p_comment: string }; Returns: string };
       discard_upload: {
         Args: { p_object: string; p_user: string };
         Returns: boolean;
@@ -865,6 +900,15 @@ export type Database = {
         };
       };
       forget_expired_upload_reservations: { Args: never; Returns: undefined };
+      has_identity_intent: {
+        Args: {
+          p_action: string;
+          p_provider: string;
+          p_session: string;
+          p_user: string;
+        };
+        Returns: boolean;
+      };
       is_admin: { Args: never; Returns: boolean };
       mark_emails_failed: { Args: { p_ids: number[] }; Returns: undefined };
       mark_emails_sent: {
@@ -916,6 +960,7 @@ export type Database = {
         };
       };
       reserve_upload: { Args: { p_track?: string }; Returns: string };
+      resolve_old_handle: { Args: { p_handle: string }; Returns: string };
       search: {
         Args: { p_limit?: number; p_query: string };
         Returns: {
@@ -958,7 +1003,7 @@ export type Database = {
     Enums: {
       badge_kind:
         "first_ears" | "finisher" | "ten_tracks_helped" | "golden_ear";
-      comment_status: "live" | "hidden" | "deleted";
+      comment_status: "live" | "hidden" | "deleted" | "withdrawn";
       feedback_category:
         "mix" | "arrangement" | "vocals" | "sound_design" | "vibe";
       notification_kind: "comment" | "reply" | "helpful" | "moderation";
@@ -1098,7 +1143,7 @@ export const Constants = {
   public: {
     Enums: {
       badge_kind: ["first_ears", "finisher", "ten_tracks_helped", "golden_ear"],
-      comment_status: ["live", "hidden", "deleted"],
+      comment_status: ["live", "hidden", "deleted", "withdrawn"],
       feedback_category: [
         "mix",
         "arrangement",

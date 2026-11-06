@@ -76,9 +76,12 @@ export function TrackManager({ tracks }: { tracks: OwnTrack[] }) {
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Tracks under review stay until a moderator has looked at them.
-      </p>
+      {/* Only when it applies: it says why a delete button is off. */}
+      {tracks.some((t) => t.status === "hidden") ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          You can delete a track under review once a moderator has looked at it.
+        </p>
+      ) : null}
       <DeleteTrackDialog
         track={confirm}
         onClose={() => setConfirm(null)}

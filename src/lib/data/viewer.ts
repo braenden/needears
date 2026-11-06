@@ -11,10 +11,12 @@ export type Viewer = {
   profile: Profile;
   isAdmin: boolean;
   unread: number;
+  /** Has picked a username. Until then the handle is a placeholder. */
+  onboarded: boolean;
 };
 
 const PROFILE_COLUMNS =
-  "id, handle, display_name, avatar_url, avatar_key, reputation, bio, created_at, role";
+  "id, handle, display_name, avatar_url, avatar_key, reputation, bio, created_at, role, onboarded_at";
 
 // The signed in person for this request, or null. Deduplicated per request
 // with React.cache, so the layout and the page share one lookup. The JWT is
@@ -41,11 +43,17 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
       .is("read_at", null),
   ]);
   if (!profile.data) return null;
-  const { role, ...rest } = await withAvatar(supabase, profile.data);
+  const { role, onboarded_at, ...rest } = await withAvatar(
+    supabase,
+    profile.data,
+  );
   return {
     userId,
     profile: rest,
     isAdmin: role === "admin",
     unread: unread.count ?? 0,
+    // Set by the database the first time a username is saved; until then
+    // it refuses anything posted in this person's name.
+    onboarded: onboarded_at !== null,
   };
 });

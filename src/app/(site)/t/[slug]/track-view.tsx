@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  keepPending,
+  type PendingPost,
+  takePending,
+} from "@/lib/comments/pending";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -24,6 +29,8 @@ import {
   activeCommentAt,
   type CommentFilter,
   CommentList,
+  type DeleteResult,
+  isWithdrawn,
 } from "@/components/comments/comment-list";
 import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
@@ -74,10 +81,28 @@ import type {
   ReportReason,
   ThreadComment,
   Track,
+  TrackVersion,
 } from "@/types/view";
 
+/**
+ * The database refuses posts from someone who has not picked a username
+ * yet (the page asks first, so this is only for a stale page).
+ */
+function handleRequired(error: { code?: string; message?: string }) {
+  return error.code === "42501" && error.message === "handle_required";
+}
+
+/** Who a deleted comment kept for its replies is from: nobody. */
+const WITHDRAWN_AUTHOR = {
+  id: "",
+  handle: "",
+  display_name: "",
+  avatar_url: null,
+  reputation: 0,
+};
+
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
+  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, edited_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, reputation)";
 
 // Only the owner needs these, so everyone else never downloads them.
 const NewVersion = dynamic(
@@ -100,6 +125,9 @@ type TrackViewer = {
   userId: string;
   profile: Profile;
   commentsPerHour: number;
+  isAdmin: boolean;
+  /** Has picked a username. Until then nothing is posted in their name. */
+  onboarded: boolean;
 };
 
 export function TrackView({
@@ -191,6 +219,12 @@ export function TrackView({
   const [previousVersionId, setPreviousVersionId] = useState<string | null>(
     null,
   );
+  // Just published, until the page has it from the server.
+  const [newVersion, setNewVersion] = useState<TrackVersion | null>(null);
+  const pickable =
+    newVersion && !versions.some((v) => v.id === newVersion.id)
+      ? [...versions, newVersion]
+      : versions;
   const countPlay = usePlayCounter(track.id, track.duration_ms);
   // The site's shared audio element. When the feed was playing this track,
   // the page takes it over and carries on from the same address, without
@@ -246,7 +280,8 @@ export function TrackView({
   const viewerKind = !viewer ? "signed_out" : isOwner ? "owner" : "visitor";
   // Replies sit at their parent's time, so only top-level comments get a
   // marker on the waveform.
-  const topLevel = comments.filter((c) => !c.parent_id);
+  // A deleted comment kept for its replies counts and marks nothing.
+  const topLevel = comments.filter((c) => !c.parent_id && !isWithdrawn(c));
   const listed = comments.filter(onVersion);
   // The version open has no comments, but others do: say where they are,
   // so an empty list does not read as "nobody commented".
@@ -285,8 +320,40 @@ export function TrackView({
     router.push(`/login?next=${encodeURIComponent(back)}`);
   }
 
+  // Signed in without a username yet: whatever they post would carry the
+  // made-up one. They pick a name first and come back here, with what
+  // they wrote kept.
+  const needsName = !!viewer && !viewer.onboarded;
+  function pickNameFirst(post?: PendingPost) {
+    if (post) keepPending(track.id, post);
+    const back = `${pathname}${timeMs > 0 ? `?t=${Math.floor(timeMs / 1000)}` : ""}`;
+    router.push(`/welcome?next=${encodeURIComponent(back)}`);
+  }
+  // Leaving for /welcome: the box stays busy until the page has gone.
+  const leaving = () => new Promise<SubmitResult>(() => {});
+
+  // Back with a name: what they wrote before is put back, ready to post.
+  const [kept, setKept] = useState<PendingPost | null>(null);
+  useEffect(() => {
+    if (!viewer?.onboarded) return;
+    // After the first paint, so the page renders the same on the server.
+    const frame = requestAnimationFrame(() => {
+      const post = takePending(track.id);
+      if (!post) return;
+      setKept(post);
+      if (post.kind === "comment" && post.timeMs !== null && post.endMs != null)
+        setRange({ startMs: post.timeMs, endMs: post.endMs });
+      commentsSection.current?.scrollIntoView({ block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [track.id, viewer?.onboarded]);
+
   async function submit(draft: CommentDraft): Promise<SubmitResult> {
     if (!viewer) return { ok: false, error: "failed" };
+    if (needsName) {
+      pickNameFirst({ kind: "comment", ...draft });
+      return leaving();
+    }
     const { data, error } = await (
       await browserClient()
     )
@@ -304,6 +371,10 @@ export function TrackView({
       .select(COMMENT_COLUMNS)
       .single();
     if (error) {
+      if (handleRequired(error)) {
+        pickNameFirst({ kind: "comment", ...draft });
+        return leaving();
+      }
       if (error.code === "PT429") return { ok: false, error: "rate_limited" };
       if (error.code === "42501") return { ok: false, error: "unavailable" };
       return { ok: false, error: "failed" };
@@ -318,6 +389,10 @@ export function TrackView({
     body: string,
   ): Promise<SubmitResult> {
     if (!viewer) return { ok: false, error: "failed" };
+    if (needsName) {
+      pickNameFirst({ kind: "reply", parentId: parent.id, body });
+      return leaving();
+    }
     const { data, error } = await (
       await browserClient()
     )
@@ -332,6 +407,10 @@ export function TrackView({
       .select(COMMENT_COLUMNS)
       .single();
     if (error) {
+      if (handleRequired(error)) {
+        pickNameFirst({ kind: "reply", parentId: parent.id, body });
+        return leaving();
+      }
       if (error.code === "PT429") return { ok: false, error: "rate_limited" };
       if (error.code === "42501" || error.code === "22023")
         return { ok: false, error: "unavailable" };
@@ -340,6 +419,62 @@ export function TrackView({
     setComments((list) => [...list, withOwnAvatar(data)]);
     setPosted((ids) => [...ids, data.id]);
     return { ok: true };
+  }
+
+  async function editComment(
+    comment: ThreadComment,
+    body: string,
+  ): Promise<SubmitResult> {
+    const { data, error } = await (
+      await browserClient()
+    )
+      .from("comments")
+      .update({ body })
+      .eq("id", comment.id)
+      .select("body, edited_at, is_helpful")
+      .single();
+    if (error) {
+      if (error.code === "PT429") return { ok: false, error: "rate_limited" };
+      if (error.code === "42501" || error.code === "PGRST116")
+        return { ok: false, error: "unavailable" };
+      return { ok: false, error: "failed" };
+    }
+    setComments((list) =>
+      list.map((c) => (c.id === comment.id ? { ...c, ...data } : c)),
+    );
+    return { ok: true };
+  }
+
+  async function deleteComment(comment: ThreadComment): Promise<DeleteResult> {
+    const { data, error } = await (
+      await browserClient()
+    ).rpc("delete_comment", { p_comment: comment.id });
+    if (error) {
+      return error.code === "42501" && /review/i.test(error.details ?? "")
+        ? "under_review"
+        : "failed";
+    }
+    setComments((list) =>
+      data === "withdrawn"
+        ? // Replies keep it in the thread, with nothing of it left.
+          list.map((c) =>
+            c.id === comment.id
+              ? {
+                  ...c,
+                  status: "withdrawn" as const,
+                  body: "",
+                  author_id: "",
+                  is_helpful: false,
+                  author: WITHDRAWN_AUTHOR,
+                }
+              : c,
+          )
+        : list.filter((c) => c.id !== comment.id),
+    );
+    if (selectedId === comment.id) setSelectedId(null);
+    toast.success(comment.parent_id ? "Reply deleted." : "Comment deleted.");
+    router.refresh();
+    return "ok";
   }
 
   async function toggleResolved(comment: ThreadComment, resolved: boolean) {
@@ -373,6 +508,7 @@ export function TrackView({
   }
 
   async function toggleHelpful(comment: Comment, helpful: boolean) {
+    if (needsName) return pickNameFirst();
     setComments((list) =>
       list.map((c) =>
         c.id === comment.id ? { ...c, is_helpful: helpful } : c,
@@ -390,6 +526,7 @@ export function TrackView({
           c.id === comment.id ? { ...c, is_helpful: !helpful } : c,
         ),
       );
+      if (handleRequired(error)) return pickNameFirst();
       toast.error("Couldn't mark that as Helpful. Try again.");
       return;
     }
@@ -405,6 +542,7 @@ export function TrackView({
   const reactionWrites = useRef(Promise.resolve());
   function pickReaction(next: ReactionKind | null) {
     if (!viewer) return;
+    if (needsName) return pickNameFirst();
     const before = mine;
     setMine(next);
     setCounts((c) => moveReaction(c, before, next));
@@ -416,6 +554,7 @@ export function TrackView({
       // Undo this click only; a later one may already have moved on.
       setMine((m) => (m === next ? before : m));
       setCounts((c) => moveReaction(c, next, before));
+      if (handleRequired(error)) return pickNameFirst();
       toast.error(
         error.code === "PT429"
           ? "You've reacted a lot in the last hour. Try again in a bit."
@@ -429,7 +568,7 @@ export function TrackView({
     userId: string,
     before: ReactionKind | null,
     next: ReactionKind | null,
-  ): Promise<{ code?: string } | null> {
+  ): Promise<{ code?: string; message?: string } | null> {
     const supabase = await browserClient();
     const reactions = () => supabase.from("reactions");
     const add = async (kind: ReactionKind) =>
@@ -590,11 +729,11 @@ export function TrackView({
         </div>
       </header>
 
-      {versioned && current ? (
+      {pickable.length > 1 && current ? (
         <VersionPicker
           className="mt-6"
-          versions={versions}
-          currentId={current.id}
+          versions={pickable}
+          currentId={versionId ?? current.id}
           previousId={previousVersionId}
           onSelect={pickVersion}
         />
@@ -780,12 +919,16 @@ export function TrackView({
           trackTitle={track.title}
           versionCount={versions.length}
           onClose={() => setAddingVersion(false)}
-          onPublished={(version) => {
+          // The page under the dialog switches while it says the version
+          // is live, so closing it moves nothing.
+          onLive={(version) => {
+            setNewVersion(version);
             setPreviousVersionId(current?.id ?? null);
             setVersionId(version.id);
             switchSound(version.id);
             router.refresh();
           }}
+          onPublished={() => {}}
         />
       ) : null}
       {viewer && !isOwner ? (
@@ -832,6 +975,10 @@ export function TrackView({
           </h2>
         </div>
         <CommentComposer
+          // A kept comment starts the box over with it in.
+          key={kept?.kind === "comment" ? "kept" : "new"}
+          initialBody={kept?.kind === "comment" ? kept.body : undefined}
+          initialDraft={kept?.kind === "comment" ? kept : undefined}
           ref={composer}
           currentTimeMs={timeMs}
           durationMs={playing.durationMs}
@@ -844,6 +991,7 @@ export function TrackView({
         />
         <CommentList
           className="mt-6"
+          initialReply={kept?.kind === "reply" ? kept : null}
           comments={listed}
           newCommentIds={posted}
           // This version has none, an earlier one has: say where they are,
@@ -881,9 +1029,18 @@ export function TrackView({
           showResolved={showResolved}
           onShowResolvedChange={changeShowResolved}
           onReply={reply}
+          viewerId={viewer?.userId}
+          isAdmin={viewer?.isAdmin ?? false}
+          onEdit={viewer ? editComment : undefined}
+          onDelete={viewer ? deleteComment : undefined}
           onToggleResolved={(c, resolved) => void toggleResolved(c, resolved)}
           onJump={(c) => {
-            if (c.time_ms !== null) player.current?.seekTo(c.time_ms);
+            // The time on a comment plays from there: that is what people
+            // click it for.
+            if (c.time_ms !== null) {
+              player.current?.seekTo(c.time_ms);
+              player.current?.play();
+            }
             setSelectedId(c.id);
           }}
           onToggleHelpful={(c, helpful) => void toggleHelpful(c, helpful)}

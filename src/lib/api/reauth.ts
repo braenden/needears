@@ -1,6 +1,7 @@
-// How recent the session's own sign in must be for account deletion and
-// for adding or removing a way to sign in (POST /api/account/identity-intent,
-// whose intent the database requires for the change).
+// How recent the session's own sign in must be for account deletion, for
+// adding or removing a way to sign in and for changing the account email
+// (POST /api/account/identity-intent, whose intent the database requires
+// for the change).
 export const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 
 // The `amr` methods that are a sign in: email links and codes, Google. We

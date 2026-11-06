@@ -60,18 +60,19 @@ export type Track = TrackSummary &
     "description" | "tags" | "level" | "status" | "owner_id" | "reference_url"
   >;
 
+// author_id is "" for a withdrawn comment (status "withdrawn"), which has
+// no author left; the data layer fills in an empty author for it.
 export type Comment = Pick<
   Tables<"comments">,
   | "id"
   | "track_id"
-  | "author_id"
   | "time_ms"
   | "category"
   | "body"
   | "is_helpful"
   | "status"
   | "created_at"
-> & { author: ProfileSummary };
+> & { author_id: string; author: ProfileSummary };
 
 // A comment on a stretch of the track (comments.end_ms), 1:42 to 1:58.
 export type RangeComment = Comment & { end_ms?: number | null };
@@ -96,6 +97,6 @@ export type ThreadComment = Comment &
   Partial<
     Pick<
       Tables<"comments">,
-      "parent_id" | "resolved_at" | "version_id" | "end_ms"
+      "parent_id" | "resolved_at" | "version_id" | "end_ms" | "edited_at"
     >
   >;

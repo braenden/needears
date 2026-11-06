@@ -39,7 +39,7 @@ type Row = {
     avatar_url: string | null;
   } | null;
   track: { slug: string; title: string } | null;
-  comment: { time_ms: number | null } | null;
+  comment: { time_ms: number | null; body: string } | null;
 };
 
 type Kind = Exclude<ListedNotificationKind, "moderation">;
@@ -64,6 +64,12 @@ const PLURAL: Record<Kind, string> = {
   helpful: "marked your comments as Helpful on",
 };
 
+/** Enough to tell comments apart; the track page has the rest. */
+function snippet(body: string, max = 160) {
+  const text = body.replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
+}
+
 const PAGE = 50;
 const MOST = 500;
 
@@ -82,7 +88,7 @@ export default async function NotificationsPage({
   const { data } = await supabase
     .from("notifications")
     .select(
-      "id, kind, action, target, reason, read_at, created_at, actor:profiles!notifications_actor_id_fkey(id, handle, display_name, avatar_url, avatar_key), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms)",
+      "id, kind, action, target, reason, read_at, created_at, actor:profiles!notifications_actor_id_fkey(id, handle, display_name, avatar_url, avatar_key), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms, body)",
     )
     .eq("user_id", viewer.userId)
     .in("kind", [...LISTED_NOTIFICATION_KINDS])
@@ -205,6 +211,12 @@ export default async function NotificationsPage({
                         ? ` at ${formatTime(n.comment.time_ms)}`
                         : ""}
                     </p>
+                    {/* What the comment says, so it is clear whether to open it now. */}
+                    {items.length === 1 && n.comment?.body ? (
+                      <p className="mt-0.5 line-clamp-2 break-words text-muted-foreground">
+                        {snippet(n.comment.body)}
+                      </p>
+                    ) : null}
                     <RelativeTime
                       date={n.created_at}
                       className="text-xs text-muted-foreground"

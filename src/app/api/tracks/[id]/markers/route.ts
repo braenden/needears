@@ -76,6 +76,7 @@ export async function GET(
     .eq("track_id", id)
     .eq("version_id", chosen.id)
     .is("parent_id", null)
+    .eq("status", "live")
     .not("time_ms", "is", null)
     .order("time_ms")
     .limit(1000);

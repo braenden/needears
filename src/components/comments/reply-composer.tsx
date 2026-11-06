@@ -20,6 +20,7 @@ export function ReplyComposer({
   parentName,
   onSubmit,
   onClose,
+  initialBody = "",
   maxLength = 1000,
   commentsPerHour = 20,
   className,
@@ -28,13 +29,15 @@ export function ReplyComposer({
   onSubmit: (body: string) => Promise<SubmitResult>;
   /** Called on Cancel, Escape and after a reply is posted. */
   onClose: () => void;
+  /** A kept draft coming back. */
+  initialBody?: string;
   maxLength?: number;
   commentsPerHour?: number;
   className?: string;
 }) {
   const id = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(initialBody);
   const [error, setError] = useState<ReplyError | null>(null);
   const [sending, setSending] = useState(false);
 

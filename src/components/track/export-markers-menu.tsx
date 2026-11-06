@@ -27,6 +27,9 @@ const FORMATS: { format: MarkerFormat; label: string; note: string }[] = [
   },
 ];
 
+/** Why there is nothing to export yet. */
+const NOTHING_YET = "No comments with a time yet";
+
 export function markersHref(trackId: string, format: MarkerFormat) {
   return `/api/tracks/${trackId}/markers?format=${format}`;
 }
@@ -47,9 +50,23 @@ export function ExportMarkersMenu({
 }) {
   if (timedCommentCount === 0) {
     return (
-      <Button variant="outline" size="sm" disabled className="rounded-full">
-        <DownloadIcon /> Export markers
-      </Button>
+      <span className="inline-flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled
+          className="rounded-full"
+          aria-describedby={`${trackId}-markers-none`}
+        >
+          <DownloadIcon /> Export markers
+        </Button>
+        <span
+          id={`${trackId}-markers-none`}
+          className="text-xs text-muted-foreground"
+        >
+          {NOTHING_YET}
+        </span>
+      </span>
     );
   }
   return (
@@ -83,8 +100,8 @@ export function ExportMarkersMenu({
 }
 
 /**
- * The same choices as a submenu, for the track's own menu. Disabled while
- * no comment has a time.
+ * The same choices as a submenu, for the track's own menu. While no comment
+ * has a time, a disabled item that says so.
  */
 export function ExportMarkersSubmenu({
   trackId,
@@ -95,9 +112,23 @@ export function ExportMarkersSubmenu({
   timedCommentCount: number;
   hrefFor?: (trackId: string, format: MarkerFormat) => string;
 }) {
+  if (timedCommentCount === 0) {
+    return (
+      <DropdownMenuItem
+        disabled
+        className="items-start data-disabled:opacity-100"
+      >
+        <DownloadIcon className="mt-0.5 opacity-50" />
+        <span className="grid gap-0.5">
+          <span className="opacity-50">Export markers</span>
+          <span className="text-xs text-muted-foreground">{NOTHING_YET}</span>
+        </span>
+      </DropdownMenuItem>
+    );
+  }
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger disabled={timedCommentCount === 0}>
+      <DropdownMenuSubTrigger>
         <DownloadIcon /> Export markers
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-64">

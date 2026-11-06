@@ -1,4 +1,5 @@
 import "server-only";
+import { aborted, describeError } from "@/lib/data/errors";
 import { FEED_MAX_PAGE, FEED_PAGE_SIZE } from "@/config/limits";
 import { reactionCounts } from "./parse";
 import { createClient } from "@/lib/supabase/server";
@@ -111,7 +112,9 @@ export async function getFeed(
       p_page_size: FEED_PAGE_SIZE,
     })
     .select(SUMMARY_COLUMNS);
-  if (error) throw new Error(`Feed failed: ${error.code}`);
+  // The page was left before the answer came: nobody sees it.
+  if (error && aborted(error)) return { tracks: [], hasMore: false };
+  if (error) throw new Error(`Feed failed: ${describeError(error)}`);
   const rows = data as unknown as SummaryRow[];
   return {
     tracks: await toCards(supabase, rows),
@@ -132,7 +135,7 @@ export async function getTracksByOwner(
     .in("status", ["live", "hidden"])
     .order("published_at", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`Tracks failed: ${error.code}`);
+  if (error) throw new Error(`Tracks failed: ${describeError(error)}`);
   return toCards(supabase, data as unknown as SummaryRow[]);
 }
 
@@ -154,7 +157,16 @@ export type PlayableVersion = TrackVersion & {
 };
 
 const COMMENT_COLUMNS =
-  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
+  "id, track_id, author_id, parent_id, version_id, time_ms, end_ms, category, body, is_helpful, status, resolved_at, created_at, edited_at, author:profiles!comments_author_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
+
+const WITHDRAWN_AUTHOR = {
+  id: "",
+  handle: "",
+  display_name: "",
+  avatar_url: null,
+  avatar_key: null,
+  reputation: 0,
+};
 
 // Everything the track page needs, read as the visitor, so RLS decides what
 // they see. Null when the track does not exist or is not visible to them.
@@ -170,7 +182,7 @@ export async function trackPageExists(slug: string): Promise<boolean> {
     .select("status")
     .eq("slug", slug)
     .maybeSingle();
-  if (error) throw new Error(`Track failed: ${error.code}`);
+  if (error) throw new Error(`Track failed: ${describeError(error)}`);
   return !!data && data.status !== "deleted";
 }
 
@@ -183,7 +195,7 @@ export async function getTrackPage(
     .select(TRACK_COLUMNS)
     .eq("slug", slug)
     .maybeSingle();
-  if (error) throw new Error(`Track failed: ${error.code}`);
+  if (error) throw new Error(`Track failed: ${describeError(error)}`);
   if (!data) return null;
   const row = data as unknown as SummaryRow &
     Pick<
@@ -208,9 +220,9 @@ export async function getTrackPage(
       .order("version_no"),
   ]);
   if (comments.error)
-    throw new Error(`Comments failed: ${comments.error.code}`);
+    throw new Error(`Comments failed: ${describeError(comments.error)}`);
   if (versionRows.error)
-    throw new Error(`Versions failed: ${versionRows.error.code}`);
+    throw new Error(`Versions failed: ${describeError(versionRows.error)}`);
   const versions = versionRows.data;
   // The track's keys are the latest version's; listed too in case the
   // versions query came back empty.
@@ -220,12 +232,23 @@ export async function getTrackPage(
   const peaksKeys = [
     ...new Set([row.peaks_key, ...versions.map((v) => v.peaks_key)]),
   ];
+  // A withdrawn comment (deleted by its author, kept for its replies) has
+  // no author left. It gets an empty one so the thread keeps its shape; the
+  // page shows "Comment deleted" for status "withdrawn".
   const rows = (
     comments.data as unknown as (ThreadComment & {
-      author: ThreadComment["author"] & { avatar_key: string | null };
+      author: (ThreadComment["author"] & { avatar_key: string | null }) | null;
     })[]
-  ).filter((c) => c.author);
-  const authorIds = [...new Set(rows.map((c) => c.author_id))];
+  ).flatMap((c) =>
+    c.author
+      ? [{ ...c, author: c.author }]
+      : c.status === "withdrawn"
+        ? [{ ...c, author_id: "", author: WITHDRAWN_AUTHOR }]
+        : [],
+  );
+  const authorIds = [
+    ...new Set(rows.map((c) => c.author_id).filter((id): id is string => !!id)),
+  ];
   const [urls, peaks, [owner, ...authors], badgeRows] = await Promise.all([
     signAudio(supabase, audioKeys),
     loadPeaks(supabase, peaksKeys),

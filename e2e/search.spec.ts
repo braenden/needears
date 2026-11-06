@@ -33,9 +33,11 @@ test.describe("search", () => {
   }) => {
     await page.goto("/search?q=jonas");
     await pageIn(page);
+    await expect(page.locator('a[href="/u/jonas"]').first()).toBeVisible();
+    // An artist's name finds their tracks too.
     await expect(
-      page.getByRole("link", { name: /Jonas Berg/ }).first(),
-    ).toHaveAttribute("href", "/u/jonas");
+      page.locator('a[href="/t/brygge-beat-seed0004"]').first(),
+    ).toBeVisible();
 
     await page.goto("/search?q=ab");
     await pageIn(page);
