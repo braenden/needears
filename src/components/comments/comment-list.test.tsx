@@ -130,23 +130,16 @@ describe("CommentList filter", () => {
 const renderThread = (ui: React.ReactElement) =>
   render(<TooltipProvider>{ui}</TooltipProvider>);
 
-/**
- * What the heading counts: the comments the list shows (resolved ones are
- * folded away) and their replies.
- */
-function shownCount(list: typeof threadedComments) {
-  const top = list.filter((c) => !c.parent_id && !c.resolved_at);
-  const ids = new Set(top.map((c) => c.id));
-  return (
-    top.filter((c) => c.status !== "withdrawn").length +
-    list.filter((c) => c.parent_id && ids.has(c.parent_id)).length
-  );
+/** What the heading counts without a count of its own: every live comment
+ * and reply, as the track's rows do. */
+function liveCount(list: typeof threadedComments) {
+  return list.filter((c) => c.status === "live").length;
 }
 
 describe("CommentList threads", () => {
   const topLevel = threadedComments.filter((c) => !c.parent_id);
 
-  it("groups replies under their comment and counts what the list shows", () => {
+  it("groups replies under their comment and counts them with the comments", () => {
     renderThread(
       <CommentList
         comments={threadedComments}
@@ -155,10 +148,31 @@ describe("CommentList threads", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: /Comments/ })).toHaveTextContent(
-      `Comments ${shownCount(threadedComments)}`,
+      `Comments ${liveCount(threadedComments)}`,
     );
     const replies = screen.getByRole("list", { name: "Replies to Mia" });
     expect(within(replies).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("keeps the track's count in the heading, whatever is folded or filtered", async () => {
+    const user = userEvent.setup();
+    const list = threadedComments.map((c, i) =>
+      i === 0 && !c.parent_id
+        ? { ...c, resolved_at: "2026-11-01T10:00:00Z" }
+        : c,
+    );
+    renderThread(
+      <CommentList
+        comments={list}
+        viewer="visitor"
+        heading={{ id: "h", text: "Comments", count: 51 }}
+      />,
+    );
+    const heading = screen.getByRole("heading", { name: /Comments/ });
+    expect(heading).toHaveTextContent("Comments 51");
+    await user.click(screen.getByRole("button", { name: /By time/ }));
+    await user.click(screen.getByRole("menuitemradio", { name: /Helpful/ }));
+    expect(heading).toHaveTextContent("Comments 51");
   });
 
   it("opens a reply box on Reply, sends it, and closes it", async () => {
@@ -385,7 +399,7 @@ describe("CommentList with a deleted comment", () => {
     // Nothing to act on.
     expect(within(kept).queryByRole("button", { name: /^Reply$/ })).toBeNull();
     expect(screen.getByRole("heading", { name: /Comments/ })).toHaveTextContent(
-      `Comments ${shownCount(list)}`,
+      `Comments ${liveCount(list)}`,
     );
   });
 

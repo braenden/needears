@@ -219,8 +219,11 @@ export function CommentList({
   isAdmin?: boolean;
   onEdit?: (comment: ThreadComment, body: string) => Promise<SubmitResult>;
   onDelete?: (comment: ThreadComment) => Promise<DeleteResult>;
-  /** The list's heading, with the count beside it. */
-  heading?: { id: string; text: string };
+  /**
+   * The list's heading, with the count beside it: the track's comment
+   * count when given, otherwise every live comment and reply in the list.
+   */
+  heading?: { id: string; text: string; count?: number };
   /** The box to write a comment in, between the heading and the list. */
   composer?: React.ReactNode;
   /** A kept reply coming back: its box opens with the text in it. */
@@ -260,12 +263,10 @@ export function CommentList({
     trusted: filterComments(shown, "trusted").length,
   };
   const visible = sortComments(filterComments(shown, filter), sort);
-  // The heading counts what the list shows: comments and their replies,
-  // the way the track's rows count them.
-  const total = visible.reduce(
-    (n, c) => n + (isWithdrawn(c) ? 0 : 1) + (replies.get(c.id)?.length ?? 0),
-    0,
-  );
+  // The heading has the track's own count, the one on its rows: every live
+  // comment and reply, resolved or not, whatever the list folds or filters.
+  const total =
+    heading?.count ?? comments.filter((c) => c.status === "live").length;
   // A busy track draws its comments 30 at a time, but always far enough
   // to include the one playing or picked on the waveform.
   const [limit, setLimit] = useState(COMMENTS_PAGE);

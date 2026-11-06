@@ -313,6 +313,13 @@ export function TrackView({
   // A deleted comment kept for its replies counts and marks nothing.
   const topLevel = comments.filter((c) => !c.parent_id && !isWithdrawn(c));
   const listed = comments.filter(onVersion);
+  // The heading says what the track's rows say: every live comment and
+  // reply on the track. It follows what is posted or deleted here until the
+  // page reloads with a new count.
+  const live = (list: ThreadComment[]) =>
+    list.filter((c) => c.status === "live").length;
+  const commentCount =
+    track.comment_count + live(comments) - live(initialComments);
   // On the waveform: what the list shows. Resolved ones while they are
   // folded away get no marker.
   const marked = topLevel.filter((c) => showResolved || !c.resolved_at);
@@ -1036,7 +1043,11 @@ export function TrackView({
             )}
           >
             <CommentList
-              heading={{ id: "comments-heading", text: "Comments" }}
+              heading={{
+                id: "comments-heading",
+                text: "Comments",
+                count: commentCount,
+              }}
               composer={
                 <CommentComposer
                   // A kept comment starts the box over with it in.
