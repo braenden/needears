@@ -84,6 +84,14 @@ import type {
   TrackVersion,
 } from "@/types/view";
 
+/**
+ * The database refuses posts from someone who has not picked a username
+ * yet (the page asks first, so this is only for a stale page).
+ */
+function handleRequired(error: { code?: string; message?: string }) {
+  return error.code === "42501" && error.message === "handle_required";
+}
+
 /** Who a deleted comment kept for its replies is from: nobody. */
 const WITHDRAWN_AUTHOR = {
   id: "",
@@ -363,6 +371,10 @@ export function TrackView({
       .select(COMMENT_COLUMNS)
       .single();
     if (error) {
+      if (handleRequired(error)) {
+        pickNameFirst({ kind: "comment", ...draft });
+        return leaving();
+      }
       if (error.code === "PT429") return { ok: false, error: "rate_limited" };
       if (error.code === "42501") return { ok: false, error: "unavailable" };
       return { ok: false, error: "failed" };
@@ -395,6 +407,10 @@ export function TrackView({
       .select(COMMENT_COLUMNS)
       .single();
     if (error) {
+      if (handleRequired(error)) {
+        pickNameFirst({ kind: "reply", parentId: parent.id, body });
+        return leaving();
+      }
       if (error.code === "PT429") return { ok: false, error: "rate_limited" };
       if (error.code === "42501" || error.code === "22023")
         return { ok: false, error: "unavailable" };
@@ -510,6 +526,7 @@ export function TrackView({
           c.id === comment.id ? { ...c, is_helpful: !helpful } : c,
         ),
       );
+      if (handleRequired(error)) return pickNameFirst();
       toast.error("Couldn't mark that as Helpful. Try again.");
       return;
     }
@@ -537,6 +554,7 @@ export function TrackView({
       // Undo this click only; a later one may already have moved on.
       setMine((m) => (m === next ? before : m));
       setCounts((c) => moveReaction(c, next, before));
+      if (handleRequired(error)) return pickNameFirst();
       toast.error(
         error.code === "PT429"
           ? "You've reacted a lot in the last hour. Try again in a bit."
@@ -550,7 +568,7 @@ export function TrackView({
     userId: string,
     before: ReactionKind | null,
     next: ReactionKind | null,
-  ): Promise<{ code?: string } | null> {
+  ): Promise<{ code?: string; message?: string } | null> {
     const supabase = await browserClient();
     const reactions = () => supabase.from("reactions");
     const add = async (kind: ReactionKind) =>
