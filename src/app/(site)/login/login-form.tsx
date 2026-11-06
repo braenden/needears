@@ -1,5 +1,6 @@
 "use client";
 
+import { useTypedEarly } from "@/hooks/use-typed-early";
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { Loader2Icon, MailIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export function LoginForm({
 }) {
   const id = useId();
   const [email, setEmail] = useState(defaultEmail);
+  const keepTyped = useTypedEarly(setEmail);
   const ready = useMounted();
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -136,10 +138,12 @@ export function LoginForm({
               Email
             </label>
             <Input
+              ref={keepTyped}
               id={`${id}-email`}
               type="email"
               autoComplete="email"
               inputMode="email"
+              data-early="email"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);

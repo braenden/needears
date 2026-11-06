@@ -1,5 +1,6 @@
 "use client";
 
+import { useTypedEarly } from "@/hooks/use-typed-early";
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
@@ -33,6 +34,8 @@ export function HandleForm({
   const router = useRouter();
   const [handle, setHandle] = useState(initialHandle);
   const [displayName, setDisplayName] = useState(initialDisplayName);
+  const keepHandle = useTypedEarly(setHandle);
+  const keepName = useTypedEarly(setDisplayName);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -80,7 +83,9 @@ export function HandleForm({
           Username
         </label>
         <Input
+          ref={keepHandle}
           id={`${id}-handle`}
+          data-early="username"
           value={handle}
           onChange={(e) => {
             setHandle(e.target.value);
@@ -117,7 +122,9 @@ export function HandleForm({
           <span className="font-normal text-muted-foreground">(optional)</span>
         </label>
         <Input
+          ref={keepName}
           id={`${id}-name`}
+          data-early="display-name"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           maxLength={DISPLAY_NAME_MAX}

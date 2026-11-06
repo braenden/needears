@@ -4,6 +4,7 @@ import { Geist } from "next/font/google";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
+import { EarlyInput } from "@/components/early-input";
 import { LazyToaster } from "@/components/lazy-toaster";
 import { NavigationProgress } from "@/components/shell/navigation-progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -45,6 +46,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={cn("h-full antialiased", geist.variable)}
     >
       <body className="min-h-full">
+        <EarlyInput />
         <ThemeProvider nonce={nonce}>
           <Suspense>
             <NavigationProgress />

@@ -22,6 +22,8 @@ import type { ReactionKind } from "@/types/view";
 
 /** How long a press on touch shows what a reaction means. */
 const LONG_PRESS_MS = 450;
+/** How long it stays once the finger is lifted (a tap elsewhere closes it). */
+const TIP_AFTER_LIFT_MS = 1500;
 
 /** Counts after someone's reaction goes from `from` to `to` (null is none). */
 export function moveReaction(
@@ -73,6 +75,7 @@ export function ReactionBar({
   const [touchTip, setTouchTip] = useState<ReactionKind | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearPress = () => {
     if (pressTimer.current) clearTimeout(pressTimer.current);
     pressTimer.current = null;
@@ -122,7 +125,18 @@ export function ReactionBar({
                             setTouchTip(kind);
                           }, LONG_PRESS_MS);
                         }}
-                        onPointerUp={clearPress}
+                        onPointerUp={() => {
+                          clearPress();
+                          // Long enough to read once the finger is off it.
+                          if (longPressed.current) {
+                            if (hideTimer.current)
+                              clearTimeout(hideTimer.current);
+                            hideTimer.current = setTimeout(
+                              () => setTouchTip(null),
+                              TIP_AFTER_LIFT_MS,
+                            );
+                          }
+                        }}
                         onPointerCancel={clearPress}
                         onContextMenu={(e) => e.preventDefault()}
                         onClick={() => {
@@ -163,6 +177,8 @@ export function ReactionBar({
                 <PopoverContent
                   side="top"
                   onOpenAutoFocus={(e) => e.preventDefault()}
+                  // Lifting the finger focuses the button: that is not leaving.
+                  onFocusOutside={(e) => e.preventDefault()}
                 >
                   {tip}
                 </PopoverContent>
