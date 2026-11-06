@@ -221,10 +221,10 @@ select throws_ok(
 select pg_temp.as_user('22222222-2222-4222-8222-222222222222');
 set local role authenticated;
 select throws_ok(
-  $$ insert into public.reports (reporter_id, target_type, comment_id, reason)
-     values ('22222222-2222-4222-8222-222222222222', 'comment',
-       (select parent_id from public.comments where body = 'Bob replies'), 'spam') $$,
-  '42501', null, 'nobody reports a withdrawn comment'
+  $$ insert into public.reports (target_type, comment_id, reason)
+     values ('comment', (select parent_id from public.comments where body = 'Bob replies'), 'spam') $$,
+  '42501', 'new row violates row-level security policy for table "reports"',
+  'nobody reports a withdrawn comment'
 );
 reset role;
 
