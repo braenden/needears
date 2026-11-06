@@ -80,6 +80,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           // account and sign this one out. Only the email link here.
           googleClientId={reauth === "connect" ? null : googleClientId()}
           defaultEmail={accountEmail ?? undefined}
+          reauth={!!reauth}
         />
         <p className="mt-8 text-xs text-muted-foreground">
           By continuing you agree to the{" "}

@@ -9,7 +9,11 @@ import { magicLinkFor } from "./helpers";
 test("without a client ID, only the email link is offered", async ({
   page,
 }) => {
-  await page.goto("/login");
+  const response = await page.goto("/login");
+  // Nothing from Google is allowed in where Google is not set up.
+  expect(response?.headers()["content-security-policy"]).not.toContain(
+    "accounts.google.com",
+  );
   await expect(
     page.getByRole("button", { name: "Continue with email" }),
   ).toBeVisible();
@@ -39,10 +43,25 @@ test("Continue with Google goes to Google through Supabase, and back", async ({
   expect(back.origin + back.pathname).toBe(`${GOOGLE_URL}/auth/callback`);
   expect(back.searchParams.get("next")).toBe("/upload");
   expect(back.searchParams.get("via")).toBe("google");
+  expect(url.searchParams.get("prompt")).toBeNull();
   // Nothing is remembered before the sign-in has worked.
   expect(
     await page.evaluate(() => localStorage.getItem("needears:last-login")),
   ).toBeNull();
+});
+
+test("signing in again asks Google which account", async ({ page }) => {
+  let asked: URL | null = null;
+  await page.route("**/auth/v1/authorize**", (route) => {
+    asked = new URL(route.request().url());
+    return route.fulfill({ contentType: "text/html", body: "<p>Google</p>" });
+  });
+  await page.goto(`${GOOGLE_URL}/login?reauth=1`);
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect.poll(() => asked).not.toBeNull();
+  expect((asked as unknown as URL).searchParams.get("prompt")).toBe(
+    "select_account",
+  );
 });
 
 test("a sign-in that worked is remembered as Google or email", async ({

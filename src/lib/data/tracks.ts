@@ -124,17 +124,19 @@ export async function getFeed(
   };
 }
 
-// Tracks on a profile. RLS shows the owner their hidden tracks too.
+// Tracks on a profile. RLS shows the owner (and admins) hidden tracks too,
+// unless `liveOnly`.
 export async function getTracksByOwner(
   ownerId: string,
   limit = 50,
+  liveOnly = false,
 ): Promise<CardTrack[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tracks")
     .select(SUMMARY_COLUMNS)
     .eq("owner_id", ownerId)
-    .in("status", ["live", "hidden"])
+    .in("status", liveOnly ? ["live"] : ["live", "hidden"])
     .order("published_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(`Tracks failed: ${describeError(error)}`);
@@ -172,7 +174,9 @@ export async function getMoreToHear(
 ): Promise<CardTrack[]> {
   const [needs, sameArtist, latest] = await Promise.all([
     getFeed("needs-ears", null, 1),
-    getTracksByOwner(track.owner_id, MORE_TO_HEAR + 1),
+    // Only live ones: a hidden track is never offered, not even to its
+    // owner or an admin.
+    getTracksByOwner(track.owner_id, MORE_TO_HEAR + 1, true),
     getFeed("latest", null, 1),
   ]);
   const picked: CardTrack[] = [];

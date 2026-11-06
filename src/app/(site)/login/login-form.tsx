@@ -23,8 +23,11 @@ export function LoginForm({
   next,
   googleClientId,
   defaultEmail = "",
+  reauth = false,
 }: {
   next: string;
+  /** Signing in again, to prove it is still you. */
+  reauth?: boolean;
   /** Signing in again: the account's address, already filled in. */
   defaultEmail?: string;
   /** Without it, only the email link is offered. */
@@ -107,6 +110,7 @@ export function LoginForm({
         <>
           <GoogleButton
             next={next}
+            chooseAccount={reauth}
             disabled={state !== "idle" || !ready}
             onError={setError}
           />

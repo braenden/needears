@@ -105,7 +105,8 @@ export default async function TrackPage({
       versions={versions}
       authorBadges={authorBadges}
       // Streamed: the page does not wait for it.
-      moreToHear={getMoreToHear(track, viewer?.userId ?? null)}
+      // Without it the page is still the page: a failure shows nothing.
+      moreToHear={getMoreToHear(track, viewer?.userId ?? null).catch(() => [])}
     />
   );
 }

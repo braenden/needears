@@ -22,7 +22,7 @@ type EarlyInputStore = { take: (name: string) => string | undefined };
  */
 export const EARLY_INPUT_SCRIPT = `(function(){var F=${JSON.stringify(
   Object.fromEntries(FIELDS.map((name) => [name, 1])),
-)},T={},D={};window.${GLOBAL}={take:function(n){var e=D[n];delete D[n];T[n]=1;return e&&Date.now()-e.at<=${MAX_AGE_MS}?e.value:undefined}};document.addEventListener("input",function(v){if(!v.isTrusted)return;var f=v.target;if(!f||(f.tagName!=="INPUT"&&f.tagName!=="TEXTAREA")||f.type==="password")return;var n=f.getAttribute("data-early");if(!n||!F.hasOwnProperty(n)||T[n])return;D[n]={value:f.value,at:Date.now()}},true)})();`;
+)},T={},D={};Object.defineProperty(window,"${GLOBAL}",{value:Object.freeze({take:function(n){var e=D[n];delete D[n];T[n]=1;return e&&Date.now()-e.at<=${MAX_AGE_MS}?e.value:undefined}})});document.addEventListener("input",function(v){if(!v.isTrusted)return;var f=v.target;if(!f||(f.tagName!=="INPUT"&&f.tagName!=="TEXTAREA")||f.type==="password")return;var n=f.getAttribute("data-early");if(!n||!F.hasOwnProperty(n)||T[n])return;D[n]={value:f.value,at:Date.now()}},true)})();`;
 
 /** What was typed into the field marked `name`, once; then it stops noting. */
 export function takeEarlyInput(name: string): string | undefined {

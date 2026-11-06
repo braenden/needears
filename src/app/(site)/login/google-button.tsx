@@ -43,10 +43,16 @@ function GoogleG() {
 export function GoogleButton({
   next,
   disabled = false,
+  chooseAccount = false,
   onError,
 }: {
   next: string;
   disabled?: boolean;
+  /**
+   * Signing in again: Google asks which account, so proving it again is
+   * a choice, not one click on whatever account the browser is in.
+   */
+  chooseAccount?: boolean;
   onError: (message: string | null) => void;
 }) {
   const [leaving, setLeaving] = useState(false);
@@ -63,7 +69,12 @@ export function GoogleButton({
         ).auth
           .signInWithOAuth({
             provider: "google",
-            options: { redirectTo: callbackUrl(next, "google") },
+            options: {
+              redirectTo: callbackUrl(next, "google"),
+              ...(chooseAccount
+                ? { queryParams: { prompt: "select_account" } }
+                : {}),
+            },
           })
           .catch(() => ({ error: true }));
         if (error) {

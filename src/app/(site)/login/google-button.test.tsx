@@ -59,6 +59,22 @@ describe("GoogleButton", () => {
     });
   });
 
+  it("asks which account when signing in again", async () => {
+    const user = userEvent.setup();
+    signInWithOAuth.mockResolvedValue({ data: {}, error: null });
+    render(<GoogleButton next="/" chooseAccount onError={vi.fn()} />);
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+    expect(signInWithOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          queryParams: { prompt: "select_account" },
+        }),
+      }),
+    );
+  });
+
   it("says so, and can be tried again, when it cannot start", async () => {
     const user = userEvent.setup();
     const onError = vi.fn();
