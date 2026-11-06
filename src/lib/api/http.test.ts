@@ -24,6 +24,17 @@ describe("databaseError", () => {
     expect(await code({ code: "22023" })).toEqual([400, "invalid_input"]);
   });
 
+  it("tells an account without a username to choose one", async () => {
+    expect(await code({ code: "42501", message: "handle_required" })).toEqual([
+      403,
+      "handle_required",
+    ]);
+    expect(await code({ code: "42501", message: "not_allowed" })).toEqual([
+      403,
+      "not_allowed",
+    ]);
+  });
+
   it("maps unknown errors to a 500 without details", async () => {
     expect(await code({ code: "XX000", message: "secret detail" })).toEqual([
       500,

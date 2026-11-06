@@ -324,6 +324,7 @@ export type Database = {
           handle: string;
           id: string;
           links: Json;
+          onboarded_at: string | null;
           reputation: number;
           role: Database["public"]["Enums"]["user_role"];
           working_on: string;
@@ -340,6 +341,7 @@ export type Database = {
           handle: string;
           id: string;
           links?: Json;
+          onboarded_at?: string | null;
           reputation?: number;
           role?: Database["public"]["Enums"]["user_role"];
           working_on?: string;
@@ -356,6 +358,7 @@ export type Database = {
           handle?: string;
           id?: string;
           links?: Json;
+          onboarded_at?: string | null;
           reputation?: number;
           role?: Database["public"]["Enums"]["user_role"];
           working_on?: string;

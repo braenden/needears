@@ -30,6 +30,9 @@ export function databaseError(error: PostgrestLikeError) {
         error.hint ?? "Too many requests, try again later.",
       );
     case "42501":
+      // An account without a chosen username (the welcome page) cannot post.
+      if (error.message === "handle_required")
+        return jsonError(403, "handle_required", "Choose a username first.");
       return jsonError(403, "not_allowed", "You are not allowed to do that.");
     case "22023":
       // Our triggers raise short snake_case reasons (time_out_of_range,
