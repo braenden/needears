@@ -85,7 +85,7 @@ export function HandleForm({
         <Input
           ref={keepHandle}
           id={`${id}-handle`}
-          data-early="username"
+          data-early="welcome-username"
           value={handle}
           onChange={(e) => {
             setHandle(e.target.value);
@@ -124,7 +124,7 @@ export function HandleForm({
         <Input
           ref={keepName}
           id={`${id}-name`}
-          data-early="display-name"
+          data-early="welcome-display-name"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           maxLength={DISPLAY_NAME_MAX}

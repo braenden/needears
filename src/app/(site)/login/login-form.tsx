@@ -143,7 +143,7 @@ export function LoginForm({
               type="email"
               autoComplete="email"
               inputMode="email"
-              data-early="email"
+              data-early="login-email"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
