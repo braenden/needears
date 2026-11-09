@@ -102,9 +102,7 @@ export function VersionPicker({
               >
                 v{version.version_no}
                 {version.id === latest.id ? (
-                  <span
-                    className="text-xs font-normal text-muted-foreground"
-                  >
+                  <span className="text-xs font-normal text-muted-foreground">
                     latest
                   </span>
                 ) : null}
