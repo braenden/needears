@@ -85,9 +85,11 @@ export function TrackRow({
           id={`track-${track.id}-title`}
           className="text-base leading-snug font-semibold"
         >
+          {/* A 24px line, so it is easy to tap, pulled back by a pixel
+              each side so the row keeps its height. */}
           <Link
             href={`/t/${track.slug}`}
-            className="block truncate rounded-xs focus-ring outline-none hover:underline hover:decoration-1 hover:underline-offset-4"
+            className="-my-px block truncate rounded-xs leading-6 focus-ring outline-none hover:underline hover:decoration-1 hover:underline-offset-4"
           >
             {track.title}
           </Link>
@@ -185,9 +187,10 @@ export function CompactTrackRow({
         <PlayPauseIcon playing={playing} />
       </Button>
       <div className="min-w-0 flex-1">
+        {/* As in the full row: a 24px line that takes up its usual 20px. */}
         <Link
           href={`/t/${track.slug}`}
-          className="block truncate rounded-xs text-sm font-medium focus-ring outline-none hover:underline hover:underline-offset-4"
+          className="-my-0.5 block truncate rounded-xs text-sm leading-6 font-medium focus-ring outline-none hover:underline hover:underline-offset-4"
         >
           {track.title}
         </Link>
