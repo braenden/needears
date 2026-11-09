@@ -4,7 +4,6 @@ import { useSyncExternalStore } from "react";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const THEME_CHOICES = [
@@ -24,27 +23,6 @@ export function useMounted() {
     noop,
     () => true,
     () => false,
-  );
-}
-
-/** One button that switches between dark and light, for signed out visitors. */
-export function ThemeToggle({ className }: { className?: string }) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const mounted = useMounted();
-  const isLight = mounted && resolvedTheme === "light";
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={cn("touch-hit", className)}
-      onClick={() => setTheme(isLight ? "dark" : "light")}
-      aria-label="Light theme"
-      aria-pressed={isLight}
-    >
-      <SunIcon className="hidden in-[.light]:block" />
-      <MoonIcon className="block in-[.light]:hidden" />
-    </Button>
   );
 }
 
