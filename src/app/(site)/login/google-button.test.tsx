@@ -1,23 +1,102 @@
 /** @vitest-environment jsdom */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type {
+  GoogleCodeResponse,
+  GoogleOAuth2,
+} from "@/components/auth/google-code-client";
+import { POPUP_BLOCKED } from "@/components/auth/google-code-client";
 import { createRawNonce, destinationAfterSignIn } from "@/lib/auth/google-id";
-import { signedInHash, signedInMethod } from "@/lib/auth/last-login";
+import { signedInHash, signedInWithEmail } from "@/lib/auth/last-login";
 
-const signInWithOAuth = vi.fn();
+const signInWithIdToken = vi.fn();
 vi.mock("@/lib/supabase/lazy", () => ({
-  browserClient: async () => ({ auth: { signInWithOAuth } }),
+  browserClient: async () => ({ auth: { signInWithIdToken } }),
 }));
+vi.mock("next/script", () => ({ default: () => null }));
 
-const { GoogleButton } = await import("./google-button");
+const { GoogleButton, GOOGLE_FAILED, GOOGLE_UNAVAILABLE } =
+  await import("./google-button");
 const { LoginForm } = await import("./login-form");
 
-beforeEach(() => {
-  signInWithOAuth.mockReset();
-  localStorage.clear();
+type CodeConfig = Parameters<GoogleOAuth2["initCodeClient"]>[0];
+
+// Google's code client: a stand-in answers the popup the way Google would.
+let config: CodeConfig | null = null;
+let answer: (config: CodeConfig) => GoogleCodeResponse | "blocked" = (c) => ({
+  code: "4/google-code",
+  state: c.state,
 });
+const assign = vi.fn();
+const fetchMock = vi.fn();
+const realLocation = window.location;
+
+beforeEach(() => {
+  signInWithIdToken.mockReset();
+  assign.mockReset();
+  fetchMock.mockReset();
+  localStorage.clear();
+  config = null;
+  answer = (c) => ({ code: "4/google-code", state: c.state });
+  window.google = {
+    accounts: {
+      oauth2: {
+        initCodeClient: (c) => {
+          config = c;
+          return {
+            requestCode: () => {
+              const response = answer(c);
+              if (response === "blocked")
+                c.error_callback?.({ type: "popup_failed_to_open" });
+              else c.callback(response);
+            },
+          };
+        },
+      },
+    },
+  };
+  vi.stubGlobal("fetch", fetchMock);
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { origin: realLocation.origin, assign },
+  });
+  fetchMock.mockResolvedValue(
+    Response.json({ idToken: "google-id-token" }, { status: 200 }),
+  );
+  signInWithIdToken.mockResolvedValue({
+    data: { user: { user_metadata: { onboarded: true } } },
+    error: null,
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: realLocation,
+  });
+  delete window.google;
+});
+
+const lastLogin = () => localStorage.getItem("needears:last-login");
+
+function renderButton(props: Partial<Parameters<typeof GoogleButton>[0]> = {}) {
+  const onError = vi.fn();
+  render(
+    <GoogleButton
+      clientId="id.apps"
+      next="/upload"
+      onError={onError}
+      {...props}
+    />,
+  );
+  return {
+    onError,
+    button: screen.getByRole("button", { name: "Continue with Google" }),
+  };
+}
 
 describe("nonces and destinations", () => {
   it("makes a fresh nonce each time", () => {
@@ -34,58 +113,130 @@ describe("nonces and destinations", () => {
   });
 });
 
-describe("the way in, after a sign-in that worked", () => {
+describe("the way in, after an email link worked", () => {
   it("is read back from the hash /auth/callback adds", () => {
-    expect(signedInMethod(signedInHash("google"))).toBe("google");
-    expect(signedInMethod(signedInHash("email"))).toBe("email");
-    expect(signedInMethod("#signed-in=password")).toBeNull();
-    expect(signedInMethod("")).toBeNull();
+    expect(signedInWithEmail(signedInHash())).toBe(true);
+    expect(signedInWithEmail("#signed-in=google")).toBe(false);
+    expect(signedInWithEmail("")).toBe(false);
   });
 });
 
 describe("GoogleButton", () => {
-  it("goes to Google through Supabase and back to the callback", async () => {
+  it("opens Google's popup, swaps the code on our server and signs in", async () => {
     const user = userEvent.setup();
-    signInWithOAuth.mockResolvedValue({ data: {}, error: null });
-    render(<GoogleButton next="/upload" onError={vi.fn()} />);
+    const { onError } = renderButton();
     await user.click(
       screen.getByRole("button", { name: "Continue with Google" }),
     );
-    expect(signInWithOAuth).toHaveBeenCalledWith({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=%2Fupload&via=google`,
-      },
+    expect(config).toMatchObject({
+      client_id: "id.apps",
+      ux_mode: "popup",
+      scope: "openid email profile",
+      select_account: false,
     });
+    expect(config?.state).toMatch(/^[\w-]{40,}$/);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/upload"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/google-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "4/google-code" }),
+    });
+    expect(signInWithIdToken).toHaveBeenCalledWith({
+      provider: "google",
+      token: "google-id-token",
+    });
+    expect(lastLogin()).toBe("google");
+    expect(onError).toHaveBeenLastCalledWith(null);
+  });
+
+  it("sends a new account to /welcome first", async () => {
+    const user = userEvent.setup();
+    signInWithIdToken.mockResolvedValue({
+      data: { user: { user_metadata: {} } },
+      error: null,
+    });
+    const { button } = renderButton();
+    await user.click(button);
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("/welcome?next=%2Fupload"),
+    );
   });
 
   it("asks which account when signing in again", async () => {
     const user = userEvent.setup();
-    signInWithOAuth.mockResolvedValue({ data: {}, error: null });
-    render(<GoogleButton next="/" chooseAccount onError={vi.fn()} />);
-    await user.click(
-      screen.getByRole("button", { name: "Continue with Google" }),
-    );
-    expect(signInWithOAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          queryParams: { prompt: "select_account" },
-        }),
-      }),
-    );
+    const { button } = renderButton({ chooseAccount: true });
+    await user.click(button);
+    expect(config?.select_account).toBe(true);
   });
 
-  it("says so, and can be tried again, when it cannot start", async () => {
+  it("uses a new state each time and drops an answer that does not match", async () => {
     const user = userEvent.setup();
-    const onError = vi.fn();
-    signInWithOAuth.mockResolvedValue({ data: {}, error: new Error("no") });
-    render(<GoogleButton next="/" onError={onError} />);
-    const button = screen.getByRole("button", { name: "Continue with Google" });
+    answer = () => ({ code: "4/google-code", state: "someone-else" });
+    const { button, onError } = renderButton();
     await user.click(button);
-    expect(onError).toHaveBeenLastCalledWith(
-      "Google sign-in isn't available right now. Try the email link.",
+    expect(onError).toHaveBeenLastCalledWith(GOOGLE_FAILED);
+    const first = config?.state;
+    await user.click(button);
+    expect(config?.state).not.toBe(first);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(lastLogin()).toBeNull();
+  });
+
+  it("remembers nothing when our server turns the code down", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(
+      Response.json({ error: { code: "invalid_code" } }, { status: 400 }),
     );
+    const { button, onError } = renderButton();
+    await user.click(button);
+    await waitFor(() =>
+      expect(onError).toHaveBeenLastCalledWith(GOOGLE_FAILED),
+    );
+    expect(signInWithIdToken).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+    expect(lastLogin()).toBeNull();
     expect(button).toBeEnabled();
+  });
+
+  it("remembers nothing when Supabase does not sign in", async () => {
+    const user = userEvent.setup();
+    signInWithIdToken.mockResolvedValue({
+      data: { user: null },
+      error: new Error("no"),
+    });
+    const { button, onError } = renderButton();
+    await user.click(button);
+    await waitFor(() =>
+      expect(onError).toHaveBeenLastCalledWith(GOOGLE_FAILED),
+    );
+    expect(assign).not.toHaveBeenCalled();
+    expect(lastLogin()).toBeNull();
+  });
+
+  it("says so when Google's script is not there", async () => {
+    const user = userEvent.setup();
+    delete window.google;
+    const { button, onError } = renderButton();
+    await user.click(button);
+    expect(onError).toHaveBeenLastCalledWith(GOOGLE_UNAVAILABLE);
+    expect(button).toBeEnabled();
+  });
+
+  it("takes closing Google's window as a change of mind", async () => {
+    const user = userEvent.setup();
+    answer = () => ({ error: "access_denied" });
+    const { button, onError } = renderButton();
+    await user.click(button);
+    expect(onError).toHaveBeenLastCalledWith(null);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("says so when the browser blocks the popup", async () => {
+    const user = userEvent.setup();
+    answer = () => "blocked";
+    const { button, onError } = renderButton();
+    await user.click(button);
+    expect(onError).toHaveBeenLastCalledWith(POPUP_BLOCKED);
   });
 });
 

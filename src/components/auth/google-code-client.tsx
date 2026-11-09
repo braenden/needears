@@ -1,9 +1,12 @@
-// Connecting a Google account in Settings: Google's code client opens
-// Google's account chooser in a popup and hands back a one time code.
-// Signing in with Google does not use this; it goes through Supabase.
+// Signing in with Google, and connecting it in Settings: Google's code
+// client opens Google's account chooser in a popup and hands back a one
+// time code, which our server swaps for Google's ID token.
 
 // In English like the site.
 export const GSI_SCRIPT = "https://accounts.google.com/gsi/client?hl=en";
+
+export const POPUP_BLOCKED =
+  "Your browser blocked Google's window. Allow pop-ups for this site and try again.";
 
 export type GoogleCodeResponse = {
   code?: string;

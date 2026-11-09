@@ -22,10 +22,13 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function LoginForm({
   next,
   googleClientId,
+  scriptNonce,
   defaultEmail = "",
   reauth = false,
 }: {
   next: string;
+  /** For Google's script, when Google is offered. */
+  scriptNonce?: string;
   /** Signing in again, to prove it is still you. */
   reauth?: boolean;
   /** Signing in again: the account's address, already filled in. */
@@ -109,7 +112,9 @@ export function LoginForm({
       {googleClientId ? (
         <>
           <GoogleButton
+            clientId={googleClientId}
             next={next}
+            scriptNonce={scriptNonce}
             chooseAccount={reauth}
             disabled={state !== "idle" || !ready}
             onError={setError}

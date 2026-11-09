@@ -1,5 +1,5 @@
-// Helpers for Google: a nonce for the code popup that connects Google in
-// Settings, and where to go once signed in.
+// Helpers for Google: a fresh state for each code popup (signing in, and
+// connecting Google in Settings), and where to go once signed in.
 
 /** A fresh random nonce for one sign-in attempt. */
 export function createRawNonce(): string {

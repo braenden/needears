@@ -1,11 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import Script from "next/script";
 import { Loader2Icon } from "lucide-react";
 
-import { callbackUrl } from "@/lib/auth/callback-url";
+import {
+  GSI_SCRIPT,
+  type GoogleCodeResponse,
+  POPUP_BLOCKED,
+} from "@/components/auth/google-code-client";
+import { createRawNonce, destinationAfterSignIn } from "@/lib/auth/google-id";
+import { saveLastLogin } from "@/lib/auth/last-login";
 import { browserClient } from "@/lib/supabase/lazy";
 import { cn } from "@/lib/utils";
+
+export const GOOGLE_UNAVAILABLE =
+  "Google sign-in isn't available right now. Try the email link.";
+export const GOOGLE_FAILED =
+  "Google sign-in didn't work. Try again, or use the email link.";
 
 /** Google's G, in its own colours. */
 function GoogleG() {
@@ -36,17 +48,22 @@ function GoogleG() {
 }
 
 /**
- * "Continue with Google": Supabase sends the browser to Google and back to
- * /auth/callback (PKCE), which makes the session and goes on to `next`.
- * The same surface as the email field below it.
+ * "Continue with Google": Google's account chooser opens in a popup (its
+ * code client), so Google names our own site. Our server swaps the code it
+ * hands back for Google's ID token, and the page signs in with that at
+ * Supabase. The same surface as the email field below it.
  */
 export function GoogleButton({
+  clientId,
   next,
+  scriptNonce,
   disabled = false,
   chooseAccount = false,
   onError,
 }: {
+  clientId: string;
   next: string;
+  scriptNonce?: string;
   disabled?: boolean;
   /**
    * Signing in again: Google asks which account, so proving it again is
@@ -55,46 +72,103 @@ export function GoogleButton({
   chooseAccount?: boolean;
   onError: (message: string | null) => void;
 }) {
-  const [leaving, setLeaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // The popup has to open in the click itself, or the browser blocks it.
+  function start() {
+    onError(null);
+    const oauth2 = window.google?.accounts.oauth2;
+    if (!oauth2) {
+      onError(GOOGLE_UNAVAILABLE);
+      return;
+    }
+    const state = createRawNonce();
+    oauth2
+      .initCodeClient({
+        client_id: clientId,
+        scope: "openid email profile",
+        ux_mode: "popup",
+        select_account: chooseAccount,
+        state,
+        callback: (response: GoogleCodeResponse) => {
+          // Cancelled in Google's window: a change of mind, not an error.
+          if (response.error === "access_denied") return;
+          if (!response.code || response.state !== state) {
+            onError(GOOGLE_FAILED);
+            return;
+          }
+          void finish(response.code);
+        },
+        error_callback: (error) => {
+          // Closing the window is a change of mind too.
+          if (error.type === "popup_failed_to_open") onError(POPUP_BLOCKED);
+        },
+      })
+      .requestCode();
+  }
+
+  async function finish(code: string) {
+    setBusy(true);
+    const destination = await signIn(code, next).catch(() => null);
+    if (!destination) {
+      setBusy(false);
+      onError(GOOGLE_FAILED);
+      return;
+    }
+    // Only now, with the session made.
+    saveLastLogin("google");
+    // A full load, so the server sees the new session cookie.
+    window.location.assign(destination);
+  }
+
   return (
-    <button
-      type="button"
-      data-testid="google-button"
-      disabled={disabled || leaving}
-      onClick={async () => {
-        onError(null);
-        setLeaving(true);
-        const { error } = await (
-          await browserClient()
-        ).auth
-          .signInWithOAuth({
-            provider: "google",
-            options: {
-              redirectTo: callbackUrl(next, "google"),
-              ...(chooseAccount
-                ? { queryParams: { prompt: "select_account" } }
-                : {}),
-            },
-          })
-          .catch(() => ({ error: true }));
-        if (error) {
-          setLeaving(false);
-          onError(
-            "Google sign-in isn't available right now. Try the email link.",
-          );
-        }
-        // Otherwise the browser is on its way to Google.
-      }}
-      className={cn(
-        "flex h-11 w-full items-center justify-center gap-2.5 rounded-lg border bg-card text-[15px] font-medium text-foreground focus-ring transition-colors duration-fast outline-none hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60",
-      )}
-    >
-      {leaving ? (
-        <Loader2Icon className="size-[18px] animate-spin" aria-hidden="true" />
-      ) : (
-        <GoogleG />
-      )}
-      Continue with Google
-    </button>
+    <>
+      <Script
+        src={GSI_SCRIPT}
+        nonce={scriptNonce}
+        strategy="afterInteractive"
+      />
+      <button
+        type="button"
+        data-testid="google-button"
+        disabled={disabled || busy}
+        onClick={start}
+        className={cn(
+          "flex h-11 w-full items-center justify-center gap-2.5 rounded-lg border bg-card text-[15px] font-medium text-foreground focus-ring transition-colors duration-fast outline-none hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60",
+        )}
+      >
+        {busy ? (
+          <Loader2Icon
+            className="size-[18px] animate-spin"
+            aria-hidden="true"
+          />
+        ) : (
+          <GoogleG />
+        )}
+        Continue with Google
+      </button>
+    </>
   );
+}
+
+/**
+ * Swaps Google's code for its ID token on our server, signs in with it and
+ * says where to go: /welcome first for a new account. Null when it failed.
+ */
+async function signIn(code: string, next: string): Promise<string | null> {
+  const response = await fetch("/api/auth/google-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!response.ok) return null;
+  const body = (await response.json().catch(() => null)) as {
+    idToken?: unknown;
+  } | null;
+  if (typeof body?.idToken !== "string") return null;
+  const { data, error } = await (
+    await browserClient()
+  ).auth.signInWithIdToken({ provider: "google", token: body.idToken });
+  if (error || !data.user) return null;
+  return destinationAfterSignIn(data.user, next);
 }

@@ -19,12 +19,12 @@
 // When Google is set up, Google Identity Services gets the paths it needs
 // on accounts.google.com: its script (loaded with our nonce; the source is
 // listed for browsers without 'strict-dynamic'), its stylesheet, its frame
-// and its status calls. Only connecting Google in Settings uses it now:
-// its account chooser is a popup window, which the CSP does not govern, and
-// the code it returns is swapped on our server, not in the browser. Signing
-// in with Google is a plain navigation to Supabase and needs nothing here.
-// On every page, because the CSP of the first page loaded stays in force
-// when someone navigates to Settings without a full load.
+// and its status calls. Signing in with Google and connecting it in
+// Settings both use its code client: the account chooser is a popup window,
+// which the CSP does not govern, and the code it returns is swapped on our
+// server (a same-origin fetch). The ID token then goes to Supabase, which
+// connect-src allows already. On every page, because the CSP of the first
+// page loaded stays in force when someone moves on without a full load.
 
 export const GOOGLE_AVATAR_ORIGIN = "https://lh3.googleusercontent.com";
 const GSI = "https://accounts.google.com/gsi/";

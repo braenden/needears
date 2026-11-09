@@ -13,6 +13,7 @@ import {
   GoogleGlyph,
   type GoogleCodeResponse,
   GSI_SCRIPT,
+  POPUP_BLOCKED,
 } from "@/components/auth/google-code-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,8 +87,6 @@ export function unlinkErrorText(
 }
 
 /** What to say when Google's window could not open or Google is missing. */
-export const POPUP_BLOCKED =
-  "Your browser blocked Google's window. Allow pop-ups for this site and try again.";
 export const GOOGLE_UNAVAILABLE =
   "Google isn't available right now. Try again in a minute.";
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/api/redirect";
@@ -79,6 +80,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           // and a Google account with another address would make a new
           // account and sign this one out. Only the email link here.
           googleClientId={reauth === "connect" ? null : googleClientId()}
+          scriptNonce={(await headers()).get("x-nonce") ?? undefined}
           defaultEmail={accountEmail ?? undefined}
           reauth={!!reauth}
         />

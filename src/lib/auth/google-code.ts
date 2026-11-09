@@ -1,14 +1,18 @@
 import "server-only";
 
-// Connecting a Google account from Settings. The page opens Google's account
-// chooser (the code client of Google Identity Services, in a popup) and
-// sends us the one time code it gets back. We swap the code for tokens at
-// Google with our client secret, check the ID token is meant for us, and
-// hand it to Supabase to link. The ID token never reaches the browser.
+// Signing in with Google, and connecting it from Settings. The page opens
+// Google's account chooser (the code client of Google Identity Services,
+// in a popup) and sends us the one time code it gets back. We swap the code
+// for tokens at Google with our client secret and check the ID token is
+// meant for us. To sign in, the token goes back to the login page, which
+// signs in with it at Supabase (/api/auth/google-token). To connect, our
+// server links it and the token never reaches the browser
+// (/api/account/google-link).
 //
 // There is no nonce: the code client has none, so Google's token carries
-// none and Supabase accepts it without one. A replayed token is not a risk
-// here, because only our server ever holds it.
+// none and Supabase accepts it without one. For connecting, only our server
+// holds it. For signing in, only our own page does, and the session it
+// makes there is worth as much as the token.
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
@@ -48,10 +52,14 @@ export async function exchangeGoogleCode(
   } catch {
     return { ok: false, reason: "unavailable" };
   }
-  // An expired, used or foreign code is a 400 from Google.
-  if (response.status >= 400 && response.status < 500)
-    return { ok: false, reason: "rejected" };
-  if (!response.ok) return { ok: false, reason: "unavailable" };
+  // An expired, used or foreign code is a 400 from Google. Anything else
+  // (a wrong client secret, too many requests) is on our side or Google's,
+  // so it is logged, with the status only.
+  if (response.status === 400) return { ok: false, reason: "rejected" };
+  if (!response.ok) {
+    console.error("Google's token endpoint said", response.status);
+    return { ok: false, reason: "unavailable" };
+  }
   const body = (await response.json().catch(() => null)) as {
     id_token?: unknown;
   } | null;

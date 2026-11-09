@@ -3,10 +3,10 @@ import { safeNext } from "@/lib/api/redirect";
 import { signedInHash } from "@/lib/auth/last-login";
 import { createClient } from "@/lib/supabase/server";
 
-// Return URL for Google and magic links (PKCE). Exchanges the one time code
-// for a session cookie and sends the user on. First time in, they pick a
-// handle at /welcome before going on to where they were. ?via=google says
-// the way in, which the next page remembers.
+// Return URL for magic links (PKCE). Exchanges the one time code for a
+// session cookie and sends the user on. First time in, they pick a handle
+// at /welcome before going on to where they were. The next page remembers
+// that they signed in with email.
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const origin = request.nextUrl.origin;
@@ -22,11 +22,7 @@ export async function GET(request: NextRequest) {
           : new URL(next);
       if (to.pathname === "/welcome")
         to.searchParams.set("next", next.pathname + next.search);
-      to.hash = signedInHash(
-        request.nextUrl.searchParams.get("via") === "google"
-          ? "google"
-          : "email",
-      );
+      to.hash = signedInHash();
       return NextResponse.redirect(to);
     }
   }
