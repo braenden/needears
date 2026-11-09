@@ -10,7 +10,7 @@ test("signing in without an email focuses the email field", async ({
   await page.goto("/login");
   const email = page.getByLabel("Email", { exact: true });
   await expect(async () => {
-    await page.getByRole("button", { name: "Email me a sign-in link" }).click();
+    await page.getByRole("button", { name: "Continue with email" }).click();
     await expect(email).toBeFocused({ timeout: 1000 });
   }).toPass();
   await expect(page.getByText("Enter a valid email address.")).toBeVisible();

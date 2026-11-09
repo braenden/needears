@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { comments, threadedComments } from "@/mocks/comments";
+import { displayNameOf } from "@/components/common/user-avatar";
 import { jonas } from "@/mocks/profiles";
 
 import {
@@ -18,8 +19,25 @@ import {
 const renderWithTooltips = (ui: React.ReactElement) =>
   render(ui, { wrapper: TooltipProvider });
 
-const items = () =>
-  within(screen.getByRole("tabpanel")).queryAllByRole("listitem");
+/** The threads, without their replies. */
+const items = () => {
+  const list = screen.queryByRole("list", { name: "Comments" });
+  return list
+    ? within(list)
+        .queryAllByRole("listitem")
+        .filter((li) => li.parentElement === list)
+    : [];
+};
+
+/** Picks from the list's one menu: order, which comments, resolved. */
+async function pick(
+  user: ReturnType<typeof userEvent.setup>,
+  name: RegExp,
+  role: "menuitemradio" | "menuitemcheckbox" = "menuitemradio",
+) {
+  await user.click(screen.getByRole("button", { name: /^Comments:/ }));
+  await user.click(screen.getByRole(role, { name }));
+}
 
 describe("filterComments", () => {
   it("keeps only Helpful comments", () => {
@@ -55,10 +73,10 @@ describe("CommentList filter", () => {
     renderWithTooltips(<CommentList comments={comments} viewer="visitor" />);
     expect(items()).toHaveLength(comments.length);
 
-    await user.click(screen.getByRole("tab", { name: /Helpful/ }));
+    await pick(user, /^Helpful/);
     expect(items()).toHaveLength(filterComments(comments, "helpful").length);
 
-    await user.click(screen.getByRole("tab", { name: /From trusted ears/ }));
+    await pick(user, /^From trusted ears/);
     const trusted = filterComments(comments, "trusted");
     expect(items()).toHaveLength(trusted.length);
     expect(screen.queryByText("Nora")).not.toBeInTheDocument();
@@ -75,10 +93,9 @@ describe("CommentList filter", () => {
     );
     expect(screen.getByText("No Helpful comments yet.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Show all" }));
-    expect(screen.getByRole("tab", { name: /All/ })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: /^Comments:/ }),
+    ).toHaveTextContent(/^Comments: By time$/);
     expect(items().length).toBeGreaterThan(0);
   });
 
@@ -93,7 +110,9 @@ describe("CommentList filter", () => {
         onToggleHelpful={onToggleHelpful}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Mark as Helpful" }));
+    const helpful = screen.getByRole("button", { name: "Helpful" });
+    expect(helpful).toHaveAttribute("aria-pressed", "false");
+    await user.click(helpful);
     expect(onToggleHelpful).toHaveBeenCalledWith(notHelpful[0], true);
   });
 
@@ -111,16 +130,49 @@ describe("CommentList filter", () => {
 const renderThread = (ui: React.ReactElement) =>
   render(<TooltipProvider>{ui}</TooltipProvider>);
 
+/** What the heading counts without a count of its own: every live comment
+ * and reply, as the track's rows do. */
+function liveCount(list: typeof threadedComments) {
+  return list.filter((c) => c.status === "live").length;
+}
+
 describe("CommentList threads", () => {
   const topLevel = threadedComments.filter((c) => !c.parent_id);
 
-  it("groups replies under their comment and leaves them out of the counts", () => {
-    renderThread(<CommentList comments={threadedComments} viewer="visitor" />);
-    expect(screen.getByRole("tab", { name: /All/ })).toHaveTextContent(
-      String(topLevel.length),
+  it("groups replies under their comment and counts them with the comments", () => {
+    renderThread(
+      <CommentList
+        comments={threadedComments}
+        viewer="visitor"
+        heading={{ id: "h", text: "Comments" }}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: /Comments/ })).toHaveTextContent(
+      `Comments ${liveCount(threadedComments)}`,
     );
     const replies = screen.getByRole("list", { name: "Replies to Mia" });
     expect(within(replies).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("keeps the track's count in the heading, whatever is folded or filtered", async () => {
+    const user = userEvent.setup();
+    const list = threadedComments.map((c, i) =>
+      i === 0 && !c.parent_id
+        ? { ...c, resolved_at: "2026-11-01T10:00:00Z" }
+        : c,
+    );
+    renderThread(
+      <CommentList
+        comments={list}
+        viewer="visitor"
+        heading={{ id: "h", text: "Comments", count: 51 }}
+      />,
+    );
+    const heading = screen.getByRole("heading", { name: /Comments/ });
+    expect(heading).toHaveTextContent("Comments 51");
+    await user.click(screen.getByRole("button", { name: /By time/ }));
+    await user.click(screen.getByRole("menuitemradio", { name: /Helpful/ }));
+    expect(heading).toHaveTextContent("Comments 51");
   });
 
   it("opens a reply box on Reply, sends it, and closes it", async () => {
@@ -179,13 +231,11 @@ describe("CommentList threads", () => {
         onSignIn={onSignIn}
       />,
     );
-    await user.click(
-      screen.getAllByRole("button", { name: "Sign in to reply" })[0]!,
-    );
+    await user.click(screen.getAllByRole("button", { name: "Reply" })[0]!);
     expect(onSignIn).toHaveBeenCalled();
   });
 
-  it("lets the owner resolve and reopen, and hides resolved on request", async () => {
+  it("keeps resolved comments at the bottom, and lets the owner resolve", async () => {
     const user = userEvent.setup();
     const onToggleResolved = vi.fn();
     renderThread(
@@ -195,21 +245,34 @@ describe("CommentList threads", () => {
         onToggleResolved={onToggleResolved}
       />,
     );
-    expect(screen.getByText("Resolved")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Reopen" }));
-    expect(onToggleResolved).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "c3" }),
-      false,
+    const open = topLevel.length - 1;
+    expect(items()).toHaveLength(open);
+    await user.click(
+      screen.getByRole("button", { name: "1 resolved comment" }),
     );
+    expect(items()).toHaveLength(topLevel.length);
+    await user.click(
+      screen.getByRole("button", { name: "Hide resolved comments" }),
+    );
+    expect(items()).toHaveLength(open);
 
-    await user.click(screen.getByRole("checkbox", { name: /Show resolved/ }));
-    expect(screen.queryByText("Resolved")).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /All/ })).toHaveTextContent(
-      String(topLevel.length - 1),
+    // The same from the menu.
+    await pick(user, /^Show resolved/, "menuitemcheckbox");
+    expect(items()).toHaveLength(topLevel.length);
+
+    await user.click(
+      screen.getAllByRole("button", {
+        name: /More actions for the comment/,
+      })[0]!,
     );
+    await user.click(
+      screen.getByRole("menuitem", { name: "Mark as resolved" }),
+    );
+    expect(onToggleResolved).toHaveBeenCalledWith(expect.anything(), true);
   });
 
-  it("does not offer Resolve to visitors", () => {
+  it("does not offer Resolve to visitors", async () => {
+    const user = userEvent.setup();
     renderThread(
       <CommentList
         comments={threadedComments}
@@ -217,41 +280,52 @@ describe("CommentList threads", () => {
         onToggleResolved={vi.fn()}
       />,
     );
+    await user.click(
+      screen.getAllByRole("button", {
+        name: /More actions for the comment/,
+      })[0]!,
+    );
     expect(
-      screen.queryByRole("button", { name: /Mark as resolved|Reopen/ }),
+      screen.queryByRole("menuitem", { name: /Mark as resolved|Reopen/ }),
     ).not.toBeInTheDocument();
   });
 });
 
 describe("CommentList authors", () => {
-  it("links each name and handle to the profile", () => {
+  it("links each name to the profile", () => {
     renderWithTooltips(<CommentList comments={comments} viewer="visitor" />);
-    const link = screen.getAllByRole("link", { name: /@jonas_abl/ })[0]!;
+    const link = screen.getAllByRole("link", {
+      name: displayNameOf(jonas),
+    })[0]!;
     expect(link).toHaveAttribute("href", "/u/jonas_abl");
   });
 
-  it("marks only the owner's own comments as Uploader", () => {
-    const own = comments.find((c) => c.author_id === jonas.id)!;
-    // Same name and picture as the owner, different account.
+  it("marks only the artist's own replies as Artist", () => {
+    const parent = comments.find((c) => c.author_id !== jonas.id)!;
+    const reply = {
+      ...comments.find((c) => c.author_id === jonas.id)!,
+      id: "from-artist",
+      parent_id: parent.id,
+    };
+    // Same name and picture as the artist, different account.
     const impostor = {
-      ...own,
+      ...reply,
       id: "impostor",
       author_id: "someone-else",
       author: { ...jonas, id: "someone-else", handle: "jonas_abl_official" },
     };
     renderWithTooltips(
       <CommentList
-        comments={[own, impostor]}
+        comments={[parent, reply, impostor]}
         viewer="visitor"
         ownerId={jonas.id}
       />,
     );
-    const [first, second] = items();
-    expect(within(first!).getByText("Uploader")).toBeInTheDocument();
-    expect(within(second!).queryByText("Uploader")).not.toBeInTheDocument();
-    expect(
-      within(second!).getByText("@jonas_abl_official"),
-    ).toBeInTheDocument();
+    const replies = within(
+      screen.getByRole("list", { name: /^Replies to/ }),
+    ).getAllByRole("listitem");
+    expect(within(replies[0]!).getByText(/Artist/)).toBeInTheDocument();
+    expect(within(replies[1]!).queryByText(/Artist/)).not.toBeInTheDocument();
   });
 });
 
@@ -266,7 +340,7 @@ describe("CommentList on a busy track", () => {
   it("draws 30 at first and the rest on request", async () => {
     const user = userEvent.setup();
     renderWithTooltips(<CommentList comments={many} viewer="visitor" />);
-    const list = within(screen.getByRole("tabpanel")).getAllByRole("list")[0]!;
+    const list = screen.getByRole("list", { name: "Comments" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(30);
     await user.click(screen.getByRole("button", { name: "Show 10 more" }));
     expect(within(list).getAllByRole("listitem")).toHaveLength(40);
@@ -281,7 +355,7 @@ describe("CommentList on a busy track", () => {
         activeCommentId="many-35"
       />,
     );
-    const list = within(screen.getByRole("tabpanel")).getAllByRole("list")[0]!;
+    const list = screen.getByRole("list", { name: "Comments" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(36);
     // Drawn, but not marked: the list has no "playing now" line.
     expect(list.querySelector("[aria-current]")).toBeNull();
@@ -309,18 +383,23 @@ describe("CommentList with a deleted comment", () => {
         : c,
     );
 
-  it("keeps its replies under Comment deleted and leaves it out of the count", () => {
+  it("keeps its replies under Comment deleted and counts only the replies", () => {
     const list = withdraw("c1");
-    renderWithTooltips(<CommentList comments={list} viewer="visitor" />);
+    renderWithTooltips(
+      <CommentList
+        comments={list}
+        viewer="visitor"
+        heading={{ id: "h", text: "Comments" }}
+      />,
+    );
     const kept = screen.getByText("Comment deleted").closest("li")!;
     expect(
       within(kept).getByText(/Is that cut on the snare bus/),
     ).toBeInTheDocument();
     // Nothing to act on.
     expect(within(kept).queryByRole("button", { name: /^Reply$/ })).toBeNull();
-    const top = list.filter((c) => !c.parent_id).length;
-    expect(screen.getByRole("tab", { name: /^All/ })).toHaveTextContent(
-      String(top - 1),
+    expect(screen.getByRole("heading", { name: /Comments/ })).toHaveTextContent(
+      `Comments ${liveCount(list)}`,
     );
   });
 
@@ -330,10 +409,11 @@ describe("CommentList with a deleted comment", () => {
       c.id === "c1" ? { ...c, resolved_at: "2026-11-01T10:00:00Z" } : c,
     );
     renderWithTooltips(<CommentList comments={list} viewer="visitor" />);
-    const toggle = screen.getByRole("checkbox", { name: /Show resolved/ });
-    await user.click(toggle);
+    // Hidden with the other resolved ones, and back with them.
     expect(screen.queryByText("Comment deleted")).toBeNull();
-    await user.click(toggle);
+    await user.click(
+      screen.getByRole("button", { name: "2 resolved comments" }),
+    );
     expect(screen.getByText("Comment deleted")).toBeInTheDocument();
   });
 

@@ -4,11 +4,11 @@ import { Geist } from "next/font/google";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
-import { EarlyInput } from "@/components/early-input";
 import { LazyToaster } from "@/components/lazy-toaster";
 import { NavigationProgress } from "@/components/shell/navigation-progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { site, siteUrl } from "@/config/site";
+import { EARLY_INPUT_SCRIPT } from "@/lib/forms/early-input";
 import { cn } from "@/lib/utils";
 
 // display "optional": text paints once with the fallback (metrics matched
@@ -46,7 +46,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={cn("h-full antialiased", geist.variable)}
     >
       <body className="min-h-full">
-        <EarlyInput />
+        {/* Notes what is typed into a few fields before the page's own
+            scripts are in (src/lib/forms/early-input.ts). A fixed string,
+            never anything from a request. */}
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: EARLY_INPUT_SCRIPT }}
+        />
         <ThemeProvider nonce={nonce}>
           <Suspense>
             <NavigationProgress />

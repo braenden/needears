@@ -2,10 +2,15 @@
 
 import { useId, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2Icon } from "lucide-react";
-import { NativeSelect } from "@/components/ui/native-select";
+import { ChevronDownIcon, Loader2Icon } from "lucide-react";
 import type { Genre } from "@/types/view";
 
+/**
+ * The genre, as a quiet "All genres" beside the feed's tabs ("Genre" on a
+ * phone, where the tabs need the room). A real select, laid invisibly over
+ * its label, so the keyboard and the phone's own picker work and it is
+ * only as wide as its words.
+ */
 export function GenreFilter({
   genres,
   value,
@@ -18,13 +23,29 @@ export function GenreFilter({
   const id = useId();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const picked = genres.find((g) => g.slug === value);
 
   return (
-    <div className="flex items-center gap-2">
-      <label htmlFor={id} className="text-sm text-muted-foreground">
+    <div className="relative mb-2 inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-[13px] whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-foreground has-[select:focus-visible]:outline-2 has-[select:focus-visible]:outline-offset-2 has-[select:focus-visible]:outline-ring">
+      <span aria-hidden="true" className="max-w-32 truncate">
+        {picked ? (
+          picked.name
+        ) : (
+          <>
+            <span className="sm:hidden">Genre</span>
+            <span className="hidden sm:inline">All genres</span>
+          </>
+        )}
+      </span>
+      {pending ? (
+        <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+      ) : (
+        <ChevronDownIcon className="size-3.5" aria-hidden="true" />
+      )}
+      <label htmlFor={id} className="sr-only">
         Genre
       </label>
-      <NativeSelect
+      <select
         id={id}
         value={value}
         onChange={(e) => {
@@ -32,7 +53,7 @@ export function GenreFilter({
           if (e.target.value) params.set("genre", e.target.value);
           startTransition(() => router.push(`/feed?${params}`));
         }}
-        className="h-9 w-44"
+        className="absolute inset-0 cursor-pointer appearance-none opacity-0 outline-none [&_option]:bg-popover [&_option]:text-popover-foreground"
       >
         <option value="">All genres</option>
         {genres.map((g) => (
@@ -40,12 +61,7 @@ export function GenreFilter({
             {g.name}
           </option>
         ))}
-      </NativeSelect>
-      <span className="size-4" aria-hidden="true">
-        {pending ? (
-          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-        ) : null}
-      </span>
+      </select>
     </div>
   );
 }

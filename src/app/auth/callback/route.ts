@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeNext } from "@/lib/api/redirect";
-import { SIGNED_IN_HASH } from "@/lib/auth/last-login";
+import { signedInHash } from "@/lib/auth/last-login";
 import { createClient } from "@/lib/supabase/server";
 
-// Return URL for Google OAuth and magic links (PKCE). Exchanges the one time
-// code for a session cookie and sends the user on. First time in, they pick
-// a handle at /welcome before going on to where they were.
+// Return URL for magic links (PKCE). Exchanges the one time code for a
+// session cookie and sends the user on. First time in, they pick a handle
+// at /welcome before going on to where they were. The next page remembers
+// that they signed in with email.
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const origin = request.nextUrl.origin;
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
           : new URL(next);
       if (to.pathname === "/welcome")
         to.searchParams.set("next", next.pathname + next.search);
-      to.hash = SIGNED_IN_HASH;
+      to.hash = signedInHash();
       return NextResponse.redirect(to);
     }
   }

@@ -1,24 +1,23 @@
-import { TrackCardSkeleton } from "@/components/track/track-card";
+import { TrackRowSkeleton } from "@/components/track/track-row";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// The feed's column and spacing, so nothing moves when the tracks come in.
+// The feed's column, tabs and rows, so nothing moves when the tracks come in.
 export default function Loading() {
   return (
     <div
-      className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10"
+      className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-8"
       role="status"
       aria-label="Loading"
     >
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <Skeleton className="h-9 w-24" />
-        <Skeleton className="h-9 w-60" />
+      <div className="flex h-11 items-center justify-between border-b">
+        <Skeleton className="h-5 w-64" />
+        <Skeleton className="h-5 w-20" />
       </div>
-      <Skeleton className="mt-6 h-10 w-72" />
-      <Skeleton className="mt-3 h-10 w-full" />
-      <div className="mt-6 grid gap-3">
-        <TrackCardSkeleton />
-        <TrackCardSkeleton />
-        <TrackCardSkeleton />
+      <div className="divide-y">
+        <TrackRowSkeleton />
+        <TrackRowSkeleton />
+        <TrackRowSkeleton />
+        <TrackRowSkeleton />
       </div>
     </div>
   );

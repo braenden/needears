@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRightIcon, MenuIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
@@ -18,102 +18,80 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import type { HeaderProps } from "./app-shell";
-import { EDIT_PROFILE_HREF, NAV, SIGN_OUT_FORM } from "./nav";
+import { SIGN_OUT_FORM } from "./nav";
 import { THEME_CHOICES, ThemeSegments, useMounted } from "./theme-toggle";
+
+type Account = NonNullable<HeaderProps["user"]>;
 
 const rowClasses =
   "flex h-11 items-center rounded-md px-3 text-[15px] focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent";
 
+/** The avatar that opens the account menu, on every width. */
+function AccountButton({
+  user,
+  ...props
+}: { user: Account } & React.ComponentProps<typeof Button>) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="touch-hit rounded-full"
+      {...props}
+    >
+      <UserAvatar profile={user} size="sm" anonymous={user.needsHandle} />
+      <span className="sr-only">Account menu</span>
+    </Button>
+  );
+}
+
 /**
- * Narrow screens: everything behind the menu button, in a sheet. The same
- * order as the account menu on wide screens.
+ * Phones: the avatar opens the account menu as a sheet from the right.
+ * The same rows, in the same order, as the menu on wide screens.
  */
 export function MobileMenu({
   user,
   isAdmin = false,
-  navLabel = "Main",
   pathname,
-}: HeaderProps & { pathname: string }) {
+}: {
+  user: Account;
+  isAdmin?: boolean;
+  pathname: string;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const close = () => setMenuOpen(false);
   const links = [
-    ...NAV,
-    ...(user
-      ? [
-          ...(user.needsHandle
-            ? []
-            : [{ href: EDIT_PROFILE_HREF, label: "Edit profile" }]),
-          { href: "/settings", label: "Settings" },
-          ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
-        ]
-      : [{ href: "/login", label: "Sign in" }]),
+    { href: "/settings", label: "Settings" },
+    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
   return (
     <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="touch-hit @min-[40rem]:hidden"
-          aria-label="Menu"
-        >
-          <MenuIcon />
-        </Button>
+        <AccountButton user={user} />
       </DialogTrigger>
       <DialogContent className="top-0 right-0 left-auto h-dvh max-h-none w-[min(20rem,100%)] max-w-none translate-x-0 translate-y-0 content-start rounded-none rounded-l-2xl duration-slow sm:max-w-none data-open:zoom-in-100 data-open:slide-in-from-right data-closed:duration-base data-closed:zoom-out-100 data-closed:slide-out-to-right">
-        <DialogTitle className="sr-only">Menu</DialogTitle>
+        <DialogTitle className="sr-only">Account</DialogTitle>
         <DialogDescription className="sr-only">
-          Navigation and account
+          Your profile, settings and theme
         </DialogDescription>
-        {/* Every row starts on the same edge. */}
-        {user?.needsHandle ? (
-          <Link
-            href="/welcome"
-            onClick={close}
-            aria-current={pathname === "/welcome" ? "page" : undefined}
-            className="mr-10 flex items-center gap-3 rounded-md px-3 py-2 focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent"
-          >
-            <UserAvatar profile={user} size="lg" anonymous />
-            <span className="min-w-0 flex-1 font-semibold">
-              Pick a username
-            </span>
-            <ChevronRightIcon
-              className="size-4 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-          </Link>
-        ) : user ? (
-          <Link
-            href={`/u/${user.handle}`}
-            onClick={close}
-            aria-current={pathname === `/u/${user.handle}` ? "page" : undefined}
-            className="mr-10 flex items-center gap-3 rounded-md px-3 py-2 focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent"
-          >
-            <UserAvatar profile={user} size="lg" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-semibold">
-                {displayNameOf(user)}
-              </span>
-              <span className="block truncate text-sm text-muted-foreground">
-                @{user.handle}
-              </span>
-            </span>
-            {/* Says the row opens something: your profile. */}
-            <ChevronRightIcon
-              className="size-4 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-          </Link>
-        ) : null}
-        <nav aria-label={`${navLabel}, mobile`}>
+        <ProfileRow
+          user={user}
+          pathname={pathname}
+          onNavigate={close}
+          className="mr-10"
+        />
+        <nav aria-label="Account">
           <ul className="grid gap-0.5">
             {links.map((item) => (
               <li key={item.href}>
@@ -129,21 +107,57 @@ export function MobileMenu({
             ))}
           </ul>
         </nav>
-        <div className="grid gap-2 border-t px-3 pt-4">
-          <p className="text-sm text-muted-foreground">Theme</p>
-          <ThemeSegments />
-        </div>
-        {user ? (
-          <button
-            type="submit"
-            form={SIGN_OUT_FORM}
-            className={`${rowClasses} text-left text-muted-foreground hover:text-foreground`}
-          >
-            Sign out
-          </button>
-        ) : null}
+        <ThemeSegments className="mx-3" />
+        <button
+          type="submit"
+          form={SIGN_OUT_FORM}
+          className={`${rowClasses} text-left text-muted-foreground hover:text-foreground`}
+        >
+          Sign out
+        </button>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** At the top of the menu: who you are, and the way to your profile. */
+function ProfileRow({
+  user,
+  pathname,
+  onNavigate,
+  className,
+}: {
+  user: Account;
+  pathname: string;
+  onNavigate?: () => void;
+  className?: string;
+}) {
+  const href = user.needsHandle ? "/welcome" : `/u/${user.handle}`;
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-current={pathname === href ? "page" : undefined}
+      className={`flex items-center gap-3 rounded-md px-3 py-2 focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent ${className ?? ""}`}
+    >
+      <UserAvatar profile={user} size="lg" anonymous={user.needsHandle} />
+      {user.needsHandle ? (
+        <span className="min-w-0 flex-1 font-semibold">Pick a username</span>
+      ) : (
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">
+            {displayNameOf(user)}
+          </span>
+          <span className="block truncate text-sm text-muted-foreground">
+            @{user.handle}
+          </span>
+        </span>
+      )}
+      <ChevronRightIcon
+        className="size-4 shrink-0 text-muted-foreground"
+        aria-hidden="true"
+      />
+    </Link>
   );
 }
 
@@ -152,45 +166,50 @@ export function UserMenu({
   user,
   isAdmin,
 }: {
-  user: NonNullable<HeaderProps["user"]>;
+  user: Account;
   isAdmin: boolean;
 }) {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="touch-hit rounded-full">
-          <UserAvatar profile={user} anonymous={user.needsHandle} />
-          <span className="sr-only">Account menu</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
-        {user.needsHandle ? (
-          <DropdownMenuItem asChild>
-            <Link href="/welcome" className="font-semibold">
-              Pick a username
-            </Link>
-          </DropdownMenuItem>
-        ) : (
-          <>
-            <DropdownMenuItem asChild>
-              <Link href={`/u/${user.handle}`} className="grid gap-0">
+      {/* Its name on hover, like the other icons in the top bar. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <AccountButton user={user} />
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Account</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuItem asChild>
+          <Link
+            href={user.needsHandle ? "/welcome" : `/u/${user.handle}`}
+            className="flex items-center gap-3"
+          >
+            <UserAvatar profile={user} anonymous={user.needsHandle} />
+            {user.needsHandle ? (
+              <span className="min-w-0 flex-1 font-semibold">
+                Pick a username
+              </span>
+            ) : (
+              <span className="grid min-w-0 flex-1 gap-0">
                 <span className="truncate font-semibold">
                   {displayNameOf(user)}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
                   @{user.handle}
                 </span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              {/* The profile with the editor open over it. */}
-              <Link href={`/u/${user.handle}?edit=profile`}>Edit profile</Link>
-            </DropdownMenuItem>
-          </>
-        )}
+              </span>
+            )}
+            <ChevronRightIcon
+              className="text-muted-foreground"
+              aria-hidden="true"
+            />
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/settings">Settings</Link>
         </DropdownMenuItem>
@@ -200,10 +219,12 @@ export function UserMenu({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        {/* The theme as one row of three, like the phone menu. */}
         <DropdownMenuRadioGroup
+          aria-label="Theme"
           value={mounted ? theme : undefined}
           onValueChange={setTheme}
+          className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
         >
           {THEME_CHOICES.map(({ value, label, Icon }) => (
             <DropdownMenuRadioItem
@@ -211,6 +232,7 @@ export function UserMenu({
               value={value}
               // Picking a theme keeps the menu open, so the change shows.
               onSelect={(event) => event.preventDefault()}
+              className="h-8 justify-center gap-1 rounded-md px-1 pr-1 text-[13px] text-muted-foreground data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:shadow-sm [&>span:first-child]:hidden"
             >
               <Icon aria-hidden="true" />
               {label}

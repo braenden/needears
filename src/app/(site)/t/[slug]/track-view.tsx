@@ -5,7 +5,8 @@ import {
   type PendingPost,
   takePending,
 } from "@/lib/comments/pending";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, use, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,6 +14,9 @@ import {
   EllipsisIcon,
   EyeOffIcon,
   FlagIcon,
+  InfoIcon,
+  KeyboardIcon,
+  LinkIcon,
   PencilIcon,
   Trash2Icon,
   UploadIcon,
@@ -43,7 +47,6 @@ import {
 } from "@/components/player/waveform-player";
 import { moveReaction, ReactionBar } from "@/components/reaction-bar";
 import { ReportDialog, type ReportResult } from "@/components/report-dialog";
-import { ReputationBadge } from "@/components/reputation-badge";
 import type { EditTrackResult } from "@/components/track/edit-track-dialog";
 import {
   ExportMarkersSubmenu,
@@ -52,17 +55,27 @@ import {
 import { DeleteTrackDialog } from "@/components/track/delete-track-dialog";
 import { ReferenceLink } from "@/components/track/reference-link";
 import { VersionPicker } from "@/components/versions/version-picker";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TrackList } from "@/components/track/track-list";
+import { fadeOutPause } from "@/lib/audio/fade";
+import { cn } from "@/lib/utils";
 import type { Details } from "@/components/upload/upload-state";
 import type { BadgeKind } from "@/components/profile/badges";
-import type { PlayableVersion } from "@/lib/data/tracks";
+import type { CardTrack, PlayableVersion } from "@/lib/data/tracks";
 import { FEEDBACK_WANT_LABELS, LEVEL_DISPLAY_LABELS } from "@/config/labels";
 import { siteUrl } from "@/config/site";
 import { VERSIONS_MAX } from "@/config/versions";
@@ -142,6 +155,7 @@ export function TrackView({
   genres,
   versions,
   authorBadges,
+  moreToHear,
 }: {
   track: Track;
   audioUrl: string | null;
@@ -157,6 +171,8 @@ export function TrackView({
   /** Oldest first; the last one is the latest. */
   versions: PlayableVersion[];
   authorBadges: Record<string, BadgeKind[]>;
+  /** "More to hear", on its way from the server. */
+  moreToHear: Promise<CardTrack[]>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -235,12 +251,26 @@ export function TrackView({
   const [carriedSrc] = useState(() => shared.playingSrc(track.id));
   // The feed's address until the page renews it.
   const [firstAudioUrl] = useState(audioUrl);
-  const carrying = !!carriedSrc && audioUrl === firstAudioUrl;
+  // Once a track from "More to hear" plays, the shared element is its:
+  // the page's player steps aside to an element of its own.
+  const [steppedAside, setSteppedAside] = useState(false);
+  const carrying = !!carriedSrc && audioUrl === firstAudioUrl && !steppedAside;
   useEffect(() => {
-    if (!carriedSrc) return;
+    if (!carriedSrc || steppedAside) return;
     shared.claim(audioOwner, { id: track.id, slug: track.slug });
     return () => shared.release(audioOwner);
-  }, [shared, audioOwner, carriedSrc, track.id, track.slug]);
+  }, [shared, audioOwner, carriedSrc, steppedAside, track.id, track.slug]);
+  const [showingDetails, setShowingDetails] = useState(false);
+  // On a phone: the whole note and the facts, after a tap.
+  const [showingMore, setShowingMore] = useState(false);
+
+  /** Before a track from "More to hear" plays: this one stops and lets go. */
+  function stepAside() {
+    player.current?.pause();
+    // Committed at once, so the page's player has let go of the shared
+    // element before the other track is put in it.
+    if (carrying) flushSync(() => setSteppedAside(true));
+  }
   const [reporting, setReporting] = useState<
     { type: "track" } | { type: "comment"; id: string } | null
   >(null);
@@ -283,6 +313,16 @@ export function TrackView({
   // A deleted comment kept for its replies counts and marks nothing.
   const topLevel = comments.filter((c) => !c.parent_id && !isWithdrawn(c));
   const listed = comments.filter(onVersion);
+  // The heading says what the track's rows say: every live comment and
+  // reply on the track. It follows what is posted or deleted here until the
+  // page reloads with a new count.
+  const live = (list: ThreadComment[]) =>
+    list.filter((c) => c.status === "live").length;
+  const commentCount =
+    track.comment_count + live(comments) - live(initialComments);
+  // On the waveform: what the list shows. Resolved ones while they are
+  // folded away get no marker.
+  const marked = topLevel.filter((c) => showResolved || !c.resolved_at);
   // The version open has no comments, but others do: say where they are,
   // so an empty list does not read as "nobody commented".
   const elsewhere =
@@ -295,9 +335,7 @@ export function TrackView({
           .filter(({ count }) => count > 0)
       : [];
   const activeId =
-    selectedId ??
-    activeCommentAt(topLevel.filter(onVersion), timeMs)?.id ??
-    null;
+    selectedId ?? activeCommentAt(marked.filter(onVersion), timeMs)?.id ?? null;
   const owner = displayNameOf(track.owner);
   const shareUrl = `${siteUrl()}/t/${track.slug}`;
 
@@ -676,8 +714,8 @@ export function TrackView({
   function changeShowResolved(next: boolean) {
     setShowResolved(next);
     const url = new URL(window.location.href);
-    if (next) url.searchParams.delete("resolved");
-    else url.searchParams.set("resolved", "hide");
+    if (next) url.searchParams.set("resolved", "show");
+    else url.searchParams.delete("resolved");
     window.history.replaceState(window.history.state, "", url);
   }
 
@@ -689,8 +727,23 @@ export function TrackView({
     window.history.replaceState(window.history.state, "", url);
   }
 
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied.");
+    } catch {
+      toast.error(
+        "Couldn't copy the link. Copy it from the address bar instead.",
+      );
+    }
+  };
+  const versionNote =
+    versioned && current
+      ? { number: current.version_no, of: versions.length }
+      : null;
+
   return (
-    <article className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
+    <article className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-10">
       {track.status === "hidden" ? (
         <p
           role="status"
@@ -706,41 +759,30 @@ export function TrackView({
         <h1 className="font-display text-3xl leading-[1.05] font-bold tracking-tight break-words sm:text-4xl">
           {track.title}
         </h1>
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+        {/* One grey line: who, what and when. */}
+        <p className="mt-1.5 text-[15px] text-muted-foreground">
           <Link
             href={`/u/${track.owner.handle}`}
-            className="group/owner flex items-center gap-2 rounded-md text-foreground focus-ring outline-none"
+            className="rounded-xs font-medium text-foreground focus-ring outline-none hover:underline hover:underline-offset-4"
           >
-            <UserAvatar profile={track.owner} size="sm" />
-            {/* Only the name is underlined on hover. */}
-            <span className="group-hover/owner:underline">{owner}</span>
+            {owner}
           </Link>
-          <ReputationBadge helpful={track.owner.reputation} />
+          {" · "}
           <Link
             href={`/feed?tab=latest&genre=${track.genre.slug}`}
-            className="rounded-xs focus-ring outline-none hover:text-foreground hover:underline"
+            className="rounded-xs focus-ring outline-none hover:text-foreground hover:underline hover:underline-offset-4"
           >
             {track.genre.name}
           </Link>
+          {" · "}
           <RelativeTime date={track.published_at} />
-          {track.play_count > 0 ? (
-            <span data-numeric>{formatPlays(track.play_count)}</span>
-          ) : null}
-        </div>
+        </p>
       </header>
-
-      {pickable.length > 1 && current ? (
-        <VersionPicker
-          className="mt-6"
-          versions={pickable}
-          currentId={versionId ?? current.id}
-          previousId={previousVersionId}
-          onSelect={pickVersion}
-        />
-      ) : null}
 
       <div ref={fullPlayer} className="mt-6 scroll-mt-20">
         <WaveformPlayer
+          // Its own element once something else plays on the shared one.
+          key={carrying ? "carried" : "own"}
           ref={player}
           title={track.title}
           durationMs={playing.durationMs}
@@ -750,15 +792,22 @@ export function TrackView({
           currentVersionId={versioned ? current?.id : undefined}
           versionNumbers={versioned ? versionNumbers : undefined}
           gainDb={gainDb}
-          media={carriedSrc ? () => shared.get() : undefined}
+          media={carrying ? () => shared.get() : undefined}
           rangeSelect
           range={range}
           onRangeChange={setRange}
           initialTimeMs={startSeconds * 1000}
-          comments={topLevel}
+          comments={marked}
           activeCommentId={activeId}
           keyboardScope="global"
-          onPlayingChange={setPlayerPlaying}
+          onPlayingChange={(on) => {
+            setPlayerPlaying(on);
+            // A track from "More to hear" stops when this one plays.
+            if (on && !carrying) {
+              const other = shared.get();
+              if (!other.paused) void fadeOutPause(other);
+            }
+          }}
           onTimeChange={(ms) => {
             setTimeMs(ms);
             setSelectedId(null);
@@ -771,302 +820,515 @@ export function TrackView({
         />
       </div>
 
+      {pickable.length > 1 && current ? (
+        <VersionPicker
+          className="mt-4"
+          versions={pickable}
+          currentId={versionId ?? current.id}
+          previousId={previousVersionId}
+          onSelect={pickVersion}
+        />
+      ) : null}
+
       <ReactionBar
-        className="mt-4"
+        className="mt-3"
         counts={counts}
         mine={mine}
         signedIn={Boolean(viewer)}
-        shareUrl={shareUrl}
         onSignIn={signIn}
         onPick={pickReaction}
         actions={
-          // Everything else about the track, in one place: the owner's
-          // changes, or a report for anyone else signed in.
-          track.status === "live" || (isOwner && genres) || viewer ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="More for this track"
-                  className="touch-hit rounded-full"
-                >
-                  <EllipsisIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-52">
-                {track.status === "live" ? (
-                  <ExportMarkersSubmenu
-                    trackId={track.id}
-                    timedCommentCount={
-                      // Like the file: live comments with a time.
-                      topLevel.filter(
-                        (c) =>
-                          onVersion(c) &&
-                          c.time_ms !== null &&
-                          c.status === "live",
-                      ).length
-                    }
-                    hrefFor={(id, format) =>
-                      versioned && current
-                        ? `${markersHref(id, format)}&version=${current.version_no}`
-                        : markersHref(id, format)
-                    }
-                  />
-                ) : null}
-                {isOwner && genres ? (
-                  <>
-                    <DropdownMenuItem onSelect={() => setEditing(true)}>
-                      <PencilIcon /> Edit details
+          // Everything else about the track, in one place.
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="More for this track"
+                title="More"
+                className="touch-hit rounded-full text-muted-foreground hover:text-foreground"
+              >
+                <EllipsisIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-52">
+              <DropdownMenuItem onSelect={() => void copyLink()}>
+                <LinkIcon /> Copy link
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setShowingDetails(true)}>
+                <InfoIcon /> Track details
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => player.current?.showShortcuts()}
+              >
+                <KeyboardIcon /> Keyboard shortcuts
+              </DropdownMenuItem>
+              {track.status === "live" ? (
+                <ExportMarkersSubmenu
+                  trackId={track.id}
+                  timedCommentCount={
+                    // Like the file: live comments with a time.
+                    topLevel.filter(
+                      (c) =>
+                        onVersion(c) &&
+                        c.time_ms !== null &&
+                        c.status === "live",
+                    ).length
+                  }
+                  hrefFor={(id, format) =>
+                    versioned && current
+                      ? `${markersHref(id, format)}&version=${current.version_no}`
+                      : markersHref(id, format)
+                  }
+                />
+              ) : null}
+              {isOwner && genres ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setEditing(true)}>
+                    <PencilIcon /> Edit details
+                  </DropdownMenuItem>
+                  {track.status === "live" ? (
+                    <DropdownMenuItem
+                      disabled={versions.length >= VERSIONS_MAX}
+                      onSelect={() => setAddingVersion(true)}
+                    >
+                      <UploadIcon />
+                      <span className="grid">
+                        Upload a new version
+                        {versions.length >= VERSIONS_MAX ? (
+                          <span className="text-xs text-muted-foreground">
+                            A track can have up to {VERSIONS_MAX} versions.
+                          </span>
+                        ) : null}
+                      </span>
                     </DropdownMenuItem>
-                    {track.status === "live" ? (
-                      <DropdownMenuItem
-                        disabled={versions.length >= VERSIONS_MAX}
-                        onSelect={() => setAddingVersion(true)}
-                      >
-                        <UploadIcon />
-                        <span className="grid">
-                          Upload a new version
-                          {versions.length >= VERSIONS_MAX ? (
-                            <span className="text-xs text-muted-foreground">
-                              A track can have up to {VERSIONS_MAX} versions.
-                            </span>
-                          ) : null}
-                        </span>
-                      </DropdownMenuItem>
-                    ) : null}
-                    {track.status === "live" ? (
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() => setDeleting(true)}
-                      >
-                        <Trash2Icon /> Delete track
-                      </DropdownMenuItem>
-                    ) : null}
-                  </>
-                ) : viewer && !isOwner ? (
+                  ) : null}
+                  {track.status === "live" ? (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setDeleting(true)}
+                    >
+                      <Trash2Icon /> Delete track
+                    </DropdownMenuItem>
+                  ) : null}
+                </>
+              ) : viewer && !isOwner ? (
+                <>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onSelect={() => setReporting({ type: "track" })}
                   >
                     <FlagIcon /> Report track
                   </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
       />
+      <TrackDetailsDialog
+        track={track}
+        version={versionNote}
+        open={showingDetails}
+        onOpenChange={setShowingDetails}
+      />
 
-      <section aria-label="About this track" className="mt-6 grid gap-3">
-        {track.description ? (
-          <p className="max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-line">
-            {track.description}
-          </p>
-        ) : null}
+      <div className="mt-8 grid gap-12 lg:grid-cols-[minmax(0,1fr)_19rem] xl:gap-16">
+        <div className="min-w-0">
+          {/* The artist's own words, short on a phone. The rest of the
+              facts are a tap away there, and in the column on the right
+              on wide screens. */}
+          {track.description ? (
+            <p
+              className={cn(
+                "max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-line",
+                !showingMore && "line-clamp-2 lg:line-clamp-none",
+              )}
+            >
+              {track.description}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setShowingMore((open) => !open)}
+            aria-expanded={showingMore}
+            className="touch-hit mt-1 rounded-xs text-[13px] text-muted-foreground focus-ring outline-none hover:text-foreground lg:hidden"
+          >
+            {showingMore ? "Less" : "More about this track"}
+          </button>
+          {showingMore ? (
+            <TrackFacts
+              track={track}
+              version={versionNote}
+              className="mt-4 lg:hidden"
+            />
+          ) : null}
+
+          {/* Opened from the menu next to the reactions. */}
+          {isOwner ? (
+            <DeleteTrackDialog
+              track={deleting ? track : null}
+              onClose={() => setDeleting(false)}
+              onDeleted={() => router.push(`/u/${track.owner.handle}`)}
+            />
+          ) : null}
+          {isOwner && genres ? (
+            <EditTrackDialog
+              track={track}
+              genres={genres}
+              open={editing}
+              onOpenChange={setEditing}
+              onSave={saveDetails}
+            />
+          ) : null}
+          {addingVersion ? (
+            <NewVersion
+              trackId={track.id}
+              trackTitle={track.title}
+              versionCount={versions.length}
+              onClose={() => setAddingVersion(false)}
+              // The page under the dialog switches while it says the version
+              // is live, so closing it moves nothing.
+              onLive={(version) => {
+                setNewVersion(version);
+                setPreviousVersionId(current?.id ?? null);
+                setVersionId(version.id);
+                switchSound(version.id);
+                router.refresh();
+              }}
+              onPublished={() => {}}
+            />
+          ) : null}
+          {viewer && !isOwner ? (
+            <ReportDialog
+              target="track"
+              trigger={null}
+              open={reporting?.type === "track"}
+              onOpenChange={(open) =>
+                setReporting(open ? { type: "track" } : null)
+              }
+              onSubmit={sendReport}
+            />
+          ) : null}
+
+          <MiniPlayerBar
+            title={track.title}
+            visible={scrolledPast}
+            playing={playerPlaying}
+            timeMs={timeMs}
+            durationMs={playing.durationMs}
+            markerTimes={marked
+              .filter((c) => onVersion(c) && c.time_ms !== null)
+              .map((c) => c.time_ms!)}
+            onToggle={() =>
+              playerPlaying ? player.current?.pause() : player.current?.play()
+            }
+            onExpand={() =>
+              fullPlayer.current?.scrollIntoView({ behavior: "smooth" })
+            }
+          />
+
+          {/* Cards link here (#comments). The heading lands below the
+              header and the slim player bar (56 and 64 pixels). */}
+          <section
+            ref={commentsSection}
+            id="comments"
+            aria-labelledby="comments-heading"
+            // Without a note, level with the column on the right.
+            className={cn(
+              "mt-8 scroll-mt-[8.5rem]",
+              !track.description && "lg:mt-0",
+            )}
+          >
+            <CommentList
+              heading={{
+                id: "comments-heading",
+                text: "Comments",
+                count: commentCount,
+              }}
+              composer={
+                <CommentComposer
+                  // A kept comment starts the box over with it in.
+                  key={kept?.kind === "comment" ? "kept" : "new"}
+                  initialBody={kept?.kind === "comment" ? kept.body : undefined}
+                  initialDraft={kept?.kind === "comment" ? kept : undefined}
+                  ref={composer}
+                  avatar={
+                    viewer ? (
+                      <UserAvatar
+                        profile={viewer.profile}
+                        size="sm"
+                        anonymous={!viewer.onboarded}
+                      />
+                    ) : undefined
+                  }
+                  currentTimeMs={timeMs}
+                  durationMs={playing.durationMs}
+                  range={range}
+                  onClearRange={() => setRange(null)}
+                  signedIn={Boolean(viewer)}
+                  commentsPerHour={viewer?.commentsPerHour}
+                  onSubmit={submit}
+                  onSignIn={signIn}
+                />
+              }
+              initialReply={kept?.kind === "reply" ? kept : null}
+              comments={listed}
+              newCommentIds={posted}
+              // This version has none, an earlier one has: say where they are,
+              // in place of the usual empty state.
+              emptyAll={
+                elsewhere.length > 0 ? (
+                  <div
+                    role="note"
+                    className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-dashed p-4 text-sm"
+                  >
+                    <span className="text-muted-foreground">
+                      No comments on this version yet.
+                    </span>
+                    {elsewhere.map(({ version, count }) => (
+                      <Button
+                        key={version.id}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => pickVersion(version.id)}
+                      >
+                        {count} {count === 1 ? "comment" : "comments"} on
+                        version {version.version_no}
+                      </Button>
+                    ))}
+                  </div>
+                ) : undefined
+              }
+              viewer={viewerKind}
+              ownerId={track.owner_id}
+              authorBadges={authorBadges}
+              activeCommentId={activeId}
+              filter={filter}
+              onFilterChange={changeFilter}
+              showResolved={showResolved}
+              onShowResolvedChange={changeShowResolved}
+              onReply={reply}
+              viewerId={viewer?.userId}
+              isAdmin={viewer?.isAdmin ?? false}
+              onEdit={viewer ? editComment : undefined}
+              onDelete={viewer ? deleteComment : undefined}
+              onToggleResolved={(c, resolved) =>
+                void toggleResolved(c, resolved)
+              }
+              onJump={(c) => {
+                // The time on a comment plays from there: that is what people
+                // click it for.
+                if (c.time_ms !== null) {
+                  player.current?.seekTo(c.time_ms);
+                  player.current?.play();
+                }
+                setSelectedId(c.id);
+              }}
+              onToggleHelpful={(c, helpful) => void toggleHelpful(c, helpful)}
+              onReport={(c) => setReporting({ type: "comment", id: c.id })}
+              onSignIn={signIn}
+              onCopyLink={async () => {
+                try {
+                  await navigator.clipboard.writeText(shareUrl);
+                  toast.success("Link copied.");
+                } catch {
+                  toast.error(
+                    "Couldn't copy the link. Copy it from the address bar instead.",
+                  );
+                }
+              }}
+            />
+            <ReportDialog
+              target="comment"
+              trigger={null}
+              open={reporting?.type === "comment"}
+              onOpenChange={(open) => {
+                if (!open) setReporting(null);
+              }}
+              onSubmit={sendReport}
+            />
+          </section>
+          {/* On a phone: after the comments, where reading ends. */}
+          <MoreToHear
+            tracks={moreToHear}
+            beforePlay={stepAside}
+            className="mt-12 lg:hidden"
+          />
+        </div>
+        <aside className="hidden lg:block" aria-label="About this track">
+          {/* Below the top bar and the slim player bar (56 and 64 pixels),
+              so nothing slides under them. */}
+          <div className="sticky top-[8.5rem] grid grid-cols-[minmax(0,1fr)] gap-10">
+            <TrackFacts track={track} version={versionNote} short />
+            <MoreToHear tracks={moreToHear} beforePlay={stepAside} />
+          </div>
+        </aside>
+      </div>
+    </article>
+  );
+}
+
+/** The track's own version, when it has more than one. */
+type VersionNote = { number: number; of: number } | null;
+
+/**
+ * What helps someone give good feedback: what the artist wants to hear
+ * about, the reference track and the version. With `short` off (on a
+ * phone, behind "More about this track") the experience and the tags too.
+ */
+function TrackFacts({
+  track,
+  version,
+  short = false,
+  className,
+}: {
+  track: Track;
+  version: VersionNote;
+  short?: boolean;
+  className?: string;
+}) {
+  const wants = track.feedback_wants.map((w) =>
+    FEEDBACK_WANT_LABELS[w].toLowerCase(),
+  );
+  return (
+    <div className={cn("grid gap-3 text-sm text-muted-foreground", className)}>
+      {wants.length > 0 ? (
+        <p>
+          Wants feedback on{" "}
+          <span className="text-foreground">
+            {wants.length > 1
+              ? `${wants.slice(0, -1).join(", ")} and ${wants.at(-1)}`
+              : wants[0]}
+          </span>
+        </p>
+      ) : null}
+      {!short && track.level ? (
+        <p>{LEVEL_DISPLAY_LABELS[track.level]}</p>
+      ) : null}
+      {!short && track.tags.length > 0 ? <p>{track.tags.join(" · ")}</p> : null}
+      {track.reference_url ? <ReferenceLink url={track.reference_url} /> : null}
+      {version ? (
+        <p>
+          Version {version.number} of {version.of}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** From the track's menu: the facts that are not on the page. */
+function TrackDetailsDialog({
+  track,
+  version,
+  open,
+  onOpenChange,
+}: {
+  track: Track;
+  version: VersionNote;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const rows: (readonly [string, React.ReactNode])[] = [
+    ...(track.level
+      ? ([["Experience", LEVEL_DISPLAY_LABELS[track.level]]] as const)
+      : []),
+    ...(track.tags.length > 0
+      ? ([["Tags", track.tags.join(" · ")]] as const)
+      : []),
+    ...(track.feedback_wants.length > 0
+      ? ([
+          [
+            "Wants feedback on",
+            track.feedback_wants.map((w) => FEEDBACK_WANT_LABELS[w]).join(", "),
+          ],
+        ] as const)
+      : []),
+    ...(version
+      ? ([["Version", `${version.number} of ${version.of}`]] as const)
+      : []),
+    [
+      "Plays",
+      track.play_count > 0 ? formatPlays(track.play_count) : "None yet",
+    ],
+    ["Published", <RelativeTime key="published" date={track.published_at} />],
+  ];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Track details</DialogTitle>
+          <DialogDescription className="sr-only">
+            About {track.title}
+          </DialogDescription>
+        </DialogHeader>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2.5 text-sm">
+          {rows.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="break-words">{value}</dd>
+            </div>
+          ))}
+        </dl>
         {track.reference_url ? (
           <ReferenceLink url={track.reference_url} />
         ) : null}
-        <dl className="grid gap-1 text-sm">
-          {track.feedback_wants.length > 0 ? (
-            <div className="flex flex-wrap gap-x-2">
-              <dt className="text-muted-foreground">Wants feedback on</dt>
-              <dd>
-                {track.feedback_wants
-                  .map((w) => FEEDBACK_WANT_LABELS[w])
-                  .join(", ")}
-              </dd>
-            </div>
-          ) : null}
-          {track.level ? (
-            <div className="flex flex-wrap gap-x-2">
-              <dt className="text-muted-foreground">Experience</dt>
-              <dd>{LEVEL_DISPLAY_LABELS[track.level]}</dd>
-            </div>
-          ) : null}
-        </dl>
-        {track.tags.length > 0 ? (
-          <ul aria-label="Tags" className="flex flex-wrap gap-1.5">
-            {track.tags.map((tag) => (
-              <li key={tag}>
-                <Badge variant="outline">{tag}</Badge>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-      {/* Opened from the menu next to the reactions. */}
-      {isOwner ? (
-        <DeleteTrackDialog
-          track={deleting ? track : null}
-          onClose={() => setDeleting(false)}
-          onDeleted={() => router.push(`/u/${track.owner.handle}`)}
-        />
-      ) : null}
-      {isOwner && genres ? (
-        <EditTrackDialog
-          track={track}
-          genres={genres}
-          open={editing}
-          onOpenChange={setEditing}
-          onSave={saveDetails}
-        />
-      ) : null}
-      {addingVersion ? (
-        <NewVersion
-          trackId={track.id}
-          trackTitle={track.title}
-          versionCount={versions.length}
-          onClose={() => setAddingVersion(false)}
-          // The page under the dialog switches while it says the version
-          // is live, so closing it moves nothing.
-          onLive={(version) => {
-            setNewVersion(version);
-            setPreviousVersionId(current?.id ?? null);
-            setVersionId(version.id);
-            switchSound(version.id);
-            router.refresh();
-          }}
-          onPublished={() => {}}
-        />
-      ) : null}
-      {viewer && !isOwner ? (
-        <ReportDialog
-          target="track"
-          trigger={null}
-          open={reporting?.type === "track"}
-          onOpenChange={(open) => setReporting(open ? { type: "track" } : null)}
-          onSubmit={sendReport}
-        />
-      ) : null}
-
-      <MiniPlayerBar
-        title={track.title}
-        visible={scrolledPast}
-        playing={playerPlaying}
-        timeMs={timeMs}
-        durationMs={playing.durationMs}
-        markerTimes={topLevel
-          .filter((c) => onVersion(c) && c.time_ms !== null)
-          .map((c) => c.time_ms!)}
-        onToggle={() =>
-          playerPlaying ? player.current?.pause() : player.current?.play()
-        }
-        onExpand={() =>
-          fullPlayer.current?.scrollIntoView({ behavior: "smooth" })
-        }
+/**
+ * A quiet next step for someone looking around: five tracks with play,
+ * title and artist. Played on the site's shared player, like the feed.
+ * Streamed in after the page; with nothing to offer, nothing shows.
+ */
+function MoreToHear({
+  tracks,
+  beforePlay,
+  className,
+}: {
+  tracks: Promise<CardTrack[]>;
+  beforePlay: () => Promise<void> | void;
+  className?: string;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <MoreToHearList
+        tracks={tracks}
+        beforePlay={beforePlay}
+        className={className}
       />
+    </Suspense>
+  );
+}
 
-      {/* Cards link here (#comments). The heading lands below the header
-          and the slim player bar (56 and 64 pixels). */}
-      <section
-        ref={commentsSection}
-        id="comments"
-        aria-labelledby="comments-heading"
-        className="mt-10 scroll-mt-[8.5rem]"
-      >
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2
-            id="comments-heading"
-            className="text-xl font-semibold tracking-tight"
-          >
-            Comments
-          </h2>
-        </div>
-        <CommentComposer
-          // A kept comment starts the box over with it in.
-          key={kept?.kind === "comment" ? "kept" : "new"}
-          initialBody={kept?.kind === "comment" ? kept.body : undefined}
-          initialDraft={kept?.kind === "comment" ? kept : undefined}
-          ref={composer}
-          currentTimeMs={timeMs}
-          durationMs={playing.durationMs}
-          range={range}
-          onClearRange={() => setRange(null)}
-          signedIn={Boolean(viewer)}
-          commentsPerHour={viewer?.commentsPerHour}
-          onSubmit={submit}
-          onSignIn={signIn}
-        />
-        <CommentList
-          className="mt-6"
-          initialReply={kept?.kind === "reply" ? kept : null}
-          comments={listed}
-          newCommentIds={posted}
-          // This version has none, an earlier one has: say where they are,
-          // in place of the usual empty state.
-          emptyAll={
-            elsewhere.length > 0 ? (
-              <div
-                role="note"
-                className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-dashed p-4 text-sm"
-              >
-                <span className="text-muted-foreground">
-                  No comments on this version yet.
-                </span>
-                {elsewhere.map(({ version, count }) => (
-                  <Button
-                    key={version.id}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => pickVersion(version.id)}
-                  >
-                    {count} {count === 1 ? "comment" : "comments"} on version{" "}
-                    {version.version_no}
-                  </Button>
-                ))}
-              </div>
-            ) : undefined
-          }
-          viewer={viewerKind}
-          ownerId={track.owner_id}
-          authorBadges={authorBadges}
-          activeCommentId={activeId}
-          filter={filter}
-          onFilterChange={changeFilter}
-          showResolved={showResolved}
-          onShowResolvedChange={changeShowResolved}
-          onReply={reply}
-          viewerId={viewer?.userId}
-          isAdmin={viewer?.isAdmin ?? false}
-          onEdit={viewer ? editComment : undefined}
-          onDelete={viewer ? deleteComment : undefined}
-          onToggleResolved={(c, resolved) => void toggleResolved(c, resolved)}
-          onJump={(c) => {
-            // The time on a comment plays from there: that is what people
-            // click it for.
-            if (c.time_ms !== null) {
-              player.current?.seekTo(c.time_ms);
-              player.current?.play();
-            }
-            setSelectedId(c.id);
-          }}
-          onToggleHelpful={(c, helpful) => void toggleHelpful(c, helpful)}
-          onReport={(c) => setReporting({ type: "comment", id: c.id })}
-          onSignIn={signIn}
-          onCopyLink={async () => {
-            try {
-              await navigator.clipboard.writeText(shareUrl);
-              toast.success("Link copied.");
-            } catch {
-              toast.error(
-                "Couldn't copy the link. Copy it from the address bar instead.",
-              );
-            }
-          }}
-        />
-        <ReportDialog
-          target="comment"
-          trigger={null}
-          open={reporting?.type === "comment"}
-          onOpenChange={(open) => {
-            if (!open) setReporting(null);
-          }}
-          onSubmit={sendReport}
-        />
-      </section>
-    </article>
+function MoreToHearList({
+  tracks,
+  beforePlay,
+  className,
+}: {
+  tracks: Promise<CardTrack[]>;
+  beforePlay: () => Promise<void> | void;
+  className?: string;
+}) {
+  const list = use(tracks);
+  if (list.length === 0) return null;
+  return (
+    <section aria-labelledby="more-to-hear" className={className}>
+      <h2 id="more-to-hear" className="text-sm font-semibold">
+        More to hear
+      </h2>
+      <TrackList
+        tracks={list}
+        label="More to hear"
+        variant="compact"
+        beforePlay={beforePlay}
+        className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-1"
+      />
+    </section>
   );
 }

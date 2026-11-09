@@ -118,4 +118,21 @@ describe("exchangeGoogleCode", () => {
       }),
     ).resolves.toEqual({ ok: false, reason: "unavailable" });
   });
+
+  it("logs a refusal of our client by its status only", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const status of [401, 403, 429]) {
+      await expect(
+        exchangeGoogleCode("4/secret-code", CLIENT, "s", async () =>
+          Response.json({ error: "invalid_client" }, { status }),
+        ),
+      ).resolves.toEqual({ ok: false, reason: "unavailable" });
+    }
+    expect(log.mock.calls).toEqual([
+      ["Google's token endpoint said", 401],
+      ["Google's token endpoint said", 403],
+      ["Google's token endpoint said", 429],
+    ]);
+    log.mockRestore();
+  });
 });

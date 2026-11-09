@@ -9,7 +9,6 @@ import { callbackUrl } from "@/lib/auth/callback-url";
 import { destinationAfterSignIn } from "@/lib/auth/google-id";
 import { readLastLogin } from "@/lib/auth/last-login";
 import { onSignedInElsewhere } from "@/lib/auth/signed-in-elsewhere";
-import { cn } from "@/lib/utils";
 import { focusFirstInvalid } from "@/lib/forms/focus-invalid";
 import { browserClient } from "@/lib/supabase/lazy";
 import { useMounted } from "@/components/shell/theme-toggle";
@@ -25,13 +24,17 @@ export function LoginForm({
   googleClientId,
   scriptNonce,
   defaultEmail = "",
+  reauth = false,
 }: {
   next: string;
+  /** For Google's script, when Google is offered. */
+  scriptNonce?: string;
+  /** Signing in again, to prove it is still you. */
+  reauth?: boolean;
   /** Signing in again: the account's address, already filled in. */
   defaultEmail?: string;
   /** Without it, only the email link is offered. */
   googleClientId: string | null;
-  scriptNonce?: string;
 }) {
   const id = useId();
   const [email, setEmail] = useState(defaultEmail);
@@ -39,8 +42,6 @@ export function LoginForm({
   const ready = useMounted();
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
-  // Google has handed over its token and the session is being made.
-  const [signingIn, setSigningIn] = useState(false);
   // Only in the browser (the server renders without it), and only worth
   // pointing at when there is a choice. Its line is there either way, so it
   // appearing moves nothing.
@@ -100,7 +101,7 @@ export function LoginForm({
   }
 
   return (
-    <div className="mt-4 grid gap-3">
+    <div className="mt-6 grid gap-3">
       {googleClientId ? (
         <p className="min-h-5 text-sm text-muted-foreground">
           {lastUsed
@@ -108,78 +109,60 @@ export function LoginForm({
             : null}
         </p>
       ) : null}
-      {/* While signing in, one message in place of both ways in. Google's
-          button stays underneath, hidden, so it can be drawn again if the
-          sign-in fails. */}
-      <div className="relative">
-        <div
-          className={cn("grid gap-6", signingIn && "invisible")}
-          aria-hidden={signingIn || undefined}
-        >
-          {googleClientId ? (
-            <>
-              <GoogleButton
-                clientId={googleClientId}
-                next={next}
-                scriptNonce={scriptNonce}
-                disabled={state !== "idle"}
-                onBusy={setSigningIn}
-                onError={setError}
-              />
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="h-px flex-1 bg-border" aria-hidden="true" />
-                or
-                <span className="h-px flex-1 bg-border" aria-hidden="true" />
-              </div>
-            </>
-          ) : null}
-          <form noValidate onSubmit={sendLink} className="grid gap-3">
-            <label htmlFor={`${id}-email`} className="text-sm font-medium">
-              Email
-            </label>
-            <Input
-              ref={keepTyped}
-              id={`${id}-email`}
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              data-early="login-email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                // The error goes as soon as the address looks right.
-                if (error && EMAIL_PATTERN.test(e.target.value.trim()))
-                  setError(null);
-              }}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${id}-error` : undefined}
-            />
-            {/* As tall as Google's button above it. */}
-            <Button
-              type="submit"
-              size="lg"
-              // Until the page is ready a tap would send the form the plain
-              // way: reload, no email sent.
-              disabled={state !== "idle" || !ready}
-              className="h-10"
-            >
-              {state === "sending" ? (
-                <Loader2Icon className="animate-spin" />
-              ) : null}
-              Email me a sign-in link
-            </Button>
-          </form>
-        </div>
-        {signingIn ? (
-          <div
-            role="status"
-            className="absolute inset-0 flex items-center justify-center gap-2 rounded-xl border bg-card text-sm font-medium"
-          >
-            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-            Signing you in…
+      {googleClientId ? (
+        <>
+          <GoogleButton
+            clientId={googleClientId}
+            next={next}
+            scriptNonce={scriptNonce}
+            chooseAccount={reauth}
+            disabled={state !== "idle" || !ready}
+            onError={setError}
+          />
+          <div className="my-2 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" aria-hidden="true" />
+            or
+            <span className="h-px flex-1 bg-border" aria-hidden="true" />
           </div>
-        ) : null}
-      </div>
+        </>
+      ) : null}
+      <form noValidate onSubmit={sendLink} className="grid gap-3">
+        <label htmlFor={`${id}-email`} className="sr-only">
+          Email
+        </label>
+        <Input
+          ref={keepTyped}
+          id={`${id}-email`}
+          type="email"
+          autoComplete="email"
+          inputMode="email"
+          placeholder="Email address"
+          data-early="login-email"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            // The error goes as soon as the address looks right.
+            if (error && EMAIL_PATTERN.test(e.target.value.trim()))
+              setError(null);
+          }}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          className="h-11 rounded-lg text-[15px] sm:text-[15px]"
+        />
+        <Button
+          type="submit"
+          size="lg"
+          // Until the page is ready a tap would send the form the plain
+          // way: reload, no email sent.
+          disabled={state !== "idle" || !ready}
+          className="h-11 rounded-lg text-[15px]"
+        >
+          {state === "sending" ? (
+            <Loader2Icon className="animate-spin" />
+          ) : null}
+          Continue with email
+        </Button>
+      </form>
       {error ? (
         <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
           {error}

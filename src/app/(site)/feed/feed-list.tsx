@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import { loadFeedPage } from "@/app/actions/feed";
-import { TrackCardSkeleton } from "@/components/track/track-card";
+import { TrackRowSkeleton } from "@/components/track/track-row";
 import { type PlayableTrack, TrackList } from "@/components/track/track-list";
 import { Button } from "@/components/ui/button";
 
@@ -77,17 +77,11 @@ export function FeedList({
 
   return (
     <>
-      <TrackList
-        tracks={tracks}
-        label={label}
-        // In the Needs ears tab every track needs ears: no badge to repeat.
-        showNeedsEars={tab !== "needs-ears"}
-        className="grid gap-3"
-      />
+      <TrackList tracks={tracks} label={label} />
       {pending ? (
-        <div className="mt-3 grid gap-3">
-          <TrackCardSkeleton />
-          <TrackCardSkeleton />
+        <div className="divide-y border-t">
+          <TrackRowSkeleton />
+          <TrackRowSkeleton />
         </div>
       ) : null}
       <div ref={sentinel} className="mt-6 flex flex-col items-center gap-2">

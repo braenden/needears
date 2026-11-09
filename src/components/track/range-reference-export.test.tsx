@@ -36,7 +36,10 @@ describe("CommentComposer with a range", () => {
         onSubmit={onSubmit}
       />,
     );
-    const box = screen.getByPlaceholderText(
+    const box = screen.getByPlaceholderText("Add a comment from 1:42 to 1:58");
+    await user.click(box);
+    expect(box).toHaveAttribute(
+      "placeholder",
       "What do you hear from 1:42 to 1:58?",
     );
     await user.type(box, "This part drags");
@@ -60,7 +63,13 @@ describe("CommentComposer with a range", () => {
         onSubmit={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Clear range" }));
+    await user.click(screen.getByRole("textbox", { name: "Comment" }));
+    await user.click(
+      screen.getByRole("button", { name: "Comment 1:42 to 1:58" }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", { name: "At one second instead" }),
+    );
     expect(onClearRange).toHaveBeenCalled();
 
     const onSubmit = vi.fn(async () => ({ ok: true as const }));
@@ -131,7 +140,7 @@ describe("ReferenceLink", () => {
       <ReferenceLink url="https://www.youtube.com/watch?v=abc" />,
     );
     const link = screen.getByRole("link", {
-      name: /Reference track on YouTube/,
+      name: /a track on YouTube/,
     });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link.getAttribute("rel")).toContain("nofollow");

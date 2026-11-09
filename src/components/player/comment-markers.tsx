@@ -114,7 +114,7 @@ function density(sorted: Pick<Comment, "time_ms">[], durationMs: number) {
 }
 
 /**
- * The marker layer under the waveform: one avatar per timed comment, and
+ * The marker layer under the waveform: one dot per timed comment, and
  * a number where comments are too close to tell apart. Hover or focus
  * shows a comment, click jumps there; a number jumps to its first comment
  * and lists them all. On touch, tap jumps and a long press shows the
@@ -197,7 +197,7 @@ export function CommentMarkers({
       ref={row}
       role="group"
       aria-label="Comment markers"
-      className="relative mt-1.5 h-7"
+      className="relative mt-1 h-6"
       onKeyDown={(event) => {
         const keys: Record<string, number> = {
           ArrowLeft: focusIndex - 1,
@@ -231,16 +231,17 @@ export function CommentMarkers({
         const end = (comment as RangeComment).end_ms;
         const start = comment.time_ms ?? 0;
         if (end == null || end <= start) return null;
-        // Range comments get a bar under the avatars from start to end.
+        // Range comments get a bar under the dots from start to end.
         return (
           <span
             key={`span-${comment.id}`}
             aria-hidden="true"
             className={cn(
-              "absolute bottom-0 h-1 rounded-full",
+              // Thin, in the dots' tone: a span of time, not a scrollbar.
+              "absolute bottom-0.5 h-0.5 rounded-full",
               comment.id === activeCommentId || comment.id === previewId
                 ? "bg-primary-text"
-                : "bg-wave",
+                : "bg-muted-foreground/50",
             )}
             style={{
               left: `${(start / durationMs) * 100}%`,
@@ -287,18 +288,16 @@ export function CommentMarkers({
                       onSelect(first);
                       setOpenGroup(openGroup === index ? null : index);
                     }}
-                    className="touch-hit relative grid size-7 place-items-center rounded-full focus-ring outline-none"
+                    className="touch-hit relative grid size-6 place-items-center rounded-full focus-ring outline-none"
                   >
+                    {/* Several close together: a slightly bigger dot. */}
                     <span
                       aria-hidden="true"
                       className={cn(
-                        "grid size-5 place-items-center rounded-full bg-secondary text-[11px] font-semibold text-foreground ring-2 ring-card",
-                        active && "bg-primary text-primary-foreground",
+                        "size-2 rounded-full bg-muted-foreground",
+                        active && "bg-primary-text",
                       )}
-                      data-numeric
-                    >
-                      {group.comments.length}
-                    </span>
+                    />
                     <span className="sr-only">{label}</span>
                   </button>
                 </div>
@@ -405,26 +404,21 @@ export function CommentMarkers({
               onContextMenu={(e) => e.preventDefault()}
               onFocus={(e) => showPreview(comment.id, e.currentTarget)}
               onBlur={hidePreview}
-              className="touch-hit relative grid size-7 place-items-center rounded-full focus-ring outline-none"
+              className="touch-hit relative grid size-6 place-items-center rounded-full focus-ring outline-none"
             >
-              {otherVersion && !active && !previewing ? (
-                // Another version: a hollow dot instead of the avatar, so it
-                // steps back without fading text below readable contrast.
-                <span
-                  aria-hidden="true"
-                  className="size-2.5 rounded-full border-2 border-wave"
-                />
-              ) : (
-                <UserAvatar
-                  profile={comment.author}
-                  size="sm"
-                  className={cn(
-                    "size-5 ring-2 ring-card transition-transform duration-fast",
-                    active && "ring-primary",
-                    previewing && "scale-110",
-                  )}
-                />
-              )}
+              {/* A small dot. Another version's is hollow, so it steps
+                  back without fading below readable contrast. */}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "size-1.5 rounded-full transition-transform duration-fast",
+                  otherVersion && !active && !previewing
+                    ? "border border-muted-foreground"
+                    : "bg-muted-foreground",
+                  active && "bg-primary-text",
+                  (previewing || active) && "scale-150",
+                )}
+              />
               <span className="sr-only">{`Comment by ${name} at ${time}${onVersion}`}</span>
             </button>
             {previewing ? (

@@ -1,4 +1,4 @@
-import type { Profile, ProfileStats } from "@/types/view";
+import type { Profile } from "@/types/view";
 
 const profile = (p: Partial<Profile> & Pick<Profile, "id" | "handle">) =>
   ({
@@ -57,14 +57,6 @@ export const longName = profile({
   bio: "Producer, sound designer, part-time modular synth hoarder and full-time overthinker of snare samples. I write long bios because nobody told me not to, and this one keeps going to test how the profile header wraps text on a small screen.",
   reputation: 16,
 });
-
-export const statsFor: Record<string, ProfileStats> = {
-  [nora.id]: { tracks: 3, commentsGiven: 5, helpfulReceived: 1 },
-  [jonas.id]: { tracks: 11, commentsGiven: 64, helpfulReceived: 18 },
-  [mia.id]: { tracks: 1, commentsGiven: 212, helpfulReceived: 74 },
-  [newcomer.id]: { tracks: 0, commentsGiven: 0, helpfulReceived: 0 },
-  [longName.id]: { tracks: 0, commentsGiven: 12, helpfulReceived: 16 },
-};
 
 /** The newer profile fields, keyed by profile id. */
 export const profileExtras: Record<

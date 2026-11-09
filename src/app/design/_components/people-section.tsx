@@ -12,14 +12,7 @@ import { ReportDialog } from "@/components/report-dialog";
 import { ReputationBadge } from "@/components/reputation-badge";
 import { Button } from "@/components/ui/button";
 import { reputationLevels } from "@/config/reputation";
-import {
-  jonas,
-  longName,
-  mia,
-  newcomer,
-  nora,
-  statsFor,
-} from "@/mocks/profiles";
+import { jonas, longName, mia, newcomer, nora } from "@/mocks/profiles";
 import { nightBus } from "@/mocks/tracks";
 
 import { Example, Section } from "./section";
@@ -35,34 +28,16 @@ export function PeopleSection() {
         description="Name in the display face, handle, reputation, member since, bio and three numbers. Own profile shows progress to the next level."
       >
         <Example title="Own profile (Jonas, Trusted ear)">
-          <ProfileHeader
-            profile={jonas}
-            stats={statsFor[jonas.id]!}
-            isOwn
-            headingLevel={3}
-          />
+          <ProfileHeader profile={jonas} isOwn headingLevel={3} />
         </Example>
         <Example title="Someone else (Mia, Golden ear)">
-          <ProfileHeader
-            profile={mia}
-            stats={statsFor[mia.id]!}
-            headingLevel={3}
-          />
+          <ProfileHeader profile={mia} headingLevel={3} />
         </Example>
         <Example title="Long name and bio, no avatar">
-          <ProfileHeader
-            profile={longName}
-            stats={statsFor[longName.id]!}
-            headingLevel={3}
-          />
+          <ProfileHeader profile={longName} headingLevel={3} />
         </Example>
         <Example title="Just got here, own profile">
-          <ProfileHeader
-            profile={newcomer}
-            stats={statsFor[newcomer.id]!}
-            isOwn
-            headingLevel={3}
-          />
+          <ProfileHeader profile={newcomer} isOwn headingLevel={3} />
         </Example>
         <Example title="Loading">
           <ProfileHeaderSkeleton />

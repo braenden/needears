@@ -26,6 +26,7 @@ export function SearchField({
   action = "/search",
   formLabel = "Search",
   autoFocus = false,
+  size = "default",
   className,
 }: {
   defaultValue?: string;
@@ -36,6 +37,8 @@ export function SearchField({
   formLabel?: string;
   /** Focus it on arrival, so the keyboard is ready. */
   autoFocus?: boolean;
+  /** "lg": the search page's own field. */
+  size?: "default" | "lg";
   className?: string;
 }) {
   const id = useId();
@@ -71,7 +74,10 @@ export function SearchField({
       </label>
       <SearchIcon
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+        className={cn(
+          "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground",
+          size === "lg" ? "left-3.5 size-5" : "left-2.5 size-4",
+        )}
       />
       <input
         ref={inputRef}
@@ -93,7 +99,10 @@ export function SearchField({
         aria-keyshortcuts={shortcut ? "/" : undefined}
         className={cn(
           fieldClasses,
-          "h-9 bg-muted/60 pr-8 pl-8 [&::-webkit-search-cancel-button]:hidden",
+          "bg-muted/60 pr-8 pl-8 [&::-webkit-search-cancel-button]:hidden",
+          size === "lg"
+            ? "h-12 rounded-lg pl-10 text-base sm:text-base"
+            : "h-9",
         )}
       />
       {shortcut && !value && !focused ? (

@@ -1,5 +1,4 @@
 import {
-  HostIcon,
   hostName,
   hostOf,
   LINK_SERVICE_NAMES,
@@ -32,21 +31,15 @@ export function ReferenceLink({
   const host = hostOf(url);
   if (!host) return null;
   return (
-    <p className={cn("text-sm", className)}>
+    <p className={cn("text-sm text-muted-foreground", className)}>
+      Reference:{" "}
       <a
         href={url}
         target="_blank"
         rel="noopener noreferrer nofollow ugc"
-        className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-2 focus-ring outline-none hover:bg-accent"
+        className="rounded-xs text-foreground underline underline-offset-4 focus-ring outline-none hover:decoration-2"
       >
-        <HostIcon
-          host={host}
-          className="size-4 shrink-0 text-muted-foreground"
-        />
-        <span>
-          Reference track{" "}
-          <span className="text-muted-foreground">on {hostName(host)}</span>
-        </span>
+        a track on {hostName(host)}
         <span className="sr-only"> (opens in a new tab)</span>
       </a>
     </p>

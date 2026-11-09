@@ -17,9 +17,11 @@ vi.mock("@/lib/supabase/lazy", () => ({
   browserClient: async () => ({ auth }),
 }));
 vi.mock("next/script", () => ({ default: () => null }));
-vi.mock("@/components/auth/google-id-button", () => ({
+const POPUP_BLOCKED = vi.hoisted(() => "Google's window was blocked.");
+vi.mock("@/components/auth/google-code-client", () => ({
   GoogleGlyph: () => null,
   GSI_SCRIPT: "https://accounts.google.com/gsi/client",
+  POPUP_BLOCKED,
 }));
 
 // Google's code client: a stand-in answers the popup the way Google would.
@@ -42,7 +44,6 @@ const popup = vi.hoisted(() => ({
 function installGoogle() {
   window.google = {
     accounts: {
-      id: {} as never,
       oauth2: {
         initCodeClient: (config) => {
           popup.config = config as CodeConfig;
@@ -70,7 +71,6 @@ const {
   ConnectedAccounts,
   disconnectText,
   linkErrorText,
-  POPUP_BLOCKED,
   REAUTH_TO_CONNECT,
   SIGNS_OUT_ELSEWHERE,
   unlinkErrorText,

@@ -64,7 +64,10 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
     await signInWithMagicLink(listener, jonas.email, trackPath);
     await expect(listener).toHaveURL(trackPath);
     await expect(listener.getByRole("heading", { name: title })).toBeVisible();
+    // One line until used; its time menu can pin another second.
+    await listener.getByLabel("Comment", { exact: true }).click();
     await listener.getByRole("button", { name: /Comment at 0:00/ }).click();
+    await listener.getByRole("menuitem", { name: "Change the time" }).click();
     const time = listener.getByLabel("at", { exact: true });
     await time.fill("0:05");
     await time.press("Enter");
@@ -76,9 +79,12 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
       .getByRole("button", { name: "Comment", exact: true })
       .click();
     await expect(listener.getByText(commentText)).toBeVisible();
-    // The comment says who wrote it: a link to the profile, with the handle.
+    // The comment says who wrote it: a link to the profile.
     await expect(
-      listener.getByRole("link", { name: `${jonas.name} @${jonas.handle}` }),
+      listener
+        .getByRole("list", { name: "Comments" })
+        .getByRole("link", { name: jonas.name, exact: true })
+        .first(),
     ).toHaveAttribute("href", `/u/${jonas.handle}`);
     await expect(
       listener.getByRole("button", {
@@ -98,7 +104,13 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
     expect((await counted).ok()).toBe(true);
     await listener.reload();
     await pageIn(listener);
-    await expect(listener.getByText("1 play", { exact: true })).toBeVisible();
+    // The plays are in the track's details.
+    await listener.getByRole("button", { name: "More for this track" }).click();
+    await listener.getByRole("menuitem", { name: "Track details" }).click();
+    await expect(
+      listener.getByRole("dialog").getByText("1 play", { exact: true }),
+    ).toBeVisible();
+    await listener.keyboard.press("Escape");
   });
 
   await test.step("the producer marks it Helpful and reports it", async () => {
@@ -107,16 +119,16 @@ test("upload, comment at 0:05, Helpful, report and delete the account", async ({
     await expect(
       owner.getByRole("button", { name: `Comment by ${jonas.name} at 0:05` }),
     ).toBeVisible();
-    await owner.getByRole("button", { name: "Mark as Helpful" }).click();
-    await expect(
-      owner.getByRole("button", { name: "Remove Helpful" }),
-    ).toBeVisible();
+    // One tap beside Reply.
+    const helpful = owner.getByRole("button", { name: "Helpful", exact: true });
+    await helpful.click();
+    await expect(helpful).toHaveAttribute("aria-pressed", "true");
 
     // The mark is stored, not just shown.
     await owner.reload();
     await expect(
-      owner.getByRole("button", { name: "Remove Helpful" }),
-    ).toBeVisible();
+      owner.getByRole("button", { name: "Helpful", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
 
     await owner
       .getByRole("button", {

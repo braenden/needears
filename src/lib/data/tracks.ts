@@ -28,8 +28,8 @@ const FEED_FUNCTIONS = {
 
 const OWNER =
   "owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
-const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, listener_comment_count, needs_ears, play_count, published_at, feedback_wants, level, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), track_versions(count), ${OWNER}`;
-const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, description, tags, level, status, owner_id, reference_url`;
+const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, listener_comment_count, needs_ears, play_count, published_at, feedback_wants, level, description, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), track_versions(count), ${OWNER}`;
+const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, tags, status, owner_id, reference_url`;
 
 // Bars in the card waveform (MiniWaveform's default).
 const CARD_BARS = 72;
@@ -48,6 +48,7 @@ type SummaryRow = {
   published_at: string;
   feedback_wants: TrackSummary["feedback_wants"];
   level: TrackSummary["level"];
+  description: TrackSummary["description"];
   reaction_counts: Json;
   // How many versions, counted by PostgREST.
   track_versions: { count: number }[];
@@ -90,6 +91,7 @@ async function toCards(
     published_at: row.published_at,
     feedback_wants: row.feedback_wants,
     level: row.level,
+    description: row.description,
     version_count: row.track_versions[0]?.count ?? 1,
     reaction_counts: reactionCounts(row.reaction_counts),
     genre: row.genre!,
@@ -122,21 +124,75 @@ export async function getFeed(
   };
 }
 
-// Tracks on a profile. RLS shows the owner their hidden tracks too.
+// Tracks on a profile. RLS shows the owner (and admins) hidden tracks too,
+// unless `liveOnly`.
 export async function getTracksByOwner(
   ownerId: string,
   limit = 50,
+  liveOnly = false,
 ): Promise<CardTrack[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tracks")
     .select(SUMMARY_COLUMNS)
     .eq("owner_id", ownerId)
-    .in("status", ["live", "hidden"])
+    .in("status", liveOnly ? ["live"] : ["live", "hidden"])
     .order("published_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(`Tracks failed: ${describeError(error)}`);
   return toCards(supabase, data as unknown as SummaryRow[]);
+}
+
+/** Live tracks by id, as rows to play, in the order of `ids`. */
+export async function getTracksByIds(ids: string[]): Promise<CardTrack[]> {
+  if (ids.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tracks")
+    .select(SUMMARY_COLUMNS)
+    .in("id", ids)
+    .eq("status", "live");
+  if (error) throw new Error(`Tracks failed: ${describeError(error)}`);
+  const rows = (data as unknown as SummaryRow[]).sort(
+    (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
+  );
+  return toCards(supabase, rows);
+}
+
+/** How many tracks "More to hear" offers. */
+const MORE_TO_HEAR = 5;
+
+/**
+ * A next step on a track's page for someone looking around: other tracks
+ * that need ears first (not this one, not the viewer's own), then more by
+ * the same artist, then the newest. The same queries as the feed and the
+ * profile, so row level security decides what shows.
+ */
+export async function getMoreToHear(
+  track: { id: string; owner_id: string },
+  viewerId: string | null,
+): Promise<CardTrack[]> {
+  const [needs, sameArtist, latest] = await Promise.all([
+    getFeed("needs-ears", null, 1),
+    // Only live ones: a hidden track is never offered, not even to its
+    // owner or an admin.
+    getTracksByOwner(track.owner_id, MORE_TO_HEAR + 1, true),
+    getFeed("latest", null, 1),
+  ]);
+  const picked: CardTrack[] = [];
+  const seen = new Set([track.id]);
+  const add = (list: CardTrack[], skipOwn: boolean) => {
+    for (const t of list) {
+      if (picked.length >= MORE_TO_HEAR) return;
+      if (seen.has(t.id) || (skipOwn && t.owner.id === viewerId)) continue;
+      seen.add(t.id);
+      picked.push(t);
+    }
+  };
+  add(needs.tracks, true);
+  add(sameArtist, false);
+  add(latest.tracks, false);
+  return picked;
 }
 
 export type TrackPageData = {

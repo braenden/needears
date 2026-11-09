@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInWithMagicLink } from "./helpers";
+import { pageIn, signInWithMagicLink } from "./helpers";
 
 // Replies and Resolved on a seed track: Jonas comments on Nora's track,
 // Nora replies and marks it resolved, Jonas gets told about the reply.
@@ -8,7 +8,7 @@ const stamp = Date.now().toString(36);
 const question = `Is the hi-hat panned on purpose? ${stamp}`;
 const answer = `Yes, it moves left in the second half. ${stamp}`;
 
-test("reply, resolve, Show resolved in the URL and the reply notice", async ({
+test("reply, resolve, resolved comments in the URL and the reply notice", async ({
   browser,
 }) => {
   const jonas = await (await browser.newContext()).newPage();
@@ -29,34 +29,33 @@ test("reply, resolve, Show resolved in the URL and the reply notice", async ({
     await thread.first().getByRole("button", { name: "Reply" }).click();
     await expect(nora.getByText(answer)).toBeVisible();
 
+    // Resolved from the comment's menu: it goes to the bottom, folded.
     await thread
       .first()
-      .getByRole("button", { name: "Mark as resolved" })
+      .getByRole("button", { name: /More actions for the comment by Jonas/ })
       .click();
-    await expect(
-      thread.first().getByRole("button", { name: "Reopen" }),
-    ).toBeVisible();
-
-    // Stored, not just shown.
-    await nora.reload();
-    await expect(
-      nora
-        .getByRole("listitem")
-        .filter({ hasText: question })
-        .first()
-        .getByRole("button", { name: "Reopen" }),
-    ).toBeVisible();
+    await nora.getByRole("menuitem", { name: "Mark as resolved" }).click();
+    await expect(nora.getByText(question)).toBeHidden();
   });
 
-  await test.step("hiding resolved comments is kept in the URL", async () => {
-    await nora.getByRole("checkbox", { name: /Show resolved/ }).uncheck();
-    await expect(nora.getByText(question)).toBeHidden();
-    await expect(nora).toHaveURL(/resolved=hide/);
+  await test.step("showing resolved comments is kept in the URL", async () => {
+    await nora
+      .getByRole("button", { name: /^\d+ resolved comments?$/ })
+      .click();
+    await expect(nora.getByText(question)).toBeVisible();
+    await expect(nora).toHaveURL(/resolved=show/);
+    // Stored, not just shown.
     await nora.reload();
-    await expect(nora.getByText(question)).toBeHidden();
-    await expect(
-      nora.getByRole("checkbox", { name: /Show resolved/ }),
-    ).not.toBeChecked();
+    await pageIn(nora);
+    await expect(nora.getByText(question)).toBeVisible();
+    await nora
+      .getByRole("listitem")
+      .filter({ hasText: question })
+      .first()
+      .getByRole("button", { name: /More actions for the comment by Jonas/ })
+      .click();
+    await expect(nora.getByRole("menuitem", { name: "Reopen" })).toBeVisible();
+    await nora.keyboard.press("Escape");
   });
 
   await test.step("Jonas sees the reply under Notifications", async () => {

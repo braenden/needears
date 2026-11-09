@@ -67,11 +67,16 @@ test.describe("with a mouse and the keyboard", () => {
     page,
   }) => {
     await page.goto(FEED);
-    await card(page)
-      .getByRole("link", { name: /comments?$/ })
-      .click();
+    const link = card(page).getByRole("link", { name: /^\d+ comments?/ });
+    const count = Number((await link.textContent())?.match(/\d+/)?.[0]);
+    expect(count).toBeGreaterThan(0);
+    await link.click();
     await expect(page).toHaveURL(/\/t\/night-bus-seed0002#comments$/);
     await expectCommentsAtTop(page);
+    // The same number on the row and above the comments.
+    await expect(
+      page.getByRole("heading", { name: "Comments", level: 2 }),
+    ).toHaveText(`Comments ${count}`);
   });
 });
 
@@ -104,7 +109,7 @@ test.describe("with a finger", () => {
   test("the comment count lands below the sticky player", async ({ page }) => {
     await page.goto(FEED);
     await card(page)
-      .getByRole("link", { name: /comments?$/ })
+      .getByRole("link", { name: /^\d+ comments?/ })
       .tap();
     await expect(page).toHaveURL(/#comments$/);
     await expectCommentsAtTop(page);

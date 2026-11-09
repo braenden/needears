@@ -1,27 +1,16 @@
 import Link from "next/link";
-import { MessageSquareIcon } from "lucide-react";
 
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { ReputationBadge } from "@/components/reputation-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import type { ProfileSummary, TrackSummary } from "@/types/view";
+import type { ProfileSummary } from "@/types/view";
+import { type PlayableTrack, TrackList } from "@/components/track/track-list";
 
 import { SEARCH_MIN_LENGTH } from "@/config/limits";
 
-export type TrackHit = Pick<
-  TrackSummary,
-  | "id"
-  | "slug"
-  | "title"
-  | "duration_ms"
-  | "comment_count"
-  | "listener_comment_count"
-  | "genre"
-  | "owner"
->;
+export type TrackHit = PlayableTrack;
 
 /** Splits text around case-insensitive matches of the query, for <mark>. */
 export function highlightParts(text: string, query: string) {
@@ -139,45 +128,8 @@ export function SearchResults({
               {tracks.length}
             </span>
           </h2>
-          <ul className="mt-2 divide-y rounded-xl border bg-card">
-            {tracks.map((track) => (
-              <li key={track.id}>
-                <Link
-                  href={`/t/${track.slug}`}
-                  className="flex items-center gap-3 px-3 py-3 outline-none first:rounded-t-xl last:rounded-b-xl hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset @sm:px-4"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">
-                      <Highlight text={track.title} query={q} />
-                    </span>
-                    <span className="mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-muted-foreground">
-                      <span className="truncate">
-                        {displayNameOf(track.owner)}
-                      </span>
-                      <span>{track.genre.name}</span>
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1" data-numeric>
-                      <MessageSquareIcon
-                        className="size-3.5"
-                        aria-hidden="true"
-                      />
-                      {track.listener_comment_count}
-                      <span className="sr-only">
-                        {track.listener_comment_count === 1
-                          ? " comment"
-                          : " comments"}
-                      </span>
-                    </span>
-                    <time data-numeric className="hidden @sm:inline">
-                      {formatTime(track.duration_ms)}
-                    </time>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {/* The same rows as the feed: they play where they are. */}
+          <TrackList tracks={tracks} label="Tracks" className="mt-1" />
         </div>
       ) : null}
       {profiles.length > 0 ? (
@@ -188,12 +140,12 @@ export function SearchResults({
               {profiles.length}
             </span>
           </h2>
-          <ul className="mt-2 grid gap-2 @md:grid-cols-2">
+          <ul className="mt-2 grid gap-1 @md:grid-cols-2">
             {profiles.map((profile) => (
               <li key={profile.id} className="min-w-0">
                 <Link
                   href={`/u/${profile.handle}`}
-                  className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 focus-ring outline-none hover:bg-accent"
+                  className="flex items-center gap-3 rounded-lg px-2 py-2 focus-ring outline-none hover:bg-accent"
                 >
                   <UserAvatar profile={profile} />
                   <span className="min-w-0 flex-1">

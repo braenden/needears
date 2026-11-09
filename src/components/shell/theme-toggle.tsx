@@ -4,7 +4,6 @@ import { useSyncExternalStore } from "react";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const THEME_CHOICES = [
@@ -27,29 +26,14 @@ export function useMounted() {
   );
 }
 
-/** One button that switches between dark and light, for signed out visitors. */
-export function ThemeToggle({ className }: { className?: string }) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const mounted = useMounted();
-  const isLight = mounted && resolvedTheme === "light";
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={cn("touch-hit", className)}
-      onClick={() => setTheme(isLight ? "dark" : "light")}
-      aria-label="Light theme"
-      aria-pressed={isLight}
-    >
-      <SunIcon className="hidden in-[.light]:block" />
-      <MoonIcon className="block in-[.light]:hidden" />
-    </Button>
-  );
-}
-
-/** Dark, Light or System side by side, for the phone menu. */
-export function ThemeSegments({ className }: { className?: string }) {
+/** Dark, Light or System side by side: the phone menu, and small in the footer. */
+export function ThemeSegments({
+  className,
+  size = "default",
+}: {
+  className?: string;
+  size?: "default" | "sm";
+}) {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
   return (
@@ -70,7 +54,11 @@ export function ThemeSegments({ className }: { className?: string }) {
             role="radio"
             aria-checked={checked}
             onClick={() => setTheme(value)}
-            className="flex h-9 items-center justify-center gap-1.5 rounded-md text-sm text-muted-foreground focus-ring transition-colors duration-fast outline-none hover:text-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-sm"
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-md text-muted-foreground",
+              "focus-ring transition-colors duration-fast outline-none hover:text-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-sm",
+              size === "sm" ? "h-7 px-2.5 text-[13px]" : "h-9 text-sm",
+            )}
           >
             <Icon className="size-4" aria-hidden="true" />
             {label}

@@ -38,30 +38,33 @@ test.describe("feed layout and badges", () => {
     expect(width).toBeLessThanOrEqual(375);
   });
 
-  test("comments show the author's badges", async ({ page }) => {
+  test("badges are on the profile, not beside every comment", async ({
+    page,
+  }) => {
     await page.goto("/t/night-bus-seed0002");
+    await expect(
+      page.getByRole("list", { name: "Comments" }).first(),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("list", { name: "Comments" })
+        .getByRole("list", { name: "Badges" }),
+    ).toHaveCount(0);
+    await page.goto("/u/mia?tab=about");
     await expect(
       page
         .getByRole("list", { name: "Badges" })
-        .getByRole("button", { name: "First ears" })
-        .first(),
+        .getByRole("button", { name: "First ears" }),
     ).toBeVisible();
   });
 });
 
-test("the Needs ears tab does not repeat the badge on every card", async ({
-  page,
-}) => {
-  await page.goto("/feed?tab=needs-ears");
-  await expect(page.locator("main article").first()).toBeVisible();
-  await expect(
-    page.locator("main article").getByText("Needs ears", { exact: true }),
-  ).toHaveCount(0);
-  await page.goto("/feed?tab=latest");
-  await expect(
-    page
-      .locator("main article")
-      .getByText("Needs ears", { exact: true })
-      .first(),
-  ).toBeVisible();
+test("rows carry no Needs ears badge: the tab says it", async ({ page }) => {
+  for (const tab of ["needs-ears", "latest"]) {
+    await page.goto(`/feed?tab=${tab}`);
+    await expect(page.locator("main article").first()).toBeVisible();
+    await expect(
+      page.locator("main article").getByText("Needs ears", { exact: true }),
+    ).toHaveCount(0);
+  }
 });

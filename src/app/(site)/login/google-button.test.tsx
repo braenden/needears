@@ -1,80 +1,111 @@
 /** @vitest-environment jsdom */
-import { useEffect, useRef } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  createRawNonce,
-  destinationAfterSignIn,
-  hashNonce,
-} from "@/lib/auth/google-id";
-
-// The script tag does nothing in jsdom; pretend it loaded. Like the real
-// one, onReady runs once per mount.
-vi.mock("next/script", () => ({
-  default: function Script({ onReady }: { onReady?: () => void }) {
-    const called = useRef(false);
-    useEffect(() => {
-      if (called.current) return;
-      called.current = true;
-      onReady?.();
-    });
-    return null;
-  },
-}));
+import type {
+  GoogleCodeResponse,
+  GoogleOAuth2,
+} from "@/components/auth/google-code-client";
+import { POPUP_BLOCKED } from "@/components/auth/google-code-client";
+import { createRawNonce, destinationAfterSignIn } from "@/lib/auth/google-id";
+import { signedInHash, signedInWithEmail } from "@/lib/auth/last-login";
 
 const signInWithIdToken = vi.fn();
 vi.mock("@/lib/supabase/lazy", () => ({
   browserClient: async () => ({ auth: { signInWithIdToken } }),
 }));
+vi.mock("next/script", () => ({ default: () => null }));
 
-const { GoogleButton } = await import("./google-button");
+const { GoogleButton, GOOGLE_FAILED, GOOGLE_UNAVAILABLE } =
+  await import("./google-button");
 const { LoginForm } = await import("./login-form");
 
-type Config = {
-  client_id: string;
-  nonce: string;
-  callback: (response: { credential?: string }) => void;
-};
+type CodeConfig = Parameters<GoogleOAuth2["initCodeClient"]>[0];
 
-let configs: Config[] = [];
-const renderButton = vi.fn();
+// Google's code client: a stand-in answers the popup the way Google would.
+let config: CodeConfig | null = null;
+let answer: (config: CodeConfig) => GoogleCodeResponse | "blocked" = (c) => ({
+  code: "4/google-code",
+  state: c.state,
+});
 const assign = vi.fn();
+const fetchMock = vi.fn();
+const realLocation = window.location;
 
 beforeEach(() => {
-  configs = [];
-  renderButton.mockClear();
   signInWithIdToken.mockReset();
-  assign.mockClear();
+  assign.mockReset();
+  fetchMock.mockReset();
+  localStorage.clear();
+  config = null;
+  answer = (c) => ({ code: "4/google-code", state: c.state });
   window.google = {
     accounts: {
-      id: {
-        initialize: (config) => configs.push(config as Config),
-        renderButton,
+      oauth2: {
+        initCodeClient: (c) => {
+          config = c;
+          return {
+            requestCode: () => {
+              const response = answer(c);
+              if (response === "blocked")
+                c.error_callback?.({ type: "popup_failed_to_open" });
+              else c.callback(response);
+            },
+          };
+        },
       },
     },
   };
-  vi.stubGlobal("location", { ...window.location, assign });
+  vi.stubGlobal("fetch", fetchMock);
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { origin: realLocation.origin, assign },
+  });
+  fetchMock.mockResolvedValue(
+    Response.json({ idToken: "google-id-token" }, { status: 200 }),
+  );
+  signInWithIdToken.mockResolvedValue({
+    data: { user: { user_metadata: { onboarded: true } } },
+    error: null,
+  });
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: realLocation,
+  });
   delete window.google;
 });
 
-describe("nonces", () => {
-  it("are random and hash to 64 hex characters", async () => {
-    const raw = createRawNonce();
-    expect(raw).not.toBe(createRawNonce());
-    expect(raw).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(await hashNonce("abc")).toBe(
-      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-    );
+const lastLogin = () => localStorage.getItem("needears:last-login");
+
+function renderButton(props: Partial<Parameters<typeof GoogleButton>[0]> = {}) {
+  const onError = vi.fn();
+  render(
+    <GoogleButton
+      clientId="id.apps"
+      next="/upload"
+      onError={onError}
+      {...props}
+    />,
+  );
+  return {
+    onError,
+    button: screen.getByRole("button", { name: "Continue with Google" }),
+  };
+}
+
+describe("nonces and destinations", () => {
+  it("makes a fresh nonce each time", () => {
+    expect(createRawNonce()).not.toBe(createRawNonce());
   });
 
-  it("send new people to /welcome first", () => {
-    expect(destinationAfterSignIn({ user_metadata: {} }, "/t/x?t=3")).toBe(
-      "/welcome?next=%2Ft%2Fx%3Ft%3D3",
+  it("sends new people to /welcome first", () => {
+    expect(destinationAfterSignIn(null, "/upload")).toBe(
+      "/welcome?next=%2Fupload",
     );
     expect(
       destinationAfterSignIn({ user_metadata: { onboarded: true } }, "/feed"),
@@ -82,49 +113,130 @@ describe("nonces", () => {
   });
 });
 
-describe("GoogleButton", () => {
-  it("gives Google the hash and Supabase the raw nonce", async () => {
-    signInWithIdToken.mockResolvedValue({
-      data: { user: { user_metadata: { onboarded: true } } },
-      error: null,
-    });
-    render(
-      <GoogleButton clientId="id.apps" next="/upload" onError={() => {}} />,
-    );
-    await waitFor(() => expect(renderButton).toHaveBeenCalled());
-    const config = configs[0]!;
-    expect(config.client_id).toBe("id.apps");
-    expect(config.nonce).toMatch(/^[0-9a-f]{64}$/);
+describe("the way in, after an email link worked", () => {
+  it("is read back from the hash /auth/callback adds", () => {
+    expect(signedInWithEmail(signedInHash())).toBe(true);
+    expect(signedInWithEmail("#signed-in=google")).toBe(false);
+    expect(signedInWithEmail("")).toBe(false);
+  });
+});
 
-    config.callback({ credential: "id-token" });
+describe("GoogleButton", () => {
+  it("opens Google's popup, swaps the code on our server and signs in", async () => {
+    const user = userEvent.setup();
+    const { onError } = renderButton();
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+    expect(config).toMatchObject({
+      client_id: "id.apps",
+      ux_mode: "popup",
+      scope: "openid email profile",
+      select_account: false,
+    });
+    expect(config?.state).toMatch(/^[\w-]{40,}$/);
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/upload"));
-    const sent = signInWithIdToken.mock.calls[0]![0] as {
-      provider: string;
-      token: string;
-      nonce: string;
-    };
-    expect(sent.provider).toBe("google");
-    expect(sent.token).toBe("id-token");
-    expect(await hashNonce(sent.nonce)).toBe(config.nonce);
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/google-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "4/google-code" }),
+    });
+    expect(signInWithIdToken).toHaveBeenCalledWith({
+      provider: "google",
+      token: "google-id-token",
+    });
+    expect(lastLogin()).toBe("google");
+    expect(onError).toHaveBeenLastCalledWith(null);
   });
 
-  it("says so and starts over with a new nonce when Supabase refuses", async () => {
+  it("sends a new account to /welcome first", async () => {
+    const user = userEvent.setup();
+    signInWithIdToken.mockResolvedValue({
+      data: { user: { user_metadata: {} } },
+      error: null,
+    });
+    const { button } = renderButton();
+    await user.click(button);
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("/welcome?next=%2Fupload"),
+    );
+  });
+
+  it("asks which account when signing in again", async () => {
+    const user = userEvent.setup();
+    const { button } = renderButton({ chooseAccount: true });
+    await user.click(button);
+    expect(config?.select_account).toBe(true);
+  });
+
+  it("uses a new state each time and drops an answer that does not match", async () => {
+    const user = userEvent.setup();
+    answer = () => ({ code: "4/google-code", state: "someone-else" });
+    const { button, onError } = renderButton();
+    await user.click(button);
+    expect(onError).toHaveBeenLastCalledWith(GOOGLE_FAILED);
+    const first = config?.state;
+    await user.click(button);
+    expect(config?.state).not.toBe(first);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(lastLogin()).toBeNull();
+  });
+
+  it("remembers nothing when our server turns the code down", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(
+      Response.json({ error: { code: "invalid_code" } }, { status: 400 }),
+    );
+    const { button, onError } = renderButton();
+    await user.click(button);
+    await waitFor(() =>
+      expect(onError).toHaveBeenLastCalledWith(GOOGLE_FAILED),
+    );
+    expect(signInWithIdToken).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+    expect(lastLogin()).toBeNull();
+    expect(button).toBeEnabled();
+  });
+
+  it("remembers nothing when Supabase does not sign in", async () => {
+    const user = userEvent.setup();
     signInWithIdToken.mockResolvedValue({
       data: { user: null },
-      error: new Error("nonce mismatch"),
+      error: new Error("no"),
     });
-    const onError = vi.fn();
-    render(<GoogleButton clientId="id.apps" next="/" onError={onError} />);
-    await waitFor(() => expect(configs).toHaveLength(1));
-    configs[0]!.callback({ credential: "id-token" });
+    const { button, onError } = renderButton();
+    await user.click(button);
     await waitFor(() =>
-      expect(onError).toHaveBeenLastCalledWith(
-        expect.stringContaining("didn't work"),
-      ),
+      expect(onError).toHaveBeenLastCalledWith(GOOGLE_FAILED),
     );
-    await waitFor(() => expect(configs).toHaveLength(2));
-    expect(configs[1]!.nonce).not.toBe(configs[0]!.nonce);
     expect(assign).not.toHaveBeenCalled();
+    expect(lastLogin()).toBeNull();
+  });
+
+  it("says so when Google's script is not there", async () => {
+    const user = userEvent.setup();
+    delete window.google;
+    const { button, onError } = renderButton();
+    await user.click(button);
+    expect(onError).toHaveBeenLastCalledWith(GOOGLE_UNAVAILABLE);
+    expect(button).toBeEnabled();
+  });
+
+  it("takes closing Google's window as a change of mind", async () => {
+    const user = userEvent.setup();
+    answer = () => ({ error: "access_denied" });
+    const { button, onError } = renderButton();
+    await user.click(button);
+    expect(onError).toHaveBeenLastCalledWith(null);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("says so when the browser blocks the popup", async () => {
+    const user = userEvent.setup();
+    answer = () => "blocked";
+    const { button, onError } = renderButton();
+    await user.click(button);
+    expect(onError).toHaveBeenLastCalledWith(POPUP_BLOCKED);
   });
 });
 
@@ -134,134 +246,36 @@ describe("LoginForm", () => {
     expect(screen.queryByTestId("google-button")).toBeNull();
     expect(screen.queryByText("or")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Email me a sign-in link" }),
+      screen.getByRole("button", { name: "Continue with email" }),
     ).toBeInTheDocument();
   });
 
-  it("says which way was used last, only when there is a choice", async () => {
-    localStorage.setItem("needears:last-login", "email");
+  it("offers Google first when a client ID is set", () => {
+    render(<LoginForm next="/" googleClientId="id.apps" />);
+    const google = screen.getByRole("button", { name: "Continue with Google" });
+    const email = screen.getByRole("button", { name: "Continue with email" });
+    expect(
+      google.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("says which way was used last, only when there is a choice", () => {
+    localStorage.setItem("needears:last-login", "google");
     const { unmount } = render(<LoginForm next="/" googleClientId="id.apps" />);
     expect(
-      screen.getByText("You signed in with email last time."),
+      screen.getByText("You signed in with Google last time."),
     ).toBeInTheDocument();
-    await waitFor(() => expect(renderButton).toHaveBeenCalled());
     unmount();
 
     render(<LoginForm next="/" googleClientId={null} />);
     expect(screen.queryByText(/last time/)).toBeNull();
-    localStorage.clear();
   });
 
-  it("says so outside Google's button when Google was used last", async () => {
-    localStorage.setItem("needears:last-login", "google");
-    render(<LoginForm next="/" googleClientId="id.apps" />);
-    const hint = screen.getByText("You signed in with Google last time.");
-    expect(
-      screen.getByTestId("google-button").parentElement?.contains(hint),
-    ).toBe(false);
-    await waitFor(() => expect(renderButton).toHaveBeenCalled());
-    localStorage.clear();
-  });
-
-  it("shows one message in place of both ways in while signing in", async () => {
-    let finish: (value: unknown) => void = () => {};
-    signInWithIdToken.mockReturnValue(new Promise((r) => (finish = r)));
-    render(<LoginForm next="/" googleClientId="id.apps" />);
-    await waitFor(() => expect(configs).toHaveLength(1));
-    configs[0]!.callback({ credential: "id-token" });
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Signing you in…",
+  it("keeps the email field's label for screen readers", () => {
+    render(<LoginForm next="/" googleClientId={null} />);
+    expect(screen.getByRole("textbox", { name: "Email" })).toHaveAttribute(
+      "placeholder",
+      "Email address",
     );
-    // Both buttons are out of sight, and nothing is drawn over Google's.
-    expect(
-      screen.queryByRole("button", { name: "Email me a sign-in link" }),
-    ).toBeNull();
-    expect(
-      screen
-        .getByTestId("google-button")
-        .parentElement?.contains(screen.getByRole("status")),
-    ).toBe(false);
-
-    // Supabase refuses: both come back, and Google's button gets a new nonce.
-    finish({ data: { user: null }, error: { message: "nope" } });
-    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
-    expect(
-      screen.getByRole("button", { name: "Email me a sign-in link" }),
-    ).toBeInTheDocument();
-    await waitFor(() => expect(configs).toHaveLength(2));
-  });
-
-  it("draws the button again when Google draws it too narrow", async () => {
-    // Google's first drawing comes out narrower than asked for, like the
-    // personalized button after a client-side navigation.
-    renderButton.mockImplementation((parent: HTMLElement) => {
-      const button = document.createElement("div");
-      button.getBoundingClientRect = () =>
-        ({
-          width: renderButton.mock.calls.length === 1 ? 120 : 200,
-        }) as DOMRect;
-      parent.appendChild(button);
-    });
-    render(<GoogleButton clientId="id.apps" next="/" onError={() => {}} />);
-    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2), {
-      timeout: 2000,
-    });
-    renderButton.mockReset();
-  });
-
-  it("leaves the button alone once someone is on it", async () => {
-    // Narrow every time, so the checks would redraw it if they could.
-    renderButton.mockImplementation((parent: HTMLElement) => {
-      const button = document.createElement("div");
-      button.getBoundingClientRect = () => ({ width: 120 }) as DOMRect;
-      parent.appendChild(button);
-    });
-    render(<GoogleButton clientId="id.apps" next="/" onError={() => {}} />);
-    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
-    // The pointer moves onto Google's button (its popup may open now).
-    fireEvent.pointerOver(screen.getByTestId("google-button").firstChild!);
-    await new Promise((resolve) => setTimeout(resolve, 1700));
-    expect(renderButton).toHaveBeenCalledTimes(1);
-    renderButton.mockReset();
-  });
-
-  it("stops waiting for a width when it leaves the page", async () => {
-    const disconnect = vi.fn();
-    const observe = vi.fn();
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        observe = observe;
-        disconnect = disconnect;
-      },
-    );
-    // jsdom has no layout, so the container is 0 wide and draw waits.
-    const { unmount } = render(
-      <GoogleButton clientId="id.apps" next="/" onError={() => {}} />,
-    );
-    await waitFor(() => expect(observe).toHaveBeenCalled());
-    unmount();
-    expect(disconnect).toHaveBeenCalled();
-    expect(renderButton).not.toHaveBeenCalled();
-  });
-
-  it("remembers Google once the token is accepted", async () => {
-    localStorage.clear();
-    signInWithIdToken.mockResolvedValue({
-      data: { user: { user_metadata: { onboarded: true } } },
-      error: null,
-    });
-    render(<GoogleButton clientId="id.apps" next="/" onError={() => {}} />);
-    await waitFor(() => expect(configs).toHaveLength(1));
-    configs[0]!.callback({ credential: "id-token" });
-    await waitFor(() => expect(assign).toHaveBeenCalled());
-    expect(localStorage.getItem("needears:last-login")).toBe("google");
-  });
-
-  it("offers Google first when a client ID is set", async () => {
-    render(<LoginForm next="/" googleClientId="id.apps" />);
-    expect(screen.getByTestId("google-button")).toBeInTheDocument();
-    await waitFor(() => expect(renderButton).toHaveBeenCalled());
   });
 });

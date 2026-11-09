@@ -23,20 +23,16 @@ export default async function SearchPage({
   const results = await searchAll(query);
 
   return (
-    // Measured like the header, so this box shows exactly when the header's
-    // box does not.
-    <div className="@container">
-      <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
-        <h1 className="font-display text-3xl font-bold tracking-tight">
-          Search
-        </h1>
+    <div>
+      <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-10">
+        <h1 className="sr-only">Search</h1>
         <SearchField
           key={query}
           defaultValue={query}
-          shortcut={false}
           autoFocus={!query}
           formLabel="Search tracks and people"
-          className="mt-6 @min-[40rem]:hidden"
+          size="lg"
+          className="max-w-2xl"
         />
         <SearchResults
           className="mt-8"

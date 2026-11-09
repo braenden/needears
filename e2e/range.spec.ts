@@ -23,7 +23,7 @@ test("range comment, reference track and marker export", async ({
     await dialog.getByLabel(/Reference track/).fill(reference);
     await dialog.getByRole("button", { name: "Save changes" }).click();
     await expect(dialog).toBeHidden();
-    const link = nora.getByRole("link", { name: /Reference track/ });
+    const link = nora.getByRole("link", { name: /a track on/ }).first();
     await expect(link).toHaveAttribute("href", reference);
     await expect(link).toHaveAttribute("rel", /nofollow/);
   });
@@ -40,9 +40,9 @@ test("range comment, reference track and marker export", async ({
       await jonas.mouse.move(box.x + box.width * 0.4, y, { steps: 4 });
       await jonas.mouse.move(box.x + box.width * 0.6, y, { steps: 4 });
       await jonas.mouse.up();
-      await expect(jonas.getByPlaceholder(/What do you hear from/)).toBeVisible(
-        { timeout: 1000 },
-      );
+      await expect(jonas.getByPlaceholder(/from \d:\d\d to/)).toBeVisible({
+        timeout: 1000,
+      });
     }).toPass();
     await jonas.getByLabel("Comment", { exact: true }).fill(text);
     await jonas.getByRole("button", { name: "Comment", exact: true }).click();
