@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useReducer, useRef, useState } from "react";
+import { useEffect, useId, useReducer, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CheckIcon,
@@ -59,7 +59,7 @@ export type UploadPipeline = {
     | { ok: true; slug: string }
     | {
         ok: false;
-        error: "upload_interrupted" | "rate_limited" | "unknown";
+        error: "upload_interrupted" | "rate_limited" | "signed_out" | "unknown";
         rateLimit?: { limit: number; retry: string };
       }
   >;
@@ -110,9 +110,31 @@ export function publishErrorText(
       return `You've hit today's upload limit (${rateLimit?.limit ?? reputationLevels[0]!.limits.tracksPerDay} per day for now). Try again ${rateLimit?.retry ?? "tomorrow"}.`;
     case "encode_failed":
       return "Something went wrong while preparing the stream. Try again, or upload an mp3.";
+    case "signed_out":
+      return "You've been signed out. Sign in again in a new tab, then come back here and try again. Your track and details are still here.";
     case "unknown":
       return `Something broke on our side. Try again in a minute.${contactEmail ? ` If it keeps happening, tell us at ${contactEmail}.` : ""}`;
   }
+}
+
+/**
+ * After the signed_out message. Opens in a new tab, so the chosen file and
+ * what was written stay in this one.
+ */
+export function SignInAgainLink() {
+  return (
+    <>
+      {" "}
+      <a
+        href="/login"
+        target="_blank"
+        rel="noopener"
+        className="font-medium underline underline-offset-2 focus-ring outline-none"
+      >
+        Sign in again
+      </a>
+    </>
+  );
 }
 
 export function UploadWizard({
@@ -141,6 +163,17 @@ export function UploadWizard({
   const runRef = useRef(0);
   const encodingRef = useRef<Promise<boolean> | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+
+  // A chosen file and what was written about it live in this tab only:
+  // closing or reloading it asks first, with the browser's own warning.
+  const unsaved =
+    state.file !== null && state.fileError === null && state.step !== "done";
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsaved]);
 
   async function handleFile(file: File) {
     const run = ++runRef.current;
@@ -735,6 +768,7 @@ function PublishStep({
           className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive"
         >
           {publishErrorText(state.publishError, state.rateLimit, contactEmail)}
+          {state.publishError === "signed_out" ? <SignInAgainLink /> : null}
         </p>
       ) : null}
 

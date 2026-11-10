@@ -363,20 +363,44 @@ export function TrackView({
   // they wrote kept.
   const needsName = !!viewer && !viewer.onboarded;
   function pickNameFirst(post?: PendingPost) {
-    if (post) keepPending(track.id, post);
+    if (post && viewer) keepPending(track.id, viewer.userId, post);
     const back = `${pathname}${timeMs > 0 ? `?t=${Math.floor(timeMs / 1000)}` : ""}`;
     router.push(`/welcome?next=${encodeURIComponent(back)}`);
   }
-  // Leaving for /welcome: the box stays busy until the page has gone.
+  // Leaving for /welcome or /login: the box stays busy until the page has gone.
   const leaving = () => new Promise<SubmitResult>(() => {});
+
+  // The sign-in can end while the page is open (signed out in another tab,
+  // or it ran out), and the page still looks signed in. Then a write fails
+  // like any other: check, and send them to sign in with what they wrote
+  // kept, instead of telling them something broke.
+  async function signedOut() {
+    try {
+      const { data, error } = await (await browserClient()).auth.getSession();
+      // An error is something else (no network to renew it with, say).
+      return !data.session && !error;
+    } catch {
+      return false;
+    }
+  }
+  function signInAgain(post?: PendingPost) {
+    if (post && viewer) keepPending(track.id, viewer.userId, post);
+    toast.message(
+      post
+        ? "You've been signed out. Sign in again and what you wrote will be waiting."
+        : "You've been signed out. Sign in again to carry on.",
+    );
+    signIn();
+  }
 
   // Back with a name: what they wrote before is put back, ready to post.
   const [kept, setKept] = useState<PendingPost | null>(null);
+  const viewerId = viewer?.onboarded ? viewer.userId : null;
   useEffect(() => {
-    if (!viewer?.onboarded) return;
+    if (!viewerId) return;
     // After the first paint, so the page renders the same on the server.
     const frame = requestAnimationFrame(() => {
-      const post = takePending(track.id);
+      const post = takePending(track.id, viewerId);
       if (!post) return;
       setKept(post);
       if (post.kind === "comment" && post.timeMs !== null && post.endMs != null)
@@ -384,7 +408,7 @@ export function TrackView({
       commentsSection.current?.scrollIntoView({ block: "start" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [track.id, viewer?.onboarded]);
+  }, [track.id, viewerId]);
 
   async function submit(draft: CommentDraft): Promise<SubmitResult> {
     if (!viewer) return { ok: false, error: "failed" };
@@ -414,6 +438,10 @@ export function TrackView({
         return leaving();
       }
       if (error.code === "PT429") return { ok: false, error: "rate_limited" };
+      if (await signedOut()) {
+        signInAgain({ kind: "comment", ...draft });
+        return leaving();
+      }
       if (error.code === "42501") return { ok: false, error: "unavailable" };
       return { ok: false, error: "failed" };
     }
@@ -450,6 +478,10 @@ export function TrackView({
         return leaving();
       }
       if (error.code === "PT429") return { ok: false, error: "rate_limited" };
+      if (await signedOut()) {
+        signInAgain({ kind: "reply", parentId: parent.id, body });
+        return leaving();
+      }
       if (error.code === "42501" || error.code === "22023")
         return { ok: false, error: "unavailable" };
       return { ok: false, error: "failed" };
@@ -565,6 +597,7 @@ export function TrackView({
         ),
       );
       if (handleRequired(error)) return pickNameFirst();
+      if (await signedOut()) return signInAgain();
       toast.error("Couldn't mark that as Helpful. Try again.");
       return;
     }
@@ -593,6 +626,7 @@ export function TrackView({
       setMine((m) => (m === next ? before : m));
       setCounts((c) => moveReaction(c, next, before));
       if (handleRequired(error)) return pickNameFirst();
+      if (error.code !== "PT429" && (await signedOut())) return signInAgain();
       toast.error(
         error.code === "PT429"
           ? "You've reacted a lot in the last hour. Try again in a bit."

@@ -27,7 +27,11 @@ export type FileError =
   | "flac_unsupported";
 
 export type PublishError =
-  "upload_interrupted" | "rate_limited" | "encode_failed" | "unknown";
+  | "upload_interrupted"
+  | "rate_limited"
+  | "encode_failed"
+  | "signed_out"
+  | "unknown";
 
 export type ProcessingStage =
   "decoding" | "waveform" | "encoding" | "uploading";
@@ -100,7 +104,7 @@ export const initialUploadState: UploadState = {
 function titleFromName(name: string) {
   return name
     .replace(/\.[^.]+$/, "")
-    .replace(/[_-]+/g, " ")
+    .replace(/[\s_-]+/g, " ")
     .trim();
 }
 
