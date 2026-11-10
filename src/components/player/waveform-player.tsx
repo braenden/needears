@@ -207,6 +207,9 @@ export function WaveformPlayer({
   const keepPositionRef = useRef(keepPosition);
   // Position and play state carried from the old source to the new one.
   const handoffRef = useRef<{ time: number; playing: boolean } | null>(null);
+  // True while a source is set up. A new source follows the old one in the
+  // same breath; a page put away for later (kept for going back) does not.
+  const liveRef = useRef(false);
   const onTimeChangeRef = useRef(onTimeChange);
   // Read when a new source is created, so mute and level carry over.
   const mutedRef = useRef(muted);
@@ -243,6 +246,7 @@ export function WaveformPlayer({
     const container = waveRef.current;
     const root = rootRef.current;
     if (!container || !root) return;
+    liveRef.current = true;
     let cancelled = false;
     let ws: WaveSurfer | null = null;
     let borrowed: HTMLAudioElement | null = null;
@@ -317,12 +321,19 @@ export function WaveformPlayer({
 
     return () => {
       cancelled = true;
-      if (ws && keepPositionRef.current) {
-        handoffRef.current = {
-          time: ws.getCurrentTime(),
-          playing: ws.isPlaying(),
-        };
-      }
+      liveRef.current = false;
+      const carried =
+        ws && keepPositionRef.current
+          ? { time: ws.getCurrentTime(), playing: ws.isPlaying() }
+          : null;
+      if (carried) handoffRef.current = carried;
+      // Nothing took over: the page was left. Coming back to it finds the
+      // track where it was, paused. It never starts playing on its own.
+      queueMicrotask(() => {
+        if (liveRef.current) return;
+        if (carried) carried.playing = false;
+        setPlaying(false);
+      });
       ws?.destroy();
       // wavesurfer leaves an element it did not make playing; stop it like
       // its own (keepPosition carries the playing on to the new source).

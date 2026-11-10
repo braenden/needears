@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { pageIn } from "./helpers";
 
 // A track playing in the feed keeps playing when its page is opened, from
 // the same second, like SoundCloud.
@@ -59,4 +60,38 @@ test("another track's page does not play the list's track", async ({
 
   await play.click();
   await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+});
+
+// Leaving a track that is playing stops it. Going back to the page finds it
+// where it was, paused: it never starts playing on its own.
+test("going back to a track that was playing does not start it again", async ({
+  page,
+}) => {
+  await page.goto("/t/night-bus-seed0002");
+  await pageIn(page);
+  const play = page.getByRole("button", { name: "Play", exact: true }).first();
+  const pause = page
+    .getByRole("button", { name: "Pause", exact: true })
+    .first();
+  const time = page.locator("p[data-numeric] time").first();
+
+  await expect(async () => {
+    await play.click();
+    await expect(pause).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  await expect(time).not.toHaveText("0:00");
+
+  await page.getByRole("link", { name: "Nora", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/u\/nora$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/t\/night-bus-seed0002$/);
+  await pageIn(page);
+
+  await expect(play).toBeVisible();
+  await expect(pause).toHaveCount(0);
+  // Where it was, and staying there.
+  await expect(time).not.toHaveText("0:00");
+  const stopped = await time.textContent();
+  await page.waitForTimeout(1500);
+  await expect(time).toHaveText(stopped!);
 });
