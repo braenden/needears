@@ -95,6 +95,14 @@ export function ProfileEditor({
     daw !== saved.daw ||
     JSON.stringify(links.map((l) => l.url)) !==
       JSON.stringify(saved.links.map((l) => l.url));
+  // A link just added gets the cursor, so the address can be typed at once.
+  const lastLinkRef = useRef<HTMLInputElement>(null);
+  const linkAddedRef = useRef(false);
+  useEffect(() => {
+    if (!linkAddedRef.current) return;
+    linkAddedRef.current = false;
+    lastLinkRef.current?.focus();
+  }, [links.length]);
   const onDirtyChangeRef = useRef(onDirtyChange);
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange;
@@ -314,6 +322,7 @@ export function ProfileEditor({
                       <HostIcon host={hostOf(withHttps(link.url))} />
                     </span>
                     <Input
+                      ref={index === links.length - 1 ? lastLinkRef : undefined}
                       aria-label={`Link ${n} address`}
                       value={link.url}
                       inputMode="url"
@@ -367,9 +376,10 @@ export function ProfileEditor({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() =>
-                setLinks((list) => [...list, { label: "", url: "" }])
-              }
+              onClick={() => {
+                linkAddedRef.current = true;
+                setLinks((list) => [...list, { label: "", url: "" }]);
+              }}
             >
               <PlusIcon /> Add a link
             </Button>
