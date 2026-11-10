@@ -4,6 +4,7 @@ import { site } from "@/config/site";
 import { getGenres } from "@/lib/data/profiles";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
+import { Page } from "@/components/shell/page";
 import { Uploader } from "./uploader";
 
 export const metadata: Metadata = {
@@ -27,13 +28,13 @@ export default async function UploadPage() {
     .limit(1)
     .maybeSingle();
   return (
-    <div className="px-4 py-8 sm:py-12">
+    <Page width="narrow">
       <h1 className="sr-only">Upload a track</h1>
       <Uploader
         genres={genres}
         contactEmail={site.contactEmail}
         level={last?.level ?? null}
       />
-    </div>
+    </Page>
   );
 }

@@ -77,7 +77,7 @@ export function HandleForm({
   }
 
   return (
-    <form noValidate onSubmit={save} className="mt-8 grid gap-5">
+    <form noValidate onSubmit={save} className="mt-8 grid gap-5 text-left">
       <div className="grid gap-2">
         <label htmlFor={`${id}-handle`} className="text-sm font-medium">
           Username

@@ -241,11 +241,12 @@ export function UploadWizard({
   };
 
   return (
-    <div className={cn("@container mx-auto w-full max-w-3xl", className)}>
+    <div className={cn("@container w-full", className)}>
+      {/* Sized like a page title: it is the page's title in every step. */}
       <h2
         ref={headingRef}
         tabIndex={-1}
-        className="font-display text-2xl font-bold tracking-tight outline-none @md:text-3xl"
+        className="font-display text-3xl leading-[1.05] font-bold tracking-tight outline-none @xl:text-4xl"
       >
         {headings[state.step]}
       </h2>

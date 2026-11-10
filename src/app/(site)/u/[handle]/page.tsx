@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { loadProfile } from "./load";
 import { ProfileAbout } from "./about";
 import { OwnProfileHeader } from "./own-profile-header";
+import { Page } from "@/components/shell/page";
 
 const PAGE = 30;
 
@@ -88,7 +89,7 @@ export default async function ProfilePage({
   })}`;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-10">
+    <Page>
       <OwnProfileHeader profile={profile} isOwn={isOwn} editable={editable} />
 
       <nav aria-label="Profile sections" className="relative mt-8 border-b">
@@ -201,6 +202,6 @@ export default async function ProfilePage({
           </div>
         ) : null}
       </div>
-    </div>
+    </Page>
   );
 }

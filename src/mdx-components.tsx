@@ -1,5 +1,6 @@
 import type { MDXComponents } from "mdx/types";
 import Link from "next/link";
+import { PAGE_TITLE } from "@/components/shell/page";
 import { site } from "@/config/site";
 import { cn } from "@/lib/utils";
 
@@ -35,13 +36,7 @@ const components: MDXComponents = {
   SourceLink,
   LegalUpdated,
   h1: ({ className, ...props }) => (
-    <h1
-      className={cn(
-        "font-display text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl",
-        className,
-      )}
-      {...props}
-    />
+    <h1 className={cn(PAGE_TITLE, className)} {...props} />
   ),
   h2: ({ className, ...props }) => (
     <h2

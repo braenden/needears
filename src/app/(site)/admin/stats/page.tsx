@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
+import { Page, PageTitle } from "@/components/shell/page";
 
 export const metadata: Metadata = {
   title: "Stats",
@@ -45,11 +46,9 @@ export default async function AdminStatsPage() {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
+    <Page width="narrow">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold tracking-tight">
-          Stats
-        </h1>
+        <PageTitle>Stats</PageTitle>
         <Button variant="outline" size="sm" asChild>
           <Link href="/admin">Reports</Link>
         </Button>
@@ -119,7 +118,7 @@ export default async function AdminStatsPage() {
         stats={today}
       />
       <StatGroup id="totals" title="In total" stats={totals} />
-    </div>
+    </Page>
   );
 }
 

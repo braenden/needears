@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Content from "@/content/about.mdx";
+import { Page } from "@/components/shell/page";
 
 export const metadata: Metadata = {
   title: "About",
@@ -7,13 +8,13 @@ export const metadata: Metadata = {
   alternates: { canonical: "/about" },
 };
 
-export default function Page() {
+export default function AboutPage() {
   return (
     // The page column, with the text kept to a readable measure inside it.
-    <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
+    <Page width="narrow">
       <article className="max-w-prose">
         <Content />
       </article>
-    </div>
+    </Page>
   );
 }

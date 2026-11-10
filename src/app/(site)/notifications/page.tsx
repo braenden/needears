@@ -18,6 +18,7 @@ import {
   LISTED_NOTIFICATION_KINDS,
   type ListedNotificationKind,
 } from "@/lib/data/notification-kinds";
+import { Page, PageTitle } from "@/components/shell/page";
 
 export const metadata: Metadata = {
   title: "Notifications",
@@ -110,10 +111,8 @@ export default async function NotificationsPage({
   const groups = groupNotifications(rows);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
-      <h1 className="font-display text-3xl font-bold tracking-tight">
-        Notifications
-      </h1>
+    <Page width="narrow">
+      <PageTitle>Notifications</PageTitle>
       {viewer.unread > 0 ? <MarkRead /> : null}
       {rows.length === 0 ? (
         <EmptyState
@@ -240,6 +239,6 @@ export default async function NotificationsPage({
           ) : null}
         </>
       )}
-    </div>
+    </Page>
   );
 }

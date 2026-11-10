@@ -11,6 +11,7 @@ import { getViewer } from "@/lib/data/viewer";
 import { cn } from "@/lib/utils";
 import { FeedList } from "./feed-list";
 import { GenreFilter } from "./genre-filter";
+import { Page } from "@/components/shell/page";
 
 const TAB_LABELS: Record<FeedTab, string> = {
   "needs-ears": "Needs ears",
@@ -53,7 +54,7 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
   return (
     // The tracks, and nothing else: the tabs on top, the genre beside
     // them, and a row per track.
-    <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-8">
+    <Page>
       <h1 className="sr-only">Feed</h1>
       <div className="flex items-end justify-between gap-3 border-b">
         <nav
@@ -109,7 +110,7 @@ export default async function FeedPage({ searchParams }: PageProps<"/feed">) {
           />
         )}
       </div>
-    </div>
+    </Page>
   );
 }
 

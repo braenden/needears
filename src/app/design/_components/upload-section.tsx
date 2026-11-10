@@ -146,6 +146,8 @@ export function UploadSection() {
       <Example title="Live, with a fake pipeline">
         <div className="rounded-xl border p-4 sm:p-6">
           <UploadWizard
+            // As wide as on its page.
+            className="mx-auto max-w-[46rem]"
             pipeline={pipeline}
             genres={genres}
             contactEmail="hello@needears.com"

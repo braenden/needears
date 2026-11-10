@@ -11,6 +11,7 @@ import { EDIT_PROFILE_HREF } from "@/components/shell/nav";
 import { ConnectedAccounts } from "./connected-accounts";
 import { DeleteAccount } from "./delete-account";
 import { TrackManager } from "./track-manager";
+import { Page, PageTitle } from "@/components/shell/page";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -69,10 +70,8 @@ export default async function SettingsPage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
-      <h1 className="font-display text-3xl font-bold tracking-tight">
-        Settings
-      </h1>
+    <Page width="narrow">
+      <PageTitle>Settings</PageTitle>
 
       <div className="mt-6 grid gap-8 md:grid-cols-[10rem_minmax(0,1fr)]">
         {/* Down the side on wide screens, a row on phones. The profile
@@ -155,6 +154,6 @@ export default async function SettingsPage() {
           </Section>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }
