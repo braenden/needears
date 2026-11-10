@@ -12,17 +12,22 @@ test.describe("feed layout and badges", () => {
     await expect(page.getByRole("complementary")).toHaveCount(0);
   });
 
-  test("the tracks are centered under the header and start at the same place on every tab", async ({
+  test("the tracks start under the logo, end where the top bar ends, and start at the same place on every tab", async ({
     page,
   }) => {
     const tops: number[] = [];
     for (const tab of ["needs-ears", "latest", "trending"]) {
       await page.goto(`/feed?tab=${tab}`);
       const box = await page.locator("main article").first().boundingBox();
-      const header = await page.locator("header > div").first().boundingBox();
-      if (!box || !header) throw new Error(`No track on ${tab}`);
-      const middle = header.x + header.width / 2;
-      expect(Math.abs(box.x + box.width / 2 - middle)).toBeLessThan(1);
+      const logo = await page.locator("header a svg").first().boundingBox();
+      if (!box || !logo) throw new Error(`No track on ${tab}`);
+      expect(Math.abs(box.x - logo.x)).toBeLessThan(1);
+      // The top bar's content, inside its padding.
+      const right = await page.locator("header > div").evaluate((bar) => {
+        const edge = bar.getBoundingClientRect().right;
+        return edge - parseFloat(getComputedStyle(bar).paddingRight);
+      });
+      expect(Math.abs(box.x + box.width - right)).toBeLessThan(1);
       tops.push(box.y);
     }
     expect(new Set(tops).size).toBe(1);
