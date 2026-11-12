@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { EmptyState } from "@/components/empty-state";
+import { Page } from "@/components/shell/page";
 import { Button } from "@/components/ui/button";
 import { reportError } from "@/lib/monitoring/report-error";
 
@@ -18,13 +19,13 @@ export default function SiteError({
     reportError(error);
   }, [error]);
   return (
-    <div className="mx-auto w-full max-w-lg px-4 py-16 sm:py-24">
+    <Page width="task">
       <h1 className="sr-only">Something went wrong</h1>
       <EmptyState
         title="Something broke on our side."
         body="Try again, or come back in a minute."
         action={<Button onClick={reset}>Try again</Button>}
       />
-    </div>
+    </Page>
   );
 }

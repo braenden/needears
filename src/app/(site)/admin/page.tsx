@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { type AdminReport, ReportCard } from "./report-card";
+import { Page, PageTitle } from "@/components/shell/page";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -43,11 +44,9 @@ export default async function AdminPage() {
   const closedReports = (closed.data ?? []) as unknown as AdminReport[];
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
+    <Page width="narrow">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold tracking-tight">
-          Admin
-        </h1>
+        <PageTitle>Admin</PageTitle>
         <Button variant="outline" size="sm" asChild>
           <Link href="/admin/stats">Stats</Link>
         </Button>
@@ -100,6 +99,6 @@ export default async function AdminPage() {
           </ul>
         </section>
       ) : null}
-    </div>
+    </Page>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/shell/app-shell";
 import { EmptyState } from "@/components/empty-state";
+import { Page } from "@/components/shell/page";
 import { Button } from "@/components/ui/button";
 import { getViewer } from "@/lib/data/viewer";
 
@@ -15,7 +16,7 @@ export default async function NotFound() {
       unread={viewer?.unread ?? 0}
       showSearch
     >
-      <div className="mx-auto w-full max-w-lg px-4 py-16 sm:py-24">
+      <Page width="task">
         <h1 className="sr-only">Page not found</h1>
         <EmptyState
           title="We can't find that page."
@@ -26,7 +27,7 @@ export default async function NotFound() {
             </Button>
           }
         />
-      </div>
+      </Page>
     </AppShell>
   );
 }

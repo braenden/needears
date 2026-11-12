@@ -40,6 +40,7 @@ import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { MiniPlayerBar } from "@/components/player/mini-player-bar";
 import { useSharedAudio } from "@/components/player/shared-audio";
+import { Page, PageTitle } from "@/components/shell/page";
 import {
   type TimeRange,
   WaveformPlayer,
@@ -777,7 +778,7 @@ export function TrackView({
       : null;
 
   return (
-    <article className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10 sm:pt-10">
+    <Page as="article">
       {track.status === "hidden" ? (
         <p
           role="status"
@@ -790,9 +791,7 @@ export function TrackView({
       ) : null}
 
       <header>
-        <h1 className="font-display text-3xl leading-[1.05] font-bold tracking-tight break-words sm:text-4xl">
-          {track.title}
-        </h1>
+        <PageTitle className="break-words">{track.title}</PageTitle>
         {/* One grey line: who, what and when. */}
         <p className="mt-1.5 text-[15px] text-muted-foreground">
           <Link
@@ -1202,7 +1201,7 @@ export function TrackView({
           </div>
         </aside>
       </div>
-    </article>
+    </Page>
   );
 }
 
