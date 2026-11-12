@@ -49,8 +49,8 @@ export default async function HomePage() {
           Fresh ears for your unfinished tracks.
         </h1>
         <p className="mt-5 max-w-xl text-lg text-pretty text-muted-foreground">
-          Post a work in progress and get free feedback on the mix, the
-          arrangement and the vibe from other producers.
+          Post a work in progress and get feedback on the mix, the arrangement
+          and the vibe from other producers.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild size="lg">
