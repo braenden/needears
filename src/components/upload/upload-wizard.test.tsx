@@ -88,6 +88,19 @@ describe("uploadReducer", () => {
     expect(analysed.stage).toBe("encoding");
     expect(analysed.details.title).toBe("night bus demo4");
   });
+
+  it("puts one space where the file name had dashes with spaces around", () => {
+    const accepted = uploadReducer(initialUploadState, {
+      type: "file_accepted",
+      file: { name: "Ola - Nattog  v3_FINAL.wav", size: 1, isMp3: false },
+    });
+    const analysed = uploadReducer(accepted, {
+      type: "analyzed",
+      peaks: [],
+      durationMs: 1000,
+    });
+    expect(analysed.details.title).toBe("Ola Nattog v3 FINAL");
+  });
 });
 
 describe("UploadWizard states", () => {
@@ -226,6 +239,28 @@ describe("UploadWizard states", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The upload stopped.",
     );
+    expect(screen.getByText("night bus demo4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  });
+
+  it("says so when the sign-in has ended, and keeps everything", async () => {
+    const pipeline = fakePipeline({
+      publish: vi.fn(async () => ({
+        ok: false as const,
+        error: "signed_out" as const,
+      })),
+    });
+    const { user, input } = setup(pipeline);
+    await toPublishStep(user, input);
+    await user.click(screen.getByRole("checkbox", { name: /Made by me/ }));
+    await user.click(screen.getByRole("button", { name: "Publish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "You've been signed out.",
+    );
+    // In a new tab, so the chosen file stays in this one.
+    const link = screen.getByRole("link", { name: "Sign in again" });
+    expect(link).toHaveAttribute("href", "/login");
+    expect(link).toHaveAttribute("target", "_blank");
     expect(screen.getByText("night bus demo4")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
   });

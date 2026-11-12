@@ -26,7 +26,7 @@ function isMp3(file: File) {
 
 type PublishFailure = {
   ok: false;
-  error: "upload_interrupted" | "rate_limited" | "unknown";
+  error: "upload_interrupted" | "rate_limited" | "signed_out" | "unknown";
   rateLimit?: { limit: number; retry: string };
 };
 
@@ -40,6 +40,10 @@ function publishFailure(error: unknown): PublishFailure {
       };
     if (error.code === "upload_interrupted")
       return { ok: false, error: "upload_interrupted" };
+    // The sign-in ended while the form was open. Trying again only works
+    // once they have signed in again.
+    if (error.code === "unauthenticated")
+      return { ok: false, error: "signed_out" };
   }
   return { ok: false, error: "unknown" };
 }

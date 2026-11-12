@@ -26,6 +26,7 @@ import {
   FileStep,
   ProgressBar,
   publishErrorText,
+  SignInAgainLink,
   STAGE_LABELS,
   type UploadPipeline,
 } from "@/components/upload/upload-wizard";
@@ -47,7 +48,7 @@ export type VersionPipeline = Pick<UploadPipeline, "analyze" | "encode"> & {
     | { ok: true; version: TrackVersion }
     | {
         ok: false;
-        error: "upload_interrupted" | "rate_limited" | "unknown";
+        error: "upload_interrupted" | "rate_limited" | "signed_out" | "unknown";
         rateLimit?: { limit: number; retry: string };
       }
   >;
@@ -364,6 +365,9 @@ function VersionDialog({
                 className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive"
               >
                 {publishErrorText(state.publishError, state.rateLimit)}
+                {state.publishError === "signed_out" ? (
+                  <SignInAgainLink />
+                ) : null}
               </p>
             ) : null}
 

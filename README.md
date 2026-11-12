@@ -108,11 +108,11 @@ CI runs all of them on every pull request against a local Supabase and the local
 
 ## Roadmap
 
-**v1** (now): accounts, upload, track page, feed, profiles, Helpful and reputation, reactions, reporting and admin, settings and account deletion, legal pages.
+**v1** (now): accounts, upload, track page, feed, search, profiles, Helpful and reputation, reactions, replies and marking comments as resolved, versions of a track with A/B switching, exporting comments as DAW markers, reporting and admin, settings and account deletion, legal pages.
 
-**v1.1:** realtime comments, a mini player that follows you around, following people, marking comments as resolved.
+**v1.1:** realtime comments, a mini player that follows you around, following people.
 
-**v2:** versions of a track with A/B switching, exporting comments as DAW markers, collections and Feedback Friday, Norwegian, private links.
+**v2:** collections and Feedback Friday, Norwegian, private links.
 
 Not planned: audio analysis, direct messages, payments, a native app.
 

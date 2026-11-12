@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ListChecksIcon, MessageSquareIcon, ThumbsUpIcon } from "lucide-react";
@@ -5,6 +6,8 @@ import { TrackList } from "@/components/track/track-list";
 import { Button } from "@/components/ui/button";
 import { getFeed } from "@/lib/data/tracks";
 import { getViewer } from "@/lib/data/viewer";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 // Landing page for visitors. Signed in people go straight to the feed.
 export default async function HomePage() {
