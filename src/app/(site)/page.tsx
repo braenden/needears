@@ -3,16 +3,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Page } from "@/components/shell/page";
 import { Button } from "@/components/ui/button";
+import { homeTracks } from "@/lib/data/home";
 import { getFeed, getTrackPage } from "@/lib/data/tracks";
 import { getViewer } from "@/lib/data/viewer";
 import { HomeTracks, type HomeTrack } from "./home-tracks";
 
 /** Rows under the intro. */
-const TRENDING = 3;
+const ROWS = 3;
 
 /**
- * The track to play beside the intro: the top trending one that has
- * comments, with the timed comments on the version that plays.
+ * The track to play beside the intro, with the timed comments on the
+ * version that plays.
  */
 async function featuredTrack(slug: string): Promise<HomeTrack | null> {
   // The page is fine without it.
@@ -38,16 +39,16 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 export default async function HomePage() {
   const viewer = await getViewer();
   if (viewer) redirect("/feed");
-  const { tracks } = await getFeed("trending", null, 1);
-  const pick = tracks.find((t) => t.comment_count > 0) ?? tracks[0];
+  const trending = (await getFeed("trending", null, 1)).tracks;
+  // Trending is short or empty on a quiet week: the newest tracks fill in.
+  const latest =
+    trending.length > ROWS ? [] : (await getFeed("latest", null, 1)).tracks;
+  const { pick, rows, newest } = homeTracks(trending, latest, ROWS);
   const featured = pick ? await featuredTrack(pick.slug) : null;
-  const trending = tracks
-    .filter((t) => t.id !== featured?.track.id)
-    .slice(0, TRENDING);
 
   return (
     <Page>
-      <HomeTracks featured={featured} trending={trending}>
+      <HomeTracks featured={featured} rows={rows} newest={newest}>
         <h1 className="font-display text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-6xl lg:text-5xl xl:text-6xl">
           Fresh ears for your unfinished tracks.
         </h1>
