@@ -18,8 +18,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -31,12 +29,29 @@ import {
 
 import type { HeaderProps } from "./app-shell";
 import { SIGN_OUT_FORM } from "./nav";
-import { THEME_CHOICES, ThemeSegments, useMounted } from "./theme-toggle";
+import { THEME_CHOICES, useMounted } from "./theme-toggle";
 
 type Account = NonNullable<HeaderProps["user"]>;
 
 const rowClasses =
   "flex h-11 items-center rounded-md px-3 text-[15px] focus-ring outline-none hover:bg-accent aria-[current=page]:bg-accent";
+
+/**
+ * The theme as a row like the others in the menu: its name, and the one in
+ * use on the right. Choosing the row moves to the next one (dark, light,
+ * the system's).
+ */
+function useThemeRow() {
+  const { theme, setTheme } = useTheme();
+  const mounted = useMounted();
+  const at = THEME_CHOICES.findIndex((choice) => choice.value === theme);
+  const next = THEME_CHOICES[(at + 1) % THEME_CHOICES.length];
+  return {
+    // Only known in the browser.
+    label: (mounted && THEME_CHOICES[at]?.label) || "",
+    change: () => setTheme(next?.value ?? "dark"),
+  };
+}
 
 /** The avatar that opens the account menu, on every width. */
 function AccountButton({
@@ -71,6 +86,7 @@ export function MobileMenu({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const close = () => setMenuOpen(false);
+  const themeRow = useThemeRow();
   const links = [
     { href: "/settings", label: "Settings" },
     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
@@ -107,7 +123,14 @@ export function MobileMenu({
             ))}
           </ul>
         </nav>
-        <ThemeSegments className="mx-3" />
+        <button
+          type="button"
+          onClick={themeRow.change}
+          className={`${rowClasses} justify-between text-left`}
+        >
+          Theme
+          <span className="text-muted-foreground">{themeRow.label}</span>
+        </button>
         <button
           type="submit"
           form={SIGN_OUT_FORM}
@@ -169,8 +192,7 @@ export function UserMenu({
   user: Account;
   isAdmin: boolean;
 }) {
-  const { theme, setTheme } = useTheme();
-  const mounted = useMounted();
+  const themeRow = useThemeRow();
   return (
     <DropdownMenu>
       {/* Its name on hover, like the other icons in the top bar. */}
@@ -218,27 +240,17 @@ export function UserMenu({
             <Link href="/admin">Admin</Link>
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuSeparator />
-        {/* The theme as one row of three, like the phone menu. */}
-        <DropdownMenuRadioGroup
-          aria-label="Theme"
-          value={mounted ? theme : undefined}
-          onValueChange={setTheme}
-          className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
+        <DropdownMenuItem
+          // Changing the theme keeps the menu open, so the change shows.
+          onSelect={(event) => {
+            event.preventDefault();
+            themeRow.change();
+          }}
+          className="justify-between"
         >
-          {THEME_CHOICES.map(({ value, label, Icon }) => (
-            <DropdownMenuRadioItem
-              key={value}
-              value={value}
-              // Picking a theme keeps the menu open, so the change shows.
-              onSelect={(event) => event.preventDefault()}
-              className="h-8 justify-center gap-1 rounded-md px-1 pr-1 text-[13px] text-muted-foreground data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:shadow-sm [&>span:first-child]:hidden"
-            >
-              <Icon aria-hidden="true" />
-              {label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+          Theme
+          <span className="text-muted-foreground">{themeRow.label}</span>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <button type="submit" form={SIGN_OUT_FORM} className="w-full">
