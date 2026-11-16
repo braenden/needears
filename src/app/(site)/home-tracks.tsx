@@ -31,17 +31,20 @@ export type HomeTrack = {
 
 /**
  * The home page's tracks: one real track to play beside the intro, with
- * its comments marked on the waveform and a few written out, and the
- * trending tracks under it. The page's player has an element of its own,
+ * its comments marked on the waveform and a few written out, and a few
+ * rows under it (trending, or the newest when nothing is). The page's player has an element of its own,
  * the rows share the site's: whichever starts, the other stops.
  */
 export function HomeTracks({
   featured,
-  trending,
+  rows,
+  newest,
   children,
 }: {
   featured: HomeTrack | null;
-  trending: PlayableTrack[];
+  rows: PlayableTrack[];
+  /** The rows are the newest tracks, not the trending ones. */
+  newest: boolean;
   /** The intro: the heading, a sentence and the two ways in. */
   children: React.ReactNode;
 }) {
@@ -70,17 +73,17 @@ export function HomeTracks({
         ) : null}
       </section>
 
-      {trending.length > 0 ? (
-        <section aria-labelledby="trending-heading" className="pt-2">
+      {rows.length > 0 ? (
+        <section aria-labelledby="rows-heading" className="pt-2">
           <h2
-            id="trending-heading"
+            id="rows-heading"
             className="text-sm font-semibold tracking-wide text-muted-foreground uppercase"
           >
-            Trending now
+            {newest ? "New tracks" : "Trending now"}
           </h2>
           <TrackList
-            tracks={trending}
-            label="Trending tracks"
+            tracks={rows}
+            label={newest ? "New tracks" : "Trending tracks"}
             beforePlay={() => player.current?.pause()}
             className="mt-2"
           />

@@ -149,6 +149,20 @@ function FeedEmpty({
         }
       />
     );
+  // Trending only holds tracks with comments or reactions from the last
+  // week, so it can be empty while Latest is not.
+  if (tab === "trending")
+    return (
+      <EmptyState
+        title="Nothing is trending right now."
+        body="Have a listen to what's new."
+        action={
+          <Button asChild variant="outline">
+            <Link href="/feed?tab=latest">Go to Latest</Link>
+          </Button>
+        }
+      />
+    );
   return (
     <EmptyState
       title="Be the first."
