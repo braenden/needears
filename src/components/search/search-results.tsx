@@ -55,7 +55,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
 /**
  * The search page body: tracks and people in two groups, with the matching
  * part of each name marked. Handles too-short queries, loading, errors and
- * no results.
+ * no results. Before anything is searched for it shows nothing.
  */
 export function SearchResults({
   query,
@@ -73,12 +73,13 @@ export function SearchResults({
   const q = query.trim();
   const headingClass = "text-sm font-semibold";
 
+  // Nothing searched for yet: the field is the whole page.
+  if (!q) return null;
   if (q.length < SEARCH_MIN_LENGTH) {
     return (
-      <p className={cn("text-sm text-muted-foreground", className)}>
-        {q
-          ? `Type at least ${SEARCH_MIN_LENGTH} characters to search tracks and people.`
-          : `Type at least ${SEARCH_MIN_LENGTH} characters and press Enter to search tracks and people.`}
+      <p className={cn("text-center text-sm text-muted-foreground", className)}>
+        Type at least {SEARCH_MIN_LENGTH} characters to search tracks and
+        people.
       </p>
     );
   }

@@ -76,6 +76,13 @@ describe("SearchResults", () => {
     expect(screen.getByText(/Type at least 3 characters/)).toBeInTheDocument();
   });
 
+  it("shows nothing before anything is searched for", () => {
+    const { container } = render(
+      <SearchResults query="  " tracks={[]} profiles={[]} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("says when nothing was found", () => {
     render(<SearchResults query="night bsu" tracks={[]} profiles={[]} />);
     expect(
