@@ -7,7 +7,9 @@ import { googleClientId } from "@/lib/auth/google-client-id";
 import { googleClientSecret } from "@/lib/auth/google-code";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
+import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { EDIT_PROFILE_HREF } from "@/components/shell/nav";
+import { Button } from "@/components/ui/button";
 import { ConnectedAccounts } from "./connected-accounts";
 import { DeleteAccount } from "./delete-account";
 import { TrackManager } from "./track-manager";
@@ -40,17 +42,6 @@ function Section({
   );
 }
 
-const NAV_LINK =
-  "flex h-9 items-center rounded-md px-3 text-sm whitespace-nowrap text-muted-foreground focus-ring outline-none hover:bg-accent hover:text-foreground md:-ml-3";
-
-const SECTIONS = [
-  [EDIT_PROFILE_HREF, "Profile"],
-  ["#account-heading", "Account"],
-  ["#tracks-heading", "Your tracks"],
-  ["#data-heading", "Your data"],
-  ["#delete-heading", "Delete account"],
-] as const;
-
 export default async function SettingsPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/login?next=/settings");
@@ -73,86 +64,85 @@ export default async function SettingsPage() {
     <Page width="narrow">
       <PageTitle>Settings</PageTitle>
 
-      <div className="mt-6 grid gap-8 md:grid-cols-[10rem_minmax(0,1fr)]">
-        {/* Down the side on wide screens, a row on phones. The profile
-            has its own page: everything on it is public. */}
-        <nav
-          aria-label="Settings sections"
-          className="-mx-4 [scrollbar-width:none] overflow-x-auto px-4 md:sticky md:top-20 md:mx-0 md:self-start md:px-0"
-        >
-          <ul className="flex gap-1 md:flex-col">
-            {SECTIONS.map(([href, label]) => (
-              <li key={href} className="shrink-0">
-                {href === EDIT_PROFILE_HREF ? (
-                  <>
-                    {/* Like the account menu: on wide screens the editor
-                        opens as a panel over the profile, on phones it is
-                        a page of its own. */}
-                    <Link href={href} className={`${NAV_LINK} sm:hidden`}>
-                      {label}
-                    </Link>
-                    <Link
-                      href={`/u/${viewer.profile.handle}?edit=profile`}
-                      className={`${NAV_LINK} max-sm:hidden`}
-                    >
-                      {label}
-                    </Link>
-                  </>
-                ) : (
-                  <Link href={href} className={NAV_LINK}>
-                    {label}
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <div className="min-w-0">
-          <Section id="account-heading" title="Account">
-            <ConnectedAccounts
-              identities={ids?.identities ?? []}
-              accountEmail={
-                typeof claims?.claims.email === "string"
-                  ? claims.claims.email
-                  : null
-              }
-              // Connecting swaps Google's code on our server, which needs
-              // the client secret as well.
-              googleClientId={googleClientSecret() ? googleClientId() : null}
-              scriptNonce={(await headers()).get("x-nonce") ?? undefined}
-              fresh={isFreshSession(claims?.claims.amr, REAUTH_WINDOW_MS)}
-            />
-          </Section>
-
-          <Section id="tracks-heading" title="Your tracks">
-            <TrackManager tracks={tracks ?? []} />
-          </Section>
-
-          <Section id="data-heading" title="Your data">
-            <p className="text-sm text-muted-foreground">
-              Everything we store about you (account, profile, tracks, comments,
-              reactions, reports and notifications) as one file.
-            </p>
-            <a
-              href="/api/account/export"
-              className="mt-3 inline-flex h-9 items-center rounded-md border px-3.5 text-sm font-medium focus-ring outline-none hover:bg-accent"
-            >
-              Download my data
-            </a>
-            <p className="mt-3 text-sm text-muted-foreground">
-              How we handle it is in the{" "}
-              <Link href="/privacy" className="underline underline-offset-2">
-                privacy policy
+      <div className="mt-8">
+        <Section id="profile-heading" title="Profile">
+          <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
+            <UserAvatar profile={viewer.profile} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">
+                {displayNameOf(viewer.profile)}
+              </p>
+              <p className="truncate text-sm text-muted-foreground">
+                @{viewer.profile.handle}
+              </p>
+            </div>
+            {/* Like the account menu: on wide screens the editor opens as
+                a panel over the profile, on phones it is a page of its
+                own. */}
+            <Button asChild variant="outline" size="sm" className="sm:hidden">
+              <Link href={EDIT_PROFILE_HREF} aria-label="Edit profile">
+                Edit
               </Link>
-              .
-            </p>
-          </Section>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="max-sm:hidden"
+            >
+              <Link
+                href={`/u/${viewer.profile.handle}?edit=profile`}
+                aria-label="Edit profile"
+              >
+                Edit
+              </Link>
+            </Button>
+          </div>
+        </Section>
 
-          <Section id="delete-heading" title="Delete account">
-            <DeleteAccount handle={viewer.profile.handle} />
-          </Section>
-        </div>
+        <Section id="account-heading" title="Account">
+          <ConnectedAccounts
+            identities={ids?.identities ?? []}
+            accountEmail={
+              typeof claims?.claims.email === "string"
+                ? claims.claims.email
+                : null
+            }
+            // Connecting swaps Google's code on our server, which needs
+            // the client secret as well.
+            googleClientId={googleClientSecret() ? googleClientId() : null}
+            scriptNonce={(await headers()).get("x-nonce") ?? undefined}
+            fresh={isFreshSession(claims?.claims.amr, REAUTH_WINDOW_MS)}
+          />
+        </Section>
+
+        <Section id="tracks-heading" title="Your tracks">
+          <TrackManager tracks={tracks ?? []} />
+        </Section>
+
+        <Section id="data-heading" title="Your data">
+          <p className="text-sm text-muted-foreground">
+            Everything we store about you (account, profile, tracks, comments,
+            reactions, reports and notifications) as one file.
+          </p>
+          <a
+            href="/api/account/export"
+            className="mt-3 inline-flex h-9 items-center rounded-md border px-3.5 text-sm font-medium focus-ring outline-none hover:bg-accent"
+          >
+            Download my data
+          </a>
+          <p className="mt-3 text-sm text-muted-foreground">
+            How we handle it is in the{" "}
+            <Link href="/privacy" className="underline underline-offset-2">
+              privacy policy
+            </Link>
+            .
+          </p>
+        </Section>
+
+        <Section id="delete-heading" title="Delete account">
+          <DeleteAccount handle={viewer.profile.handle} />
+        </Section>
       </div>
     </Page>
   );

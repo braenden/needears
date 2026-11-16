@@ -64,8 +64,7 @@ test.describe("search on a phone", () => {
       .getByRole("search", { name: "Search tracks and people" })
       .getByRole("searchbox");
     await expect(box).toBeFocused();
-    await expect(
-      page.getByText(/Type at least 3 characters and press Enter/),
-    ).toBeVisible();
+    // Nothing but the box until something is searched for.
+    await expect(page.getByText(/Type at least/)).toHaveCount(0);
   });
 });

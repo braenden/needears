@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <Page role="status" aria-label="Searching">
-      <Skeleton className="h-12 w-full max-w-2xl rounded-lg" />
+      <Skeleton className="mx-auto h-12 w-full max-w-2xl rounded-lg" />
       <div className="mt-8 grid gap-3">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-14 w-full rounded-lg" />

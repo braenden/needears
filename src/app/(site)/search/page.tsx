@@ -32,7 +32,7 @@ export default async function SearchPage({
         autoFocus={!query}
         formLabel="Search tracks and people"
         size="lg"
-        className="max-w-2xl"
+        className="mx-auto max-w-2xl"
       />
       <SearchResults
         className="mt-8"
