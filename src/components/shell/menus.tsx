@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronRightIcon } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -193,10 +193,25 @@ export function UserMenu({
   isAdmin: boolean;
 }) {
   const themeRow = useThemeRow();
+  const [nameShown, setNameShown] = useState(false);
+  // When the menu closes, the focus goes back to the avatar. Nobody asked
+  // what the button is then, so its name stays away (it used to show and
+  // hang there after picking a row).
+  const focusComingBack = useRef(false);
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (open) setNameShown(false);
+      }}
+    >
       {/* Its name on hover, like the other icons in the top bar. */}
-      <Tooltip>
+      <Tooltip
+        open={nameShown}
+        onOpenChange={(open) => {
+          if (open && focusComingBack.current) return;
+          setNameShown(open);
+        }}
+      >
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
             <AccountButton user={user} />
@@ -204,7 +219,16 @@ export function UserMenu({
         </TooltipTrigger>
         <TooltipContent>Account</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent
+        align="end"
+        className="w-64"
+        onCloseAutoFocus={() => {
+          focusComingBack.current = true;
+          setTimeout(() => {
+            focusComingBack.current = false;
+          }, 0);
+        }}
+      >
         <DropdownMenuItem asChild>
           <Link
             href={user.needsHandle ? "/welcome" : `/u/${user.handle}`}

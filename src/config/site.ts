@@ -7,8 +7,10 @@ export const site = {
     "An open feed where producers share unfinished tracks and get timestamped feedback.",
   contactEmail: "contact@needears.com",
   githubUrl: "https://github.com/braenden/needears",
-  // "Last updated" on the terms and the privacy policy.
+  // "Last updated" on the terms.
   legalUpdated: "6 November 2026",
+  // "Last updated" on the privacy policy.
+  privacyUpdated: "16 November 2026",
 } as const;
 
 // Absolute base URL for metadata, OG images and auth redirects.

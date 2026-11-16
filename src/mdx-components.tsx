@@ -31,10 +31,15 @@ function LegalUpdated() {
   return <>{site.legalUpdated}</>;
 }
 
+function PrivacyUpdated() {
+  return <>{site.privacyUpdated}</>;
+}
+
 const components: MDXComponents = {
   ContactEmail,
   SourceLink,
   LegalUpdated,
+  PrivacyUpdated,
   h1: ({ className, ...props }) => (
     <h1 className={cn(PAGE_TITLE, className)} {...props} />
   ),
