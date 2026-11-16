@@ -194,9 +194,8 @@ export function UserMenu({
 }) {
   const themeRow = useThemeRow();
   const [nameShown, setNameShown] = useState(false);
-  // When the menu closes, the focus goes back to the avatar. Nobody asked
-  // what the button is then, so its name stays away (it used to show and
-  // hang there after picking a row).
+  // A menu closed with the keyboard hands the focus back to the avatar.
+  // Nobody asked what the button is then, so its name stays away.
   const focusComingBack = useRef(false);
   return (
     <DropdownMenu

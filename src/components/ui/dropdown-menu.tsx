@@ -36,8 +36,16 @@ function DropdownMenuContent({
   sideOffset = 4,
   // Keeps the page gutter (16 px) from the edge of a phone screen.
   collisionPadding = 16,
+  onKeyDown,
+  onPointerDown,
+  onPointerDownOutside,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  // A closing menu hands the focus back to its button. That is right for
+  // the keyboard, which goes on from there. After a click it only leaves a
+  // focus ring around a button nobody is on, so the focus is let go then.
+  const byKeyboard = React.useRef(false);
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
@@ -45,6 +53,23 @@ function DropdownMenuContent({
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
         align={align}
+        onKeyDown={(event) => {
+          byKeyboard.current = true;
+          onKeyDown?.(event);
+        }}
+        onPointerDown={(event) => {
+          byKeyboard.current = false;
+          onPointerDown?.(event);
+        }}
+        onPointerDownOutside={(event) => {
+          byKeyboard.current = false;
+          onPointerDownOutside?.(event);
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event);
+          if (!byKeyboard.current) event.preventDefault();
+          byKeyboard.current = false;
+        }}
         className={cn(
           "z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-44 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-pop duration-base ease-out-soft data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-[state=closed]:overflow-hidden data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:duration-fast data-closed:ease-in-soft data-closed:fade-out-0",
           className,
