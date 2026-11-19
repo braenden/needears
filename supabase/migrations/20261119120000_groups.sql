@@ -381,6 +381,8 @@ alter table public.reports add constraint reports_target_matches check (
   or (target_type = 'comment' and track_id is null)
 );
 alter table public.reports add column in_group boolean not null default false;
+-- Settled by the group's owner removing what it was about, not by an admin.
+alter table public.reports add column removed_by_group_owner boolean not null default false;
 
 create function private.reports_mark_in_group()
 returns trigger
@@ -1123,9 +1125,31 @@ begin
 end;
 $$;
 
+-- Open reports about a track in a group (and its comments), or about one
+-- comment, that its owner removes: settled, as a record of who reported
+-- what, why and when. The copy of the content goes with the content.
+create function private.settle_reports_by_group_owner(p_track uuid, p_comment uuid)
+returns void
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  update public.reports r
+  set status = 'resolved', resolved_by = (select auth.uid()), resolved_at = now(),
+    removed_by_group_owner = true, reported_text = '', details = ''
+  where r.status = 'open'
+    and (
+      (p_track is not null and (
+        r.track_id = p_track
+        or r.comment_id in (select c.id from public.comments c where c.track_id = p_track)))
+      or (p_comment is not null and r.comment_id = p_comment)
+    );
+$$;
+
 -- The group owner removes a track from their group: it is deleted, for
--- its uploader too, also when moderation hid it. Not while it is under
--- review (an admin must see what was reported). Returns its files.
+-- its uploader too, also when moderation hid it or it is reported (its
+-- reports are settled). Returns its files.
 create function public.remove_track_from_group(p_track uuid)
 returns table (audio_key text, peaks_key text)
 language plpgsql
@@ -1143,20 +1167,17 @@ begin
   perform private.owned_group(t.group_id);
   perform 1 from public.groups where id = t.group_id for share;
   -- A report on the track or one of its comments made at the same moment
-  -- waits for these locks, so the check below sees it.
+  -- waits for these locks, so it is settled too (or fails with the track).
   select * into t from public.tracks tr where tr.id = p_track for update;
   perform 1 from public.comments c where c.track_id = t.id for update;
-  if public.track_under_review(t.id) then
-    raise exception 'under_review' using errcode = '42501',
-      detail = 'This track is under review and cannot be deleted now.';
-  end if;
+  perform private.settle_reports_by_group_owner(t.id, null);
   return query select f.audio_key, f.peaks_key from private.track_files(t.id) f;
   perform private.delete_group_track(t.id);
 end;
 $$;
 
--- The owner deletes the group and every track in it, also hidden ones.
--- Not while one of them is under review. Returns the tracks' files.
+-- The owner deletes the group and every track in it, also hidden or
+-- reported ones (their reports are settled). Returns the tracks' files.
 create function public.delete_group(p_group uuid)
 returns table (audio_key text, peaks_key text)
 language plpgsql
@@ -1168,17 +1189,12 @@ declare
   g public.groups := private.owned_group(p_group);
 begin
   perform 1 from public.groups where id = g.id for update;
-  -- As in remove_track_from_group: a report made now waits, and is seen.
+  -- As in remove_track_from_group: a report made now waits, and is settled.
   perform 1 from public.tracks t where t.group_id = g.id for update;
   perform 1 from public.comments c
   where c.track_id in (select t.id from public.tracks t where t.group_id = g.id) for update;
-  if exists (
-    select 1 from public.tracks t
-    where t.group_id = g.id and public.track_under_review(t.id)
-  ) then
-    raise exception 'under_review' using errcode = '42501',
-      detail = 'A track in this group is under review. Try again later.';
-  end if;
+  perform private.settle_reports_by_group_owner(t.id, null)
+  from public.tracks t where t.group_id = g.id;
   return query
   select distinct f.audio_key, f.peaks_key
   from public.tracks t
@@ -1308,6 +1324,7 @@ returns table (
   target_type public.report_target,
   reason public.report_reason,
   status public.report_status,
+  removed_by_group_owner boolean,
   created_at timestamptz,
   opened_until timestamptz
 )
@@ -1319,7 +1336,8 @@ as $$
 begin
   perform private.require_admin();
   return query
-  select r.id, private.report_track(r), r.target_type, r.reason, r.status, r.created_at,
+  select r.id, private.report_track(r), r.target_type, r.reason, r.status,
+    r.removed_by_group_owner, r.created_at,
     (select max(a.expires_at) from private.admin_access a
      where a.track_id = private.report_track(r) and a.admin_id = (select auth.uid())
        and a.expires_at > now())
@@ -2016,7 +2034,11 @@ begin
   if admin and c.author_id is distinct from uid then
     perform private.record_access_outcome(c.track_id, 'removed');
   end if;
-  if not admin
+  -- The group's owner removes a reported comment at once; its reports are
+  -- settled. Its author waits for the review.
+  if host then
+    perform private.settle_reports_by_group_owner(null, c.id);
+  elsif not admin
     and exists (select 1 from public.reports where comment_id = c.id and status = 'open')
   then
     raise exception 'not_allowed' using errcode = '42501',
@@ -2287,6 +2309,7 @@ revoke execute on function private.owned_group(uuid) from public, anon, authenti
 revoke execute on function private.forget_group_notices(uuid, uuid) from public, anon, authenticated;
 revoke execute on function private.track_files(uuid) from public, anon, authenticated;
 revoke execute on function private.delete_group_track(uuid) from public, anon, authenticated;
+revoke execute on function private.settle_reports_by_group_owner(uuid, uuid) from public, anon, authenticated;
 revoke execute on function private.groups_before_delete() from public, anon, authenticated;
 revoke execute on function private.record_access_outcome(uuid, text) from public, anon, authenticated;
 revoke execute on function private.tracks_record_removal() from public, anon, authenticated;

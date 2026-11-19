@@ -3,7 +3,7 @@
 -- outside it.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(116);
+select plan(118);
 \ir _helpers.psql
 
 -- frank teaches and makes the group with a new account. bob and erin are
@@ -751,12 +751,16 @@ select is(
   0,
   'a removed song is deleted, for its uploader too'
 );
+select pg_temp.as_server();
+insert into public.reports (reporter_id, target_type, comment_id, reason)
+values ('66666666-6666-4666-8666-666666666666', 'comment',
+  (select id from public.comments where body = 'Bob on erin'), 'harassment');
 select pg_temp.as_user('66666666-6666-4666-8666-666666666666');
 set local role authenticated;
 select is(
   public.delete_comment((select id from public.comments where body = 'Bob on erin')),
   'deleted',
-  'the owner deletes a comment in the group'
+  'the owner deletes a comment in the group, also a reported one'
 );
 select is(
   public.delete_comment((select id from public.comments where body = 'Erin second')),
@@ -767,19 +771,34 @@ reset role;
 select pg_temp.as_server();
 insert into public.reports (reporter_id, target_type, track_id, reason)
 values ('22222222-2222-4222-8222-222222222222', 'track', (select id from t where name = 'erin_song'), 'spam');
+select ok(
+  public.track_under_review((select id from t where name = 'erin_song')),
+  'a reported track is under review, so its uploader cannot delete it'
+);
 select pg_temp.as_user('66666666-6666-4666-8666-666666666666');
 set local role authenticated;
-select throws_ok(
+select lives_ok(
   $$ select * from public.remove_track_from_group((select id from t where name = 'erin_song')) $$,
-  '42501', 'under_review', 'not a song that is under review'
-);
-select throws_ok(
-  $$ select * from public.delete_group((select id from g where name = 'class')) $$,
-  '42501', 'under_review', 'nor the group while one is'
+  'but the group''s owner removes it at once'
 );
 reset role;
-update public.reports set status = 'dismissed', resolved_at = now()
-where track_id = (select id from t where name = 'erin_song');
+select results_eq(
+  $$ select reporter_id, reason::text, status::text, removed_by_group_owner, resolved_by,
+       resolved_at is not null, reported_text, track_id
+     from public.reports where in_group and target_type = 'track' $$,
+  $$ values ('22222222-2222-4222-8222-222222222222'::uuid, 'spam', 'resolved', true,
+       '66666666-6666-4666-8666-666666666666'::uuid, true, '', null::uuid) $$,
+  'its report stays as a record, settled as removed by the group''s owner, without the content'
+);
+select results_eq(
+  $$ select status::text, removed_by_group_owner from public.reports where reason = 'harassment' $$,
+  $$ values ('resolved', true) $$,
+  'and so does the report on the comment'
+);
+select pg_temp.as_server();
+insert into public.reports (reporter_id, target_type, comment_id, reason)
+values ('66666666-6666-4666-8666-666666666666', 'comment',
+  (select id from public.comments where body = 'Bob replies to erin'), 'other');
 
 -- Removed: songs stay, no way back.
 select pg_temp.as_user('66666666-6666-4666-8666-666666666666');
@@ -830,7 +849,7 @@ create temp table deleted_files as
 select * from public.delete_group((select id from g where name = 'class'));
 reset role;
 select ok(
-  (select count(*) from deleted_files) >= 3
+  (select count(*) from deleted_files) >= 2
     and exists (select 1 from deleted_files where peaks_key like '22222222-2222-4222-8222-222222222222/%'),
   'the owner deletes the group and gets every song''s files to remove'
 );
@@ -840,9 +859,10 @@ select results_eq(
        (select count(*)::int from public.tracks where id in (select id from t where name <> 'carol_public')),
        (select count(*)::int from public.comments where body like 'Erin on%' or body like 'Bob %'),
        (select count(*)::int from public.notifications where group_id is not null),
-       (select count(*)::int from public.reports where in_group and track_id is null and comment_id is null) $$,
-  $$ values (0, 0, 0, 0, 2) $$,
-  'the group, its songs, their comments and its notices are gone; the reports about them stay'
+       (select count(*)::int from public.reports where in_group and track_id is null and comment_id is null),
+       (select count(*)::int from public.reports where in_group and status = 'open') $$,
+  $$ values (0, 0, 0, 0, 4, 0) $$,
+  'the group, its tracks, their comments and its notices are gone; the reports about them stay, none left open'
 );
 select is(
   (select count(*)::int from public.reports where in_group and reported_text <> ''),
@@ -902,7 +922,7 @@ select results_eq(
        (select count(*)::int from public.reports where in_group and resolved_at < now() - interval '12 months'),
        (select reported_text from public.reports where reason = 'spam' and created_at < now() - interval '12 months'
           and reporter_id = '33333333-3333-4333-8333-333333333333') $$,
-  $$ values (1, '') $$,
+  $$ values (3, '') $$,
   'reports stay as a record; a copy of deleted content goes 12 months after the decision, or after it was made when never decided'
 );
 insert into public.groups (slug, name, owner_id) values ('kept', 'Kept', '33333333-3333-4333-8333-333333333333');

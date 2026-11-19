@@ -529,6 +529,7 @@ export type Database = {
           id: string;
           in_group: boolean;
           reason: Database["public"]["Enums"]["report_reason"];
+          removed_by_group_owner: boolean;
           reported_text: string;
           reporter_id: string | null;
           resolved_at: string | null;
@@ -545,6 +546,7 @@ export type Database = {
           id?: string;
           in_group?: boolean;
           reason: Database["public"]["Enums"]["report_reason"];
+          removed_by_group_owner?: boolean;
           reported_text?: string;
           reporter_id?: string | null;
           resolved_at?: string | null;
@@ -561,6 +563,7 @@ export type Database = {
           id?: string;
           in_group?: boolean;
           reason?: Database["public"]["Enums"]["report_reason"];
+          removed_by_group_owner?: boolean;
           reported_text?: string;
           reporter_id?: string | null;
           resolved_at?: string | null;
@@ -867,6 +870,7 @@ export type Database = {
           created_at: string;
           opened_until: string;
           reason: Database["public"]["Enums"]["report_reason"];
+          removed_by_group_owner: boolean;
           report_id: string;
           status: Database["public"]["Enums"]["report_status"];
           target_type: Database["public"]["Enums"]["report_target"];
