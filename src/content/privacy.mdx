@@ -12,16 +12,17 @@ The data controller is Kevin Brenden. Contact: <ContactEmail />.
 
 ## What we store
 
-| What                   | Details                                                                                                                                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Account                | Your email address (from Google or from the email link), and a sign-in session (with the IP address and browser it came from)                                                                                       |
-| Profile                | Username, display name, avatar, bio, what you're working on, your DAW and your links. If you sign in with Google, the name and picture Google provides may be used as a starting point                              |
-| Tracks                 | The audio (converted for streaming), its waveform, and title, genre, tags, description, what you want feedback on, and your experience level                                                                        |
-| Comments and reactions | Your comments, reactions, and which comments were marked Helpful                                                                                                                                                    |
-| Reports                | Reports you file, and reports about your content                                                                                                                                                                    |
-| Notifications          | In-app notifications                                                                                                                                                                                                |
-| IP address at upload   | The IP address you uploaded a track from, stored for 30 days, then deleted automatically                                                                                                                            |
-| Plays                  | When you have listened to a track for 30 seconds, that it was played: by your account if you're signed in, otherwise by a scrambled (hashed) form of your IP address. Stored for 2 days, then deleted automatically |
+| What                   | Details                                                                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Account                | Your email address (from Google or from the email link), and a sign-in session (with the IP address and browser it came from)                                                                                                              |
+| Profile                | Username, display name, avatar, bio, what you're working on, your DAW and your links. If you sign in with Google, the name and picture Google provides may be used as a starting point                                                     |
+| Tracks                 | The audio (converted for streaming), its waveform, and title, genre, tags, description, what you want feedback on, and your experience level                                                                                               |
+| Comments and reactions | Your comments, reactions, and which comments were marked Helpful                                                                                                                                                                           |
+| Groups                 | The groups you own and the groups you're in, and when you joined. Who asked to join a group you own, and the groups you asked to join. If a group's owner removed you, we remember that until the group is deleted, so you can't ask again |
+| Reports                | Reports you file, and reports about your content                                                                                                                                                                                           |
+| Notifications          | In-app notifications                                                                                                                                                                                                                       |
+| IP address at upload   | The IP address you uploaded a track from, stored for 30 days, then deleted automatically                                                                                                                                                   |
+| Plays                  | When you have listened to a track for 30 seconds, that it was played: by your account if you're signed in, otherwise by a scrambled (hashed) form of your IP address. Stored for 2 days, then deleted automatically                        |
 
 We do not store your original audio file, only the converted stream.
 
@@ -36,7 +37,17 @@ We don't sell data, and we don't show ads.
 
 ## What is public
 
-Your profile (username, display name, avatar, bio, what you're working on, your DAW, your links, reputation and when you joined), your tracks and your comments are public. Anyone can see them without an account. Your email address is not shown to other users.
+Your profile (username, display name, avatar, bio, what you're working on, your DAW, your links, reputation and when you joined), your tracks in the feed and your comments on them are public. Anyone can see them without an account. Your email address is not shown to other users.
+
+Groups are different. Anyone can find a group by its name and see who owns it and how many are in it. Only its members see the tracks, the comments and who is in it. Tracks in a group are not in the feed, in search or on your profile.
+
+## Groups
+
+- Only the members of a group hear its tracks and read the comments on them.
+- We look at what is in a group only to handle a report about it, or a request from the police or a court. Every time is logged, and we keep that log for 12 months.
+- If you leave a group, or its owner removes you, the tracks you posted there stay in the group. You can delete them under Your tracks in Settings.
+- The owner of a group can delete tracks and comments in it.
+- Deleting a group, or the account of the person who owns it, deletes every track in it, for everyone.
 
 ## Where it is stored, and who handles it
 
@@ -62,15 +73,18 @@ We use only the strictly necessary cookie that keeps you signed in, and your lig
 - IP address at upload: 30 days.
 - Plays (who listened to which track): 2 days.
 - Your previous usernames: 90 days, so old links to your profile keep working.
+- Groups: until you leave or the group is deleted. If the owner says no when you ask to join, we keep that for 7 days, so you can't ask again right away.
+- The log of when we opened something in a group: 12 months.
+- Reports: kept after the reported track, comment or account is deleted, as a record of what we did. The copy of the reported text is kept for 12 months after we decide, or 12 months after the report if we never decide. For something in a group, the copy goes when it is deleted.
 - Backups: up to 90 days. After you delete something, it can remain in an encrypted backup for up to 90 days before it is gone.
 
 ## Your rights
 
 You can ask to see, fix, move or delete your data:
 
-- **See and take your data:** Settings, "Download my data". You get a file with all of it.
+- **See and take your data:** Settings, "Download my data". You get a file with all of it, including your groups and the groups you asked to join.
 - **Fix it:** edit your profile in Settings, or email us.
-- **Delete it:** Settings, "Delete account". It removes your account and all your content. You'll be asked to sign in again first.
+- **Delete it:** Settings, "Delete account". It removes your account, your tracks and your comments, also in groups. Groups you own are deleted too, with every track in them. Reports about your content stay as a record, as described above. You'll be asked to sign in again first.
 - **Anything else** (for example objecting to processing, or restricting it): email <ContactEmail />. We'll answer within 30 days.
 
 ## Complaints
