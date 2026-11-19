@@ -125,7 +125,7 @@ export async function getFeed(
 }
 
 // Tracks on a profile. RLS shows the owner (and admins) hidden tracks too,
-// unless `liveOnly`.
+// unless `liveOnly`. Songs in groups are never on a profile.
 export async function getTracksByOwner(
   ownerId: string,
   limit = 50,
@@ -137,6 +137,7 @@ export async function getTracksByOwner(
     .select(SUMMARY_COLUMNS)
     .eq("owner_id", ownerId)
     .in("status", liveOnly ? ["live"] : ["live", "hidden"])
+    .is("group_id", null)
     .order("published_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(`Tracks failed: ${describeError(error)}`);

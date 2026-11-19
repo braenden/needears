@@ -63,10 +63,13 @@ export async function GET(request: Request) {
   if (uploadIps.error)
     return jsonError(500, "export_failed", "Could not export your data.");
 
+  // The service client, filtered to the person's own tracks: versions of
+  // their tracks in a group they have left are theirs too, though RLS only
+  // shows them to members.
   const versions =
     trackIds.length === 0
       ? { data: [], error: null }
-      : await supabase
+      : await createAdminClient()
           .from("track_versions")
           .select("*")
           .in("track_id", trackIds)
@@ -81,6 +84,25 @@ export async function GET(request: Request) {
     .eq("profile_id", uid)
     .order("changed_at", { ascending: false });
   if (oldHandles.error)
+    return jsonError(500, "export_failed", "Could not export your data.");
+
+  // Groups the person is in, with their role (owner or member), the groups
+  // they asked to join (also a no from the last 7 days, which RLS does not
+  // show them) and the groups they were removed from.
+  const [groups, groupAsks, groupRemovals] = await Promise.all([
+    supabase
+      .from("group_members")
+      .select("role, joined_at, group:groups(id, slug, name, created_at)")
+      .eq("user_id", uid)
+      .order("joined_at"),
+    createAdminClient()
+      .from("group_join_requests")
+      .select("status, created_at, decided_at, group:groups(id, slug, name)")
+      .eq("user_id", uid)
+      .order("created_at"),
+    supabase.rpc("my_group_removals"),
+  ]);
+  if (groups.error || groupAsks.error || groupRemovals.error)
     return jsonError(500, "export_failed", "Could not export your data.");
 
   const exportedAt = new Date().toISOString();
@@ -105,6 +127,9 @@ export async function GET(request: Request) {
     },
     profile: profile.data,
     oldHandles: oldHandles.data,
+    groups: groups.data,
+    groupAsks: groupAsks.data,
+    groupRemovals: groupRemovals.data,
     tracks: tracks.data,
     trackVersions: versions.data,
     uploadIps: uploadIps.data,
