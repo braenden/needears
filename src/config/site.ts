@@ -8,9 +8,9 @@ export const site = {
   contactEmail: "contact@needears.com",
   githubUrl: "https://github.com/braenden/needears",
   // "Last updated" on the terms.
-  legalUpdated: "6 November 2026",
+  legalUpdated: "19 November 2026",
   // "Last updated" on the privacy policy.
-  privacyUpdated: "16 November 2026",
+  privacyUpdated: "19 November 2026",
 } as const;
 
 // Absolute base URL for metadata, OG images and auth redirects.
