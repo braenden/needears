@@ -233,8 +233,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       wavesurfer.js:
-        specifier: ^7.12.12
-        version: 7.12.12
+        specifier: ^8.0.3
+        version: 8.0.3
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -5521,8 +5521,8 @@ packages:
     resolution: {integrity: sha512-3hu+tD8YzSLGuFYtPRb48vdhKMi0KQV5sn+uWr8+7dMEq/2G/dtLrdDinkLjqq5TIbIBjYJ4Ax/n3YiaW7QM8A==}
     engines: {node: 20 || >=22}
 
-  wavesurfer.js@7.12.12:
-    resolution: {integrity: sha512-fyKNuREQTliCl4b9w7pUzpFXQIkX5tcdYu1o6vBdH+NlUXvTxshvfbG2hj8OxDevzQNZlDTHzZGyAT3FhuutWw==}
+  wavesurfer.js@8.0.3:
+    resolution: {integrity: sha512-DLRSw/NoIlyFxMzmiGlwGJaEn44p8DiCRyKYjbPxGa3QjdTrCxa0CvAH+/TEijrzcZ/w2GVt8wM80WFsPtnPVw==}
 
   web-vitals@6.2.3:
     resolution: {integrity: sha512-Dmy+vdO1UPMqXiAtZSNayhl4f794Bxfd94W4HIj2HlYtczEQfEOon969memlcpcHrTuOKLa5baFjX7WbgmOq+A==}
@@ -11343,7 +11343,7 @@ snapshots:
 
   walk-up-path@4.0.0: {}
 
-  wavesurfer.js@7.12.12: {}
+  wavesurfer.js@8.0.3: {}
 
   web-vitals@6.2.3: {}
 
