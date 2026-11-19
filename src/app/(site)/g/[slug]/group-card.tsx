@@ -75,6 +75,8 @@ export function GroupCard({
         return;
       }
       setState("asked");
+      // One at a time: this one, not the welcome from just before.
+      toast.dismiss();
       toast.success(GROUP_COPY.askedToast(group.name));
       return;
     }

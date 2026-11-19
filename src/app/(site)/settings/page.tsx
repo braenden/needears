@@ -69,9 +69,9 @@ export default async function SettingsPage() {
     // When this session signed in, for connecting Google.
     supabase.auth.getClaims(),
   ]);
-  const ownedGroups = myGroups
-    .filter((g) => g.role === "owner")
-    .map((g) => g.name);
+  const mine = myGroups.filter((g) => g.role === "owner");
+  const ownedGroups = mine.map((g) => g.name);
+  const owned = new Set(mine.map((g) => g.id));
   // Every track of theirs, newest first: the feed's and the groups'.
   const tracks: OwnTrack[] = [
     ...(feedTracks ?? []).map((t) => ({ ...t, group: null })),
@@ -81,7 +81,12 @@ export default async function SettingsPage() {
       title: t.title,
       status: t.status,
       published_at: t.published_at,
-      group: { name: t.group_name, slug: t.group_slug, isMember: t.is_member },
+      group: {
+        name: t.group_name,
+        slug: t.group_slug,
+        isMember: t.is_member,
+        isOwner: owned.has(t.group_id),
+      },
     })),
   ].sort((a, b) => b.published_at.localeCompare(a.published_at));
 

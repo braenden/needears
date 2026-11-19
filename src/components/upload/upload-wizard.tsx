@@ -729,7 +729,8 @@ function PublishStep({
       }}
     >
       {/* Who hears it, big, so a click from habit does not go public. */}
-      <div className="flex items-center gap-3">
+      {/* The icon by the first line, also when a second line follows. */}
+      <div className="flex items-start gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-secondary text-muted-foreground">
           {group ? (
             <LockIcon className="size-5" aria-hidden="true" />
@@ -737,7 +738,8 @@ function PublishStep({
             <GlobeIcon className="size-5" aria-hidden="true" />
           )}
         </span>
-        <div className="grid gap-0.5">
+        {/* The first line centred on the icon. */}
+        <div className="grid gap-0.5 pt-2">
           <p className="text-lg leading-snug font-semibold">
             {group
               ? GROUP_COPY.hearsGroup(group.name)

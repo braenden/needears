@@ -17,15 +17,19 @@ import {
 import { GROUP_COPY } from "./copy";
 
 /**
- * The group's owner deletes someone else's track in the group, for
- * everyone. Open while `track` is set.
+ * The group's owner deletes a track in the group, for everyone, also when
+ * it is reported. For their own track it says what deleting your own
+ * track says anywhere. Open while `track` is set.
  */
 export function DeleteGroupTrackDialog({
   track,
+  own = false,
   onClose,
   onDeleted,
 }: {
   track: { id: string; title: string; artist: string } | null;
+  /** The owner's own track. */
+  own?: boolean;
   onClose: () => void;
   onDeleted: () => void;
 }) {
@@ -55,10 +59,23 @@ export function DeleteGroupTrackDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {t ? GROUP_COPY.deleteTrackTitle(t.title) : ""}
+            {own
+              ? "Delete this track?"
+              : t
+                ? GROUP_COPY.deleteTrackTitle(t.title)
+                : ""}
           </DialogTitle>
           <DialogDescription>
-            {t ? GROUP_COPY.deleteTrackBody(t.artist) : ""}
+            {own ? (
+              <>
+                &ldquo;{t?.title}&rdquo; and all its comments and reactions are
+                deleted for good. This can&apos;t be undone.
+              </>
+            ) : t ? (
+              GROUP_COPY.deleteTrackBody(t.artist)
+            ) : (
+              ""
+            )}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -74,7 +91,7 @@ export function DeleteGroupTrackDialog({
             onClick={() => void remove()}
           >
             {deleting ? <Loader2Icon className="animate-spin" /> : null}
-            Delete
+            {own ? "Delete track" : "Delete"}
           </Button>
         </DialogFooter>
       </DialogContent>

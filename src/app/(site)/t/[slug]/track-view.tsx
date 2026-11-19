@@ -824,7 +824,7 @@ export function TrackView({
             {GROUP_COPY.onlyMembersOf}{" "}
             <Link
               href={`/g/${track.group.slug}`}
-              className="rounded-xs text-foreground focus-ring outline-none hover:underline hover:underline-offset-4"
+              className="rounded-xs text-foreground underline underline-offset-4 focus-ring outline-none"
             >
               {track.group.name}
             </Link>{" "}
@@ -962,7 +962,13 @@ export function TrackView({
                   {track.status === "live" ? (
                     <DropdownMenuItem
                       variant="destructive"
-                      onSelect={() => setDeleting(true)}
+                      // The group's owner deletes as the owner, also when
+                      // the track is reported.
+                      onSelect={() =>
+                        isGroupOwner
+                          ? setDeletingForGroup(true)
+                          : setDeleting(true)
+                      }
                     >
                       <Trash2Icon /> Delete track
                     </DropdownMenuItem>
@@ -1042,8 +1048,9 @@ export function TrackView({
               }
             />
           ) : null}
-          {isGroupOwner && !isOwner && track.group ? (
+          {isGroupOwner && track.group ? (
             <DeleteGroupTrackDialog
+              own={isOwner}
               track={
                 deletingForGroup
                   ? { id: track.id, title: track.title, artist: owner }

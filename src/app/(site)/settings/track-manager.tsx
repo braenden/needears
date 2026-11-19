@@ -18,7 +18,13 @@ export type OwnTrack = Pick<
   "id" | "slug" | "title" | "status" | "published_at"
 > & {
   /** The group it is in, or null for a track in the feed. */
-  group: { name: string; slug: string; isMember: boolean } | null;
+  group: {
+    name: string;
+    slug: string;
+    isMember: boolean;
+    /** Their own group: they delete it as its owner. */
+    isOwner: boolean;
+  } | null;
 };
 
 const STATUS_LABELS: Record<OwnTrack["status"], string> = {
@@ -111,6 +117,7 @@ export function TrackManager({ tracks }: { tracks: OwnTrack[] }) {
       ) : null}
       <DeleteTrackDialog
         track={confirm}
+        viaGroup={!!confirm?.group?.isOwner}
         onClose={() => setConfirm(null)}
         onDeleted={() => {
           setConfirm(null);

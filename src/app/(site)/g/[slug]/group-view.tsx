@@ -12,7 +12,6 @@ import { DeleteGroupDialog } from "@/components/groups/delete-group-dialog";
 import { DeleteGroupTrackDialog } from "@/components/groups/delete-group-track-dialog";
 import { Lock } from "@/components/groups/group-bits";
 import { PAGE_TITLE, Page } from "@/components/shell/page";
-import { DeleteTrackDialog } from "@/components/track/delete-track-dialog";
 import { type PlayableTrack, TrackList } from "@/components/track/track-list";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,8 +61,7 @@ export function GroupView({
   const [pending, setPending] = useState<Pending>(null);
   const [showAll, setShowAll] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState(false);
-  const [deletingOwn, setDeletingOwn] = useState<PlayableTrack | null>(null);
-  const [deletingOther, setDeletingOther] = useState<PlayableTrack | null>(
+  const [deletingTrack, setDeletingTrack] = useState<PlayableTrack | null>(
     null,
   );
 
@@ -89,11 +87,7 @@ export function GroupView({
         <DropdownMenuContent align="end">
           <DropdownMenuItem
             variant="destructive"
-            onSelect={() =>
-              track.owner.id === owner?.id
-                ? setDeletingOwn(track)
-                : setDeletingOther(track)
-            }
+            onSelect={() => setDeletingTrack(track)}
           >
             Delete track
           </DropdownMenuItem>
@@ -290,27 +284,21 @@ export function GroupView({
             onOpenChange={setDeletingGroup}
             group={group}
           />
-          <DeleteTrackDialog
-            track={deletingOwn}
-            onClose={() => setDeletingOwn(null)}
-            onDeleted={() => {
-              setDeletingOwn(null);
-              router.refresh();
-            }}
-          />
           <DeleteGroupTrackDialog
+            // The owner's own tracks too: as the owner, also when reported.
             track={
-              deletingOther
+              deletingTrack
                 ? {
-                    id: deletingOther.id,
-                    title: deletingOther.title,
-                    artist: displayNameOf(deletingOther.owner),
+                    id: deletingTrack.id,
+                    title: deletingTrack.title,
+                    artist: displayNameOf(deletingTrack.owner),
                   }
                 : null
             }
-            onClose={() => setDeletingOther(null)}
+            own={!!deletingTrack && deletingTrack.owner.id === owner?.id}
+            onClose={() => setDeletingTrack(null)}
             onDeleted={() => {
-              setDeletingOther(null);
+              setDeletingTrack(null);
               router.refresh();
             }}
           />

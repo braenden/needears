@@ -74,7 +74,7 @@ export const GROUP_COPY = {
   groupDeleted: (name: string) => `${name} is deleted.`,
   // Admin
   adminInGroup: "The track is in a group.",
-  adminRemovedByOwner: "It was in a group, and the group's owner removed it.",
+  adminRemovedByOwner: "It was in a group, and the group's owner deleted it.",
   adminOpenForReport: "Open for this report",
   adminOpenNote: "You'll see it for 24 hours. Opening it is logged.",
   adminOpened: (name: string | null) =>

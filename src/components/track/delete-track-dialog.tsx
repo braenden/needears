@@ -21,10 +21,13 @@ import {
  */
 export function DeleteTrackDialog({
   track,
+  viaGroup = false,
   onClose,
   onDeleted,
 }: {
   track: { id: string; title: string } | null;
+  /** A track in a group its owner owns: deleted as the group's owner. */
+  viaGroup?: boolean;
   onClose: () => void;
   onDeleted: () => void;
 }) {
@@ -32,9 +35,12 @@ export function DeleteTrackDialog({
 
   async function remove(target: { id: string; title: string }) {
     setDeleting(true);
-    const response = await fetch(`/api/tracks/${target.id}`, {
-      method: "DELETE",
-    }).catch(() => null);
+    const response = await fetch(
+      viaGroup ? `/api/groups/tracks/${target.id}` : `/api/tracks/${target.id}`,
+      {
+        method: "DELETE",
+      },
+    ).catch(() => null);
     setDeleting(false);
     if (response?.status === 204) {
       toast.success(`"${target.title}" is deleted.`);
