@@ -88,6 +88,7 @@ export function MobileMenu({
   const close = () => setMenuOpen(false);
   const themeRow = useThemeRow();
   const links = [
+    { href: "/groups", label: "Groups" },
     { href: "/settings", label: "Settings" },
     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
@@ -255,6 +256,9 @@ export function UserMenu({
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/groups">Groups</Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings">Settings</Link>
         </DropdownMenuItem>

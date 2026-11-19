@@ -17,7 +17,9 @@ export async function generateMetadata({
 }: PageProps<"/t/[slug]">): Promise<Metadata> {
   const { slug } = await params;
   const data = await loadTrack(slug);
-  if (!data) return { title: "Track not found" };
+  // Also a group's track seen from outside: nothing about it, and not
+  // for search engines.
+  if (!data) return { title: "Track not found", robots: { index: false } };
   const { track } = data;
   const owner = track.owner.display_name || track.owner.handle;
   const description =
@@ -27,6 +29,13 @@ export async function generateMetadata({
   // URL, so sites that cache link previews pick up the new waveform.
   const latest = data.versions[data.versions.length - 1];
   const image = `/api/og/${track.slug}${latest && latest.version_no > 1 ? `?v=${latest.version_no}` : ""}`;
+  // A closed track is for its group's members: nothing for search
+  // engines, and no picture or text for a link passed on.
+  if (track.group)
+    return {
+      title: `${track.title} by ${owner}`,
+      robots: { index: false, follow: false },
+    };
   return {
     title: `${track.title} by ${owner}`,
     description,

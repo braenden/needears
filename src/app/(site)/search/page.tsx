@@ -37,6 +37,7 @@ export default async function SearchPage({
       <SearchResults
         className="mt-8"
         query={query}
+        groups={results.groups}
         tracks={results.tracks}
         profiles={results.profiles}
         status={results.failed ? "error" : "ready"}

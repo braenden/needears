@@ -40,6 +40,9 @@ import { RelativeTime } from "@/components/common/relative-time";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
 import { MiniPlayerBar } from "@/components/player/mini-player-bar";
 import { useSharedAudio } from "@/components/player/shared-audio";
+import { GROUP_COPY } from "@/components/groups/copy";
+import { DeleteGroupTrackDialog } from "@/components/groups/delete-group-track-dialog";
+import { Lock } from "@/components/groups/group-bits";
 import { Page, PageTitle } from "@/components/shell/page";
 import {
   type TimeRange,
@@ -277,6 +280,10 @@ export function TrackView({
   >(null);
 
   const isOwner = viewer?.userId === track.owner_id;
+  // The owner of the track's group can delete it, and any comment on it.
+  const isGroupOwner =
+    !!viewer && !!track.group && track.group.owner_id === viewer.userId;
+  const [deletingForGroup, setDeletingForGroup] = useState(false);
   // With more than one version, the player, the markers and the list follow
   // the picked version. Until a new version arrives from the server after
   // publishing, the latest one plays.
@@ -810,6 +817,20 @@ export function TrackView({
           {" · "}
           <RelativeTime date={track.published_at} />
         </p>
+        {/* Which group, the same for the artist and the members. */}
+        {track.group ? (
+          <p className="mt-1 text-[15px] text-muted-foreground">
+            <Lock className="mr-1.5" />
+            {GROUP_COPY.onlyMembersOf}{" "}
+            <Link
+              href={`/g/${track.group.slug}`}
+              className="rounded-xs text-foreground focus-ring outline-none hover:underline hover:underline-offset-4"
+            >
+              {track.group.name}
+            </Link>{" "}
+            {GROUP_COPY.canHearThis}
+          </p>
+        ) : null}
       </header>
 
       <div ref={fullPlayer} className="mt-6 scroll-mt-20">
@@ -950,6 +971,14 @@ export function TrackView({
               ) : viewer && !isOwner ? (
                 <>
                   <DropdownMenuSeparator />
+                  {isGroupOwner && track.status === "live" ? (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setDeletingForGroup(true)}
+                    >
+                      <Trash2Icon /> Delete track
+                    </DropdownMenuItem>
+                  ) : null}
                   <DropdownMenuItem
                     onSelect={() => setReporting({ type: "track" })}
                   >
@@ -1004,7 +1033,24 @@ export function TrackView({
             <DeleteTrackDialog
               track={deleting ? track : null}
               onClose={() => setDeleting(false)}
-              onDeleted={() => router.push(`/u/${track.owner.handle}`)}
+              onDeleted={() =>
+                router.push(
+                  track.group
+                    ? `/g/${track.group.slug}`
+                    : `/u/${track.owner.handle}`,
+                )
+              }
+            />
+          ) : null}
+          {isGroupOwner && !isOwner && track.group ? (
+            <DeleteGroupTrackDialog
+              track={
+                deletingForGroup
+                  ? { id: track.id, title: track.title, artist: owner }
+                  : null
+              }
+              onClose={() => setDeletingForGroup(false)}
+              onDeleted={() => router.push(`/g/${track.group!.slug}`)}
             />
           ) : null}
           {isOwner && genres ? (
@@ -1147,6 +1193,7 @@ export function TrackView({
               onReply={reply}
               viewerId={viewer?.userId}
               isAdmin={viewer?.isAdmin ?? false}
+              groupOwner={isGroupOwner}
               onEdit={viewer ? editComment : undefined}
               onDelete={viewer ? deleteComment : undefined}
               onToggleResolved={(c, resolved) =>

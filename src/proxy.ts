@@ -26,6 +26,9 @@ export async function proxy(request: NextRequest) {
   });
   request.headers.set(CSP_HEADER, csp);
   request.headers.set("x-nonce", nonce);
+  // For not-found pages, which get no params: a track's address, to say
+  // whether it is a group's track for members only.
+  request.headers.set("x-pathname", request.nextUrl.pathname);
 
   const response = await updateSession(request);
   response.headers.set(CSP_HEADER, csp);

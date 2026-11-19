@@ -28,3 +28,9 @@ export const FEED_MAX_PAGE = 50;
 export const SEARCH_MIN_LENGTH = 3;
 export const SEARCH_MAX_LENGTH = 100;
 export const SEARCH_MAX_RESULTS = 50;
+
+/** How many groups one person can own (the database keeps it). */
+export const GROUPS_MAX = 3;
+
+/** How many members a group can have (the database keeps it). */
+export const GROUP_MEMBERS_MAX = 50;

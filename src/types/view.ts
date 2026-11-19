@@ -53,7 +53,15 @@ export type TrackSummary = Pick<
   owner: ProfileSummary;
   // Peaks of the first channel, 0 to 1. The stored file is 8 bit.
   peaks: number[];
+  /** The group it is in, for its members. Null for a track in the feed. */
+  group?: TrackGroup | null;
 };
+
+/** The group a track is posted to, as far as the visitor may see it. */
+export type TrackGroup = Pick<
+  Tables<"groups">,
+  "id" | "slug" | "name" | "owner_id"
+>;
 
 export type Track = TrackSummary &
   Pick<

@@ -6,6 +6,8 @@ export const LISTED_NOTIFICATION_KINDS = [
   "reply",
   "helpful",
   "moderation",
+  "group_request",
+  "group_joined",
 ] as const;
 
 export type ListedNotificationKind = (typeof LISTED_NOTIFICATION_KINDS)[number];

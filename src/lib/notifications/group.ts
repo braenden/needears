@@ -6,6 +6,7 @@ type Groupable = {
   read_at: string | null;
   actor: { id: string } | null;
   track: { slug: string } | null;
+  group?: { slug: string } | null;
 };
 
 export type NotificationGroup<T extends Groupable> = {
@@ -16,9 +17,10 @@ export type NotificationGroup<T extends Groupable> = {
 };
 
 /**
- * Notifications of the same kind on the same track within a day of the
- * newest one share a row ("Jonas and 3 others commented on Night bus").
- * Moderation notices always stand alone. Expects newest first.
+ * Notifications of the same kind on the same track, or about the same
+ * group, within a day of the newest one share a row ("Jonas and 3 others
+ * commented on Night bus"). Moderation notices always stand alone.
+ * Expects newest first.
  */
 export function groupNotifications<T extends Groupable>(
   rows: T[],
@@ -27,9 +29,13 @@ export function groupNotifications<T extends Groupable>(
   const open = new Map<string, NotificationGroup<T>>();
   for (const row of rows) {
     const key =
-      row.kind === "moderation" || !row.track
+      row.kind === "moderation"
         ? null
-        : `${row.kind}:${row.track.slug}`;
+        : row.track
+          ? `${row.kind}:${row.track.slug}`
+          : row.group
+            ? `${row.kind}:group:${row.group.slug}`
+            : null;
     const group = key ? open.get(key) : undefined;
     const newest = group?.items[0];
     if (

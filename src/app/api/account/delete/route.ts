@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/api/auth";
 import { BodyError, jsonError, readJson } from "@/lib/api/http";
 import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
 import { listAudio, removeAudio } from "@/lib/storage/r2";
+import { removeTrackFiles } from "@/lib/storage/remove-track-files";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -78,6 +79,11 @@ export async function POST(request: Request) {
       );
   }
 
+  // Groups this person owns go with the account, with everyone's tracks
+  // in them. Their files are not under this person's folder, so their keys
+  // are read now and the files removed once the rows are gone.
+  const groupFiles = await othersGroupFiles(admin, auth.user.id);
+
   const { error } = await admin.auth.admin.deleteUser(auth.user.id);
   if (error) {
     console.error("Could not delete auth user", error.status);
@@ -87,6 +93,10 @@ export async function POST(request: Request) {
       "Could not delete your account. Try again.",
     );
   }
+
+  // Best effort: what is left, the daily clean up takes.
+  if (groupFiles.length > 0 && !(await removeTrackFiles(admin, groupFiles)))
+    console.error("Account deleted but group files remain");
 
   if (auth.via === "cookie") {
     const supabase = await createClient();
@@ -131,4 +141,28 @@ async function removeAudioFolder(userId: string): Promise<boolean> {
     if (!(await removeAudio(page.objects.map((o) => o.key)))) return false;
   }
   return false;
+}
+
+// The files of other people's tracks in the groups someone owns, every
+// version, in one read. Empty when they own none, or when reading fails;
+// then the daily clean up takes the files.
+async function othersGroupFiles(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<{ audio_key: string; peaks_key: string }[]> {
+  const { data, error } = await admin
+    .from("tracks")
+    .select(
+      "audio_key, peaks_key, versions:track_versions(audio_key, peaks_key), group:groups!tracks_group_id_fkey!inner(owner_id)",
+    )
+    .eq("group.owner_id", userId)
+    .neq("owner_id", userId);
+  if (error) {
+    console.error("Could not read group files", error.code);
+    return [];
+  }
+  return data.flatMap(({ audio_key, peaks_key, versions }) => [
+    { audio_key, peaks_key },
+    ...versions,
+  ]);
 }

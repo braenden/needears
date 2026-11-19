@@ -8,6 +8,7 @@ import type {
   Genre,
   ThreadComment,
   Track,
+  TrackGroup,
   TrackSummary,
   TrackVersion,
 } from "@/types/view";
@@ -28,7 +29,9 @@ const FEED_FUNCTIONS = {
 
 const OWNER =
   "owner:profiles!tracks_owner_id_fkey(id, handle, display_name, avatar_url, avatar_key, reputation)";
-const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, listener_comment_count, needs_ears, play_count, published_at, feedback_wants, level, description, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), track_versions(count), ${OWNER}`;
+// The group a track is in; only its members read it.
+const GROUP = "group:groups!tracks_group_id_fkey(id, slug, name, owner_id)";
+const SUMMARY_COLUMNS = `id, slug, title, duration_ms, comment_count, listener_comment_count, needs_ears, play_count, published_at, feedback_wants, level, description, reaction_counts, audio_key, peaks_key, genre:genres(slug, name), track_versions(count), ${OWNER}, ${GROUP}`;
 const TRACK_COLUMNS = `${SUMMARY_COLUMNS}, tags, status, owner_id, reference_url`;
 
 // Bars in the card waveform (MiniWaveform's default).
@@ -56,6 +59,7 @@ type SummaryRow = {
   peaks_key: string;
   genre: Genre | null;
   owner: (TrackSummary["owner"] & { avatar_key: string | null }) | null;
+  group: TrackGroup | null;
 };
 
 // Rows to cards: one signing request and cached peaks for the whole list.
@@ -98,6 +102,7 @@ async function toCards(
     owner: owners[i]!,
     peaks: peaks.get(row.peaks_key) ?? [],
     audioUrl: urls.get(row.audio_key) ?? null,
+    group: row.group,
   }));
 }
 
@@ -144,7 +149,27 @@ export async function getTracksByOwner(
   return toCards(supabase, data as unknown as SummaryRow[]);
 }
 
-/** Live tracks by id, as rows to play, in the order of `ids`. */
+/**
+ * A group's live tracks, newest first, as rows to play. RLS lets only
+ * members read the tracks of a group.
+ */
+export async function getGroupTracks(
+  groupId: string,
+  limit = 100,
+): Promise<CardTrack[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tracks")
+    .select(SUMMARY_COLUMNS)
+    .eq("group_id", groupId)
+    .eq("status", "live")
+    .order("published_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Group tracks failed: ${describeError(error)}`);
+  return toCards(supabase, data as unknown as SummaryRow[]);
+}
+
+/** Live public tracks by id, as rows to play, in the order of `ids`. */
 export async function getTracksByIds(ids: string[]): Promise<CardTrack[]> {
   if (ids.length === 0) return [];
   const supabase = await createClient();
@@ -152,7 +177,9 @@ export async function getTracksByIds(ids: string[]): Promise<CardTrack[]> {
     .from("tracks")
     .select(SUMMARY_COLUMNS)
     .in("id", ids)
-    .eq("status", "live");
+    .eq("status", "live")
+    // Public tracks only: a group's tracks never show outside it.
+    .is("group_id", null);
   if (error) throw new Error(`Tracks failed: ${describeError(error)}`);
   const rows = (data as unknown as SummaryRow[]).sort(
     (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
@@ -164,19 +191,25 @@ export async function getTracksByIds(ids: string[]): Promise<CardTrack[]> {
 const MORE_TO_HEAR = 5;
 
 /**
- * A next step on a track's page for someone looking around: other tracks
- * that need ears first (not this one, not the viewer's own), then more by
- * the same artist, then the newest. The same queries as the feed and the
- * profile, so row level security decides what shows.
+ * A next step on a track's page for someone looking around. A track in a
+ * group gets the group's other tracks, and nothing from the feed. Any
+ * other track gets other tracks that need ears (not this one, not the
+ * viewer's own), then more by the same artist, then the newest, all
+ * public. The same queries as the feed and the profile, so row level
+ * security decides what shows.
  */
 export async function getMoreToHear(
-  track: { id: string; owner_id: string },
+  track: { id: string; owner_id: string; group?: { id: string } | null },
   viewerId: string | null,
 ): Promise<CardTrack[]> {
+  if (track.group) {
+    const group = await getGroupTracks(track.group.id, MORE_TO_HEAR + 1);
+    return group.filter((t) => t.id !== track.id).slice(0, MORE_TO_HEAR);
+  }
   const [needs, sameArtist, latest] = await Promise.all([
     getFeed("needs-ears", null, 1),
-    // Only live ones: a hidden track is never offered, not even to its
-    // owner or an admin.
+    // Only live and public ones: a hidden track is never offered, not
+    // even to its owner or an admin, and a group's never here.
     getTracksByOwner(track.owner_id, MORE_TO_HEAR + 1, true),
     getFeed("latest", null, 1),
   ]);
@@ -281,6 +314,9 @@ export async function getTrackPage(
   if (versionRows.error)
     throw new Error(`Versions failed: ${describeError(versionRows.error)}`);
   const versions = versionRows.data;
+  // A group's track its owner can still list after leaving the group, but
+  // not hear: no versions come back, and the page is for members.
+  if (row.group && versions.length === 0) return null;
   // The track's keys are the latest version's; listed too in case the
   // versions query came back empty.
   const audioKeys = [
@@ -345,6 +381,7 @@ export async function getTrackPage(
       status: row.status,
       owner_id: row.owner_id,
       reference_url: row.reference_url,
+      group: row.group,
     },
     audioUrl: urls.get(row.audio_key) ?? null,
     comments: rows.map((c, i) => ({ ...c, author: authors[i]! })),

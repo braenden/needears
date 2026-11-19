@@ -2,15 +2,20 @@
 
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CheckIcon,
   FileAudioIcon,
+  GlobeIcon,
   LinkIcon,
   Loader2Icon,
+  LockIcon,
   UploadIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { GROUP_COPY } from "@/components/groups/copy";
+import { Lock } from "@/components/groups/group-bits";
 import { MiniWaveform } from "@/components/track/mini-waveform";
 import { Button } from "@/components/ui/button";
 import { FEEDBACK_WANT_LABELS } from "@/config/labels";
@@ -59,7 +64,12 @@ export type UploadPipeline = {
     | { ok: true; slug: string }
     | {
         ok: false;
-        error: "upload_interrupted" | "rate_limited" | "signed_out" | "unknown";
+        error:
+          | "upload_interrupted"
+          | "rate_limited"
+          | "signed_out"
+          | "not_in_group"
+          | "unknown";
         rateLimit?: { limit: number; retry: string };
       }
   >;
@@ -102,8 +112,11 @@ export function publishErrorText(
   error: PublishError,
   rateLimit: UploadState["rateLimit"],
   contactEmail?: string,
+  groupName?: string,
 ) {
   switch (error) {
+    case "not_in_group":
+      return GROUP_COPY.notInGroupUpload(groupName ?? "the group");
     case "upload_interrupted":
       return "The upload stopped. Check your connection and try again. Your details are still here.";
     case "rate_limited":
@@ -142,6 +155,8 @@ export function UploadWizard({
   genres,
   isMobile = false,
   contactEmail,
+  group = null,
+  memberOf = [],
   initialState,
   className,
 }: {
@@ -149,10 +164,21 @@ export function UploadWizard({
   genres: { slug: string; name: string }[];
   isMobile?: boolean;
   contactEmail?: string;
+  /**
+   * Started from a group's page: the track goes in that group, and only
+   * its members hear it. Otherwise it goes in the feed.
+   */
+  group?: { slug: string; name: string } | null;
+  /**
+   * The groups the uploader is in, for uploading to the feed: the last
+   * step says where to go to post in one of them instead.
+   */
+  memberOf?: { slug: string; name: string }[];
   /** Seed any state, for /design and tests. */
   initialState?: Partial<UploadState>;
   className?: string;
 }) {
+  const router = useRouter();
   const [state, dispatch] = useReducer(uploadReducer, {
     ...initialUploadState,
     ...initialState,
@@ -253,6 +279,11 @@ export function UploadWizard({
       dispatch({ type: "stage", stage: "uploading", progress }),
     );
     if (result.ok) {
+      // From a group: back to the group, with the track first in Latest.
+      if (group) {
+        router.push(`/g/${group.slug}`);
+        return;
+      }
       dispatch({ type: "published", slug: result.slug });
       headingRef.current?.focus();
     } else {
@@ -283,6 +314,12 @@ export function UploadWizard({
       >
         {headings[state.step]}
       </h2>
+      {group ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          <Lock className="mr-1.5" />
+          {GROUP_COPY.uploadIn(group.name)}
+        </p>
+      ) : null}
 
       <ol
         className="mt-4 flex items-center gap-2 text-sm"
@@ -354,6 +391,8 @@ export function UploadWizard({
             source={source}
             genres={genres}
             contactEmail={contactEmail}
+            group={group}
+            memberOf={memberOf}
             onOwnWork={(value) => dispatch({ type: "own_work", value })}
             onBack={() => dispatch({ type: "back" })}
             onPublish={() => void publish()}
@@ -658,6 +697,8 @@ function PublishStep({
   source,
   genres,
   contactEmail,
+  group,
+  memberOf,
   onOwnWork,
   onBack,
   onPublish,
@@ -666,6 +707,8 @@ function PublishStep({
   source: File | null;
   genres: { slug: string; name: string }[];
   contactEmail?: string;
+  group: { slug: string; name: string } | null;
+  memberOf: { slug: string; name: string }[];
   onOwnWork: (value: boolean) => void;
   onBack: () => void;
   onPublish: () => void;
@@ -685,6 +728,27 @@ function PublishStep({
         focusFirstInvalid(e.currentTarget);
       }}
     >
+      {/* Who hears it, big, so a click from habit does not go public. */}
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-secondary text-muted-foreground">
+          {group ? (
+            <LockIcon className="size-5" aria-hidden="true" />
+          ) : (
+            <GlobeIcon className="size-5" aria-hidden="true" />
+          )}
+        </span>
+        <div className="grid gap-0.5">
+          <p className="text-lg leading-snug font-semibold">
+            {group
+              ? GROUP_COPY.hearsGroup(group.name)
+              : GROUP_COPY.hearsEveryone}
+          </p>
+          {!group && memberOf.length > 0 ? (
+            <ElsewhereLine groups={memberOf} />
+          ) : null}
+        </div>
+      </div>
+
       <div className="rounded-xl border bg-card p-4">
         <p className="text-lg leading-snug font-semibold break-words">
           {state.details.title}
@@ -768,7 +832,12 @@ function PublishStep({
           role="alert"
           className="rounded-lg bg-destructive-soft p-3 text-sm text-destructive"
         >
-          {publishErrorText(state.publishError, state.rateLimit, contactEmail)}
+          {publishErrorText(
+            state.publishError,
+            state.rateLimit,
+            contactEmail,
+            group?.name,
+          )}
           {state.publishError === "signed_out" ? <SignInAgainLink /> : null}
         </p>
       ) : null}
@@ -779,12 +848,40 @@ function PublishStep({
         </Button>
         <Button type="submit" size="lg" disabled={busy}>
           {busy ? <Loader2Icon className="animate-spin" /> : null}
-          {state.publishError && state.publishError !== "rate_limited"
+          {state.publishError &&
+          state.publishError !== "rate_limited" &&
+          state.publishError !== "not_in_group"
             ? "Try again"
-            : "Publish"}
+            : group
+              ? GROUP_COPY.publishGroup
+              : GROUP_COPY.publishEveryone}
         </Button>
       </div>
     </form>
+  );
+}
+
+/** For someone in a group, uploading to the feed: where a group track goes. */
+function ElsewhereLine({
+  groups,
+}: {
+  groups: { slug: string; name: string }[];
+}) {
+  const only = groups.length === 1 ? groups[0]! : null;
+  const words = only
+    ? GROUP_COPY.toPostIn(only.name)
+    : GROUP_COPY.toPostInAGroup;
+  return (
+    <p className="text-sm text-muted-foreground">
+      {words.before}
+      <Link
+        href={only ? `/g/${only.slug}` : "/groups"}
+        className="rounded-xs text-foreground underline underline-offset-4 focus-ring outline-none"
+      >
+        {words.link}
+      </Link>
+      {words.after}
+    </p>
   );
 }
 

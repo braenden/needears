@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { isFreshSession, REAUTH_WINDOW_MS } from "@/lib/api/reauth";
 import { googleClientId } from "@/lib/auth/google-client-id";
 import { googleClientSecret } from "@/lib/auth/google-code";
+import { getMyGroups, getMyGroupTracks } from "@/lib/data/groups";
 import { getViewer } from "@/lib/data/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { displayNameOf, UserAvatar } from "@/components/common/user-avatar";
@@ -12,7 +13,7 @@ import { EDIT_PROFILE_HREF } from "@/components/shell/nav";
 import { Button } from "@/components/ui/button";
 import { ConnectedAccounts } from "./connected-accounts";
 import { DeleteAccount } from "./delete-account";
-import { TrackManager } from "./track-manager";
+import { type OwnTrack, TrackManager } from "./track-manager";
 import { Page, PageTitle } from "@/components/shell/page";
 
 export const metadata: Metadata = {
@@ -46,19 +47,43 @@ export default async function SettingsPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/login?next=/settings");
   const supabase = await createClient();
-  const [{ data: tracks }, { data: ids }, { data: claims }] = await Promise.all(
-    [
-      supabase
-        .from("tracks")
-        .select("id, slug, title, status, published_at")
-        .eq("owner_id", viewer.userId)
-        .order("published_at", { ascending: false }),
-      // The ways this person can sign in (email link, Google).
-      supabase.auth.getUserIdentities(),
-      // When this session signed in, for connecting Google.
-      supabase.auth.getClaims(),
-    ],
-  );
+  const [
+    { data: feedTracks },
+    groupTracks,
+    myGroups,
+    { data: ids },
+    { data: claims },
+  ] = await Promise.all([
+    supabase
+      .from("tracks")
+      .select("id, slug, title, status, published_at")
+      .eq("owner_id", viewer.userId)
+      .is("group_id", null)
+      .order("published_at", { ascending: false }),
+    // Tracks in groups, also in groups this person is no longer in.
+    getMyGroupTracks().catch(() => []),
+    // Their own groups, which deleting the account takes too.
+    getMyGroups().catch(() => []),
+    // The ways this person can sign in (email link, Google).
+    supabase.auth.getUserIdentities(),
+    // When this session signed in, for connecting Google.
+    supabase.auth.getClaims(),
+  ]);
+  const ownedGroups = myGroups
+    .filter((g) => g.role === "owner")
+    .map((g) => g.name);
+  // Every track of theirs, newest first: the feed's and the groups'.
+  const tracks: OwnTrack[] = [
+    ...(feedTracks ?? []).map((t) => ({ ...t, group: null })),
+    ...groupTracks.map((t) => ({
+      id: t.track_id,
+      slug: t.slug,
+      title: t.title,
+      status: t.status,
+      published_at: t.published_at,
+      group: { name: t.group_name, slug: t.group_slug, isMember: t.is_member },
+    })),
+  ].sort((a, b) => b.published_at.localeCompare(a.published_at));
 
   return (
     <Page width="narrow">
@@ -117,7 +142,7 @@ export default async function SettingsPage() {
         </Section>
 
         <Section id="tracks-heading" title="Your tracks">
-          <TrackManager tracks={tracks ?? []} />
+          <TrackManager tracks={tracks} />
         </Section>
 
         <Section id="data-heading" title="Your data">
@@ -141,7 +166,10 @@ export default async function SettingsPage() {
         </Section>
 
         <Section id="delete-heading" title="Delete account">
-          <DeleteAccount handle={viewer.profile.handle} />
+          <DeleteAccount
+            handle={viewer.profile.handle}
+            ownedGroups={ownedGroups}
+          />
         </Section>
       </div>
     </Page>

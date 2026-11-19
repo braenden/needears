@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FEEDBACK_WANT_LABELS } from "@/config/labels";
 import { formatTime } from "@/lib/time";
+import { Lock } from "@/components/groups/group-bits";
 import { cn } from "@/lib/utils";
 import type { TrackSummary as Track } from "@/types/view";
 
@@ -38,6 +39,9 @@ export function trackNote(
 
 const GRID =
   "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 py-4 md:grid-cols-[auto_minmax(0,22rem)_minmax(0,1fr)_auto] md:gap-x-6 md:py-5";
+// With a menu: top right on phones, last on wide screens.
+const GRID_WITH_MENU =
+  "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 py-4 md:grid-cols-[auto_minmax(0,22rem)_minmax(0,1fr)_auto_auto] md:gap-x-6 md:py-5";
 
 /**
  * A track as a row in a list, like a song in a music app: play, the name
@@ -54,10 +58,16 @@ export function TrackRow({
   onSeek,
   onCue,
   showOwner = true,
+  showPlace = true,
+  menu,
 }: {
   track: Track;
   playing?: boolean;
   progress?: number;
+  /** A menu of the row's own, like the group owner's ⋯. */
+  menu?: React.ReactNode;
+  /** Off on a group's own page, where every track is in that group. */
+  showPlace?: boolean;
   onPlay?: (track: Track) => void;
   /** Play from a spot (0 to 1). */
   onSeek?: (track: Track, at: number) => void;
@@ -69,7 +79,10 @@ export function TrackRow({
   // Every live comment and reply, as the track page counts them.
   const comments = track.comment_count;
   return (
-    <article aria-labelledby={`track-${track.id}-title`} className={GRID}>
+    <article
+      aria-labelledby={`track-${track.id}-title`}
+      className={menu ? GRID_WITH_MENU : GRID}
+    >
       <Button
         type="button"
         size="icon-lg"
@@ -107,6 +120,14 @@ export function TrackRow({
             </>
           ) : null}
           {track.genre.name}
+          {/* Where a closed track lives: only its owner sees these here. */}
+          {showPlace && track.group ? (
+            <>
+              {" · "}
+              <Lock className="mr-0.5" />
+              {track.group.name}
+            </>
+          ) : null}
           {/* On a phone the count sits here, so the note gets the width. */}
           <span className="md:hidden">
             {" · "}
@@ -138,7 +159,10 @@ export function TrackRow({
           onMove={(at) => (onCue ?? onSeek)(track, at)}
           onToggle={() => onPlay?.(track)}
           barsClassName="h-9 md:h-12"
-          className="col-span-2 col-start-1 row-start-2 md:col-span-1 md:col-start-auto md:row-start-auto"
+          className={cn(
+            "col-start-1 row-start-2 md:col-span-1 md:col-start-auto md:row-start-auto",
+            menu ? "col-span-3" : "col-span-2",
+          )}
         />
       ) : null}
       <Link
@@ -157,6 +181,11 @@ export function TrackRow({
           <span className="sr-only"> long</span>
         </span>
       </Link>
+      {menu ? (
+        <div className="col-start-3 row-start-1 md:col-start-auto md:row-start-auto">
+          {menu}
+        </div>
+      ) : null}
     </article>
   );
 }

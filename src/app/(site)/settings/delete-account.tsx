@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
+import { GROUP_COPY } from "@/components/groups/copy";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +21,14 @@ import { Input } from "@/components/ui/input";
 
 // Deleting needs a sign in from the last ten minutes in this session
 // (src/app/api/account/delete) and the handle typed out.
-export function DeleteAccount({ handle }: { handle: string }) {
+export function DeleteAccount({
+  handle,
+  ownedGroups = [],
+}: {
+  handle: string;
+  /** The groups this person owns: they go too, with everyone's tracks. */
+  ownedGroups?: string[];
+}) {
   const id = useId();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -109,6 +117,9 @@ export function DeleteAccount({ handle }: { handle: string }) {
                   This deletes everything for good. It can&apos;t be undone.
                 </DialogDescription>
               </DialogHeader>
+              {ownedGroups.length > 0 ? (
+                <p className="text-sm">{GROUP_COPY.ownsGroups(ownedGroups)}</p>
+              ) : null}
               <div className="grid gap-2">
                 <label
                   htmlFor={`${id}-confirm`}

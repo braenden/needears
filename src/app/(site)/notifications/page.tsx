@@ -41,9 +41,13 @@ type Row = {
   } | null;
   track: { slug: string; title: string } | null;
   comment: { time_ms: number | null; body: string } | null;
+  group: { slug: string; name: string } | null;
 };
 
-type Kind = Exclude<ListedNotificationKind, "moderation">;
+type Kind = Exclude<
+  ListedNotificationKind,
+  "moderation" | "group_request" | "group_joined"
+>;
 
 const VERBS: Record<Kind, string> = {
   comment: "commented on",
@@ -89,7 +93,7 @@ export default async function NotificationsPage({
   const { data } = await supabase
     .from("notifications")
     .select(
-      "id, kind, action, target, reason, read_at, created_at, actor:profiles!notifications_actor_id_fkey(id, handle, display_name, avatar_url, avatar_key), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms, body)",
+      "id, kind, action, target, reason, read_at, created_at, actor:profiles!notifications_actor_id_fkey(id, handle, display_name, avatar_url, avatar_key), track:tracks!notifications_track_id_fkey(slug, title), comment:comments!notifications_comment_id_fkey(time_ms, body), group:groups!notifications_group_id_fkey(slug, name)",
     )
     .eq("user_id", viewer.userId)
     .in("kind", [...LISTED_NOTIFICATION_KINDS])
@@ -164,6 +168,34 @@ export default async function NotificationsPage({
                   </NotificationRow>
                 );
               }
+              if (n.kind === "group_request" || n.kind === "group_joined") {
+                if (!n.group) return null;
+                return (
+                  <NotificationRow
+                    key={n.id}
+                    unread={unread}
+                    className={cn(
+                      "relative flex gap-3 px-4 py-3 text-sm",
+                      "hover:bg-accent/60 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring has-[a:focus-visible]:ring-inset",
+                    )}
+                  >
+                    <Avatars actors={actors} />
+                    <div className="min-w-0 flex-1">
+                      <p>
+                        <GroupLine
+                          kind={n.kind}
+                          names={actors.map((a) => displayNameOf(a))}
+                          group={n.group}
+                        />
+                      </p>
+                      <RelativeTime
+                        date={n.created_at}
+                        className="text-xs text-muted-foreground"
+                      />
+                    </div>
+                  </NotificationRow>
+                );
+              }
               const kind = n.kind;
               const names = actors.map((a) => displayNameOf(a));
               const verb =
@@ -178,20 +210,7 @@ export default async function NotificationsPage({
                   unread={unread}
                   className={rowClass}
                 >
-                  {actors.length > 0 ? (
-                    // Two at most, in a column of fixed width, so the text
-                    // starts in the same place on every row.
-                    <span className="mt-0.5 flex w-10 shrink-0 -space-x-2">
-                      {actors.slice(0, 2).map((actor) => (
-                        <UserAvatar
-                          key={actor.id}
-                          profile={actor}
-                          size="sm"
-                          className="ring-2 ring-card"
-                        />
-                      ))}
-                    </span>
-                  ) : null}
+                  <Avatars actors={actors} />
                   <div className="min-w-0 flex-1">
                     <p>
                       <span className="font-semibold">{namesText(names)}</span>{" "}
@@ -240,5 +259,60 @@ export default async function NotificationsPage({
         </>
       )}
     </Page>
+  );
+}
+
+/** Two at most, in a column of fixed width, so the text starts in the same place on every row. */
+function Avatars({ actors }: { actors: NonNullable<Row["actor"]>[] }) {
+  if (actors.length === 0) return null;
+  return (
+    <span className="mt-0.5 flex w-10 shrink-0 -space-x-2">
+      {actors.slice(0, 2).map((actor) => (
+        <UserAvatar
+          key={actor.id}
+          profile={actor}
+          size="sm"
+          className="ring-2 ring-card"
+        />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * "Mia asked to join Mix class H26.", "3 people asked to join …", or
+ * "Nora let you into Mix class H26.". The group opens from the row.
+ */
+function GroupLine({
+  kind,
+  names,
+  group,
+}: {
+  kind: "group_request" | "group_joined";
+  names: string[];
+  group: { slug: string; name: string };
+}) {
+  const link = (
+    <Link
+      href={`/g/${group.slug}`}
+      className="font-medium underline-offset-4 outline-none after:absolute after:inset-0 hover:underline"
+    >
+      {group.name}
+    </Link>
+  );
+  if (kind === "group_joined")
+    return (
+      <>
+        <span className="font-semibold">{names[0] ?? "Someone"}</span> let you
+        into {link}.
+      </>
+    );
+  return (
+    <>
+      <span className="font-semibold">
+        {names.length > 2 ? `${names.length} people` : namesText(names)}
+      </span>{" "}
+      asked to join {link}.
+    </>
   );
 }

@@ -7,6 +7,7 @@ import {
   type Marker,
 } from "@/lib/markers/format";
 import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/env";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 const querySchema = z
@@ -26,9 +27,12 @@ const CONTENT_TYPES = {
 
 // The comments on a track as DAW markers: CSV, plain text or Reaper's marker
 // list. Reads with the anon key, so only live tracks and live comments come
-// out, the same as anyone can see on the track page. Top level comments
-// with a time only; replies share their parent's time. Cached briefly at
-// the edge, which also keeps repeated downloads off the database.
+// out, the same as anyone can see on the track page; cached briefly at the
+// edge, which also keeps repeated downloads off the database. A group's
+// track is only readable by its members, so for one the anon key finds
+// nothing: then it is read again as the signed in visitor, and the answer
+// is for them alone, never cached. Top level comments with a time only;
+// replies share their parent's time.
 export async function GET(
   request: Request,
   ctx: RouteContext<"/api/tracks/[id]/markers">,
@@ -43,21 +47,33 @@ export async function GET(
     return jsonError(400, "invalid_format", "Use format=csv, txt or reaper.");
   const { format, version } = query.data;
 
-  const supabase = createClient<Database>(supabaseUrl(), supabaseAnonKey(), {
+  const anon = createClient<Database>(supabaseUrl(), supabaseAnonKey(), {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
   });
+  const readTrack = (client: typeof anon) =>
+    client
+      .from("tracks")
+      .select("slug, versions:track_versions(id, version_no)")
+      .eq("id", id)
+      .maybeSingle();
 
-  const track = await supabase
-    .from("tracks")
-    .select("slug, versions:track_versions(id, version_no)")
-    .eq("id", id)
-    .maybeSingle();
+  let supabase = anon;
+  let shared = true;
+  let track = await readTrack(anon);
+  if (!track.error && !track.data) {
+    // Perhaps a group's track: as the member, if they are one.
+    supabase = (await createServerClient()) as unknown as typeof anon;
+    shared = false;
+    track = await readTrack(supabase);
+  }
   if (track.error || !track.data)
-    return jsonError(404, "not_found", "No such track.");
+    return jsonError(404, "not_found", "No such track.", {
+      "Cache-Control": "private, no-store",
+    });
 
   const versions = [...track.data.versions].sort(
     (a, b) => b.version_no - a.version_no,
@@ -98,8 +114,11 @@ export async function GET(
     headers: {
       "Content-Type": CONTENT_TYPES[format],
       "Content-Disposition": `attachment; filename="${name}"`,
-      // Short, so a hidden comment or track leaves the edge soon.
-      "Cache-Control": "public, max-age=60, s-maxage=60",
+      // Short, so a hidden comment or track leaves the edge soon. A group's
+      // track is for its members only, and never kept anywhere on the way.
+      "Cache-Control": shared
+        ? "public, max-age=60, s-maxage=60"
+        : "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },
   });
