@@ -35,6 +35,13 @@ describe("databaseError", () => {
     ]);
   });
 
+  it("tells someone posting to a group they are not in", async () => {
+    expect(await code({ code: "42501", message: "not_in_group" })).toEqual([
+      403,
+      "not_in_group",
+    ]);
+  });
+
   it("maps unknown errors to a 500 without details", async () => {
     expect(await code({ code: "XX000", message: "secret detail" })).toEqual([
       500,

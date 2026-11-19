@@ -148,17 +148,23 @@ export async function getProfileStats(
   profile: Pick<Profile, "id" | "reputation">,
 ): Promise<ProfileStats> {
   const supabase = await createClient();
+  // Songs in groups, and comments on them, never count on a profile.
   const [tracks, comments] = await Promise.all([
     supabase
       .from("tracks")
       .select("id", { count: "exact", head: true })
       .eq("owner_id", profile.id)
-      .eq("status", "live"),
+      .eq("status", "live")
+      .is("group_id", null),
     supabase
       .from("comments")
-      .select("id", { count: "exact", head: true })
+      .select("id, track:tracks!comments_track_id_fkey!inner(group_id)", {
+        count: "exact",
+        head: true,
+      })
       .eq("author_id", profile.id)
-      .eq("status", "live"),
+      .eq("status", "live")
+      .is("track.group_id", null),
   ]);
   return {
     tracks: tracks.count ?? 0,
@@ -182,17 +188,24 @@ export async function getCommentsBy(
   limit = 30,
 ): Promise<GivenComment[]> {
   const supabase = await createClient();
+  // Comments on songs in groups stay in the group, also for their author.
   const { data, error } = await supabase
     .from("comments")
     .select(
-      "id, body, time_ms, is_helpful, created_at, track:tracks!comments_track_id_fkey(slug, title)",
+      "id, body, time_ms, is_helpful, created_at, track:tracks!comments_track_id_fkey!inner(slug, title, group_id)",
     )
     .eq("author_id", authorId)
     .eq("status", "live")
+    .is("track.group_id", null)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(`Comments failed: ${describeError(error)}`);
-  return data.filter((c) => c.track);
+  return data
+    .filter((c) => c.track)
+    .map(({ track, ...c }) => ({
+      ...c,
+      track: track && { slug: track.slug, title: track.title },
+    }));
 }
 
 export type FeedbackRecord = {

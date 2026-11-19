@@ -45,7 +45,8 @@ export async function DELETE(
   }
 
   const service = createAdminClient();
-  // Open reports on the track or its comments would cascade away with it.
+  // Owners cannot delete a track while it or its comments are reported:
+  // the admin must see what was reported.
   if (!admin.data) {
     const review = await service.rpc("track_under_review", { p_track: id });
     if (review.error) return databaseError(review.error);
