@@ -26,7 +26,12 @@ function isMp3(file: File) {
 
 type PublishFailure = {
   ok: false;
-  error: "upload_interrupted" | "rate_limited" | "signed_out" | "unknown";
+  error:
+    | "upload_interrupted"
+    | "rate_limited"
+    | "signed_out"
+    | "not_in_group"
+    | "unknown";
   rateLimit?: { limit: number; retry: string };
 };
 
@@ -44,6 +49,8 @@ function publishFailure(error: unknown): PublishFailure {
     // once they have signed in again.
     if (error.code === "unauthenticated")
       return { ok: false, error: "signed_out" };
+    if (error.code === "not_in_group")
+      return { ok: false, error: "not_in_group" };
   }
   return { ok: false, error: "unknown" };
 }
@@ -155,8 +162,13 @@ function createAudioWork() {
   return work;
 }
 
-/** The real browser pipeline behind UploadWizard. */
-export function createUploadPipeline(): UploadPipeline {
+/**
+ * The real browser pipeline behind UploadWizard. With a group, the track
+ * is uploaded in that group, and only its members hear it.
+ */
+export function createUploadPipeline(
+  groupId: string | null = null,
+): UploadPipeline {
   const work = createAudioWork();
   return {
     analyze: work.analyze,
@@ -175,6 +187,7 @@ export function createUploadPipeline(): UploadPipeline {
           durationMs: uploaded.durationMs,
           loudness: uploaded.loudness,
           referenceUrl: details.reference.trim() || null,
+          groupId,
         });
         onProgress(1);
         return { ok: true, slug: track.slug };
@@ -213,7 +226,12 @@ export function createVersionPipeline(trackId: string): VersionPipeline {
           },
         };
       } catch (error) {
-        return publishFailure(error);
+        const failure = publishFailure(error);
+        // A new version keeps its track's place; only a first upload can
+        // find its group gone.
+        return failure.error === "not_in_group"
+          ? { ok: false as const, error: "unknown" as const }
+          : { ...failure, error: failure.error };
       }
     },
   };

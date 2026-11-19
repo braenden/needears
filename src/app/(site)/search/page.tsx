@@ -30,13 +30,14 @@ export default async function SearchPage({
         key={query}
         defaultValue={query}
         autoFocus={!query}
-        formLabel="Search tracks and people"
+        formLabel="Search tracks, people and groups"
         size="lg"
         className="mx-auto max-w-2xl"
       />
       <SearchResults
         className="mt-8"
         query={query}
+        groups={results.groups}
         tracks={results.tracks}
         profiles={results.profiles}
         status={results.failed ? "error" : "ready"}

@@ -31,6 +31,7 @@ export type PublishError =
   | "rate_limited"
   | "encode_failed"
   | "signed_out"
+  | "not_in_group"
   | "unknown";
 
 export type ProcessingStage =

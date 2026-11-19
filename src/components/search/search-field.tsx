@@ -70,7 +70,7 @@ export function SearchField({
       className={cn("relative", className)}
     >
       <label htmlFor={`${id}-q`} className="sr-only">
-        Search tracks and people
+        Search tracks, people and groups
       </label>
       <SearchIcon
         aria-hidden="true"

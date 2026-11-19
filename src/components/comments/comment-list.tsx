@@ -43,6 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { COMMENT_MAX } from "@/config/limits";
 import { isTrusted } from "@/config/reputation";
 import { formatSpan } from "@/lib/time";
+import { GROUP_COPY } from "@/components/groups/copy";
 import { cn } from "@/lib/utils";
 import type { Comment, RangeComment, ThreadComment } from "@/types/view";
 
@@ -136,6 +137,8 @@ const AuthorBadges = createContext<Record<string, BadgeKind[]>>({});
 const Actions = createContext<{
   viewerId?: string;
   isAdmin: boolean;
+  /** The owner of the track's group, who can delete any comment in it. */
+  groupOwner?: boolean;
   onEdit?: (comment: ThreadComment, body: string) => Promise<SubmitResult>;
   askDelete?: (comment: ThreadComment) => void;
 }>({ isAdmin: false });
@@ -170,6 +173,7 @@ export function CommentList({
   onShowResolvedChange,
   viewerId,
   isAdmin = false,
+  groupOwner = false,
   onEdit,
   onDelete,
   initialReply,
@@ -217,6 +221,8 @@ export function CommentList({
   viewerId?: string;
   /** Admins can delete anyone's comment. */
   isAdmin?: boolean;
+  /** So can the owner of the group the track is in. */
+  groupOwner?: boolean;
   onEdit?: (comment: ThreadComment, body: string) => Promise<SubmitResult>;
   onDelete?: (comment: ThreadComment) => Promise<DeleteResult>;
   /**
@@ -283,6 +289,7 @@ export function CommentList({
       value={{
         viewerId,
         isAdmin,
+        groupOwner,
         onEdit,
         askDelete: onDelete ? setDeleting : undefined,
       }}
@@ -467,6 +474,9 @@ export function CommentList({
             comment={deleting}
             onClose={() => setDeleting(null)}
             onDelete={onDelete}
+            forEveryone={
+              groupOwner && !!deleting && deleting.author_id !== viewerId
+            }
           />
         ) : null}
       </AuthorBadges>
@@ -687,10 +697,11 @@ function CommentHeader({
   muted?: boolean;
   fromArtist?: boolean;
 }) {
-  const { viewerId, isAdmin, onEdit, askDelete } = useContext(Actions);
+  const { viewerId, isAdmin, groupOwner, onEdit, askDelete } =
+    useContext(Actions);
   const own = !!viewerId && comment.author_id === viewerId;
   const canEdit = own && !!onEdit && !!onEditStart;
-  const canDelete = (own || isAdmin) && !!askDelete;
+  const canDelete = (own || isAdmin || groupOwner) && !!askDelete;
   const name = displayNameOf(comment.author);
   const resolved = !!comment.resolved_at;
   return (
@@ -928,10 +939,13 @@ function DeleteCommentDialog({
   comment,
   onClose,
   onDelete,
+  forEveryone = false,
 }: {
   comment: ThreadComment | null;
   onClose: () => void;
   onDelete: (comment: ThreadComment) => Promise<DeleteResult>;
+  /** The group's owner deleting someone else's: it says it goes for them too. */
+  forEveryone?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<DeleteResult | null>(null);
@@ -948,13 +962,20 @@ function DeleteCommentDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isReply ? "Delete reply?" : "Delete comment?"}
+            {forEveryone
+              ? GROUP_COPY.deleteCommentTitle
+              : isReply
+                ? "Delete reply?"
+                : "Delete comment?"}
           </DialogTitle>
           <DialogDescription>
-            It goes for good.
-            {!isReply
-              ? " Replies to it stay, under \u201cComment deleted\u201d."
-              : ""}
+            {forEveryone && comment
+              ? GROUP_COPY.deleteCommentBody(displayNameOf(comment.author))
+              : `It goes for good.${
+                  !isReply
+                    ? " Replies to it stay, under \u201cComment deleted\u201d."
+                    : ""
+                }`}
           </DialogDescription>
         </DialogHeader>
         {error ? (

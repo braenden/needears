@@ -35,6 +35,13 @@ export function databaseError(error: PostgrestLikeError) {
         return jsonError(403, "handle_required", "Choose a username first.");
       if (error.message === "not_in_group")
         return jsonError(403, "not_in_group", "You are not in that group.");
+      // Something in it is reported: it stays until an admin has looked.
+      if (error.message === "under_review")
+        return jsonError(
+          403,
+          "under_review",
+          "This is under review and cannot be deleted now.",
+        );
       return jsonError(403, "not_allowed", "You are not allowed to do that.");
     case "22023":
       // Our triggers raise short snake_case reasons (time_out_of_range,

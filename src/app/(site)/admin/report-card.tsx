@@ -4,6 +4,8 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { RelativeTime } from "@/components/common/relative-time";
+import { GROUP_COPY } from "@/components/groups/copy";
+import { Lock } from "@/components/groups/group-bits";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { REPORT_REASON_LABELS } from "@/config/labels";
@@ -38,6 +40,7 @@ export type AdminReport = {
     description: string;
     status: Status;
     owner: Person | null;
+    group?: { name: string } | null;
   } | null;
   comment: {
     id: string;
@@ -49,7 +52,33 @@ export type AdminReport = {
   } | null;
 };
 
-export function ReportCard({ report }: { report: AdminReport }) {
+/** "16:40 tomorrow", "09:05 today", in the admin's own time. */
+function until(iso: string): string {
+  const date = new Date(iso);
+  const time = date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const day =
+    date.toDateString() === today.toDateString()
+      ? "today"
+      : date.toDateString() === tomorrow.toDateString()
+        ? "tomorrow"
+        : date.toLocaleDateString([], { day: "numeric", month: "long" });
+  return `${time} ${day}`;
+}
+
+export function ReportCard({
+  report,
+  openedUntil = null,
+}: {
+  report: AdminReport;
+  /** Set for something in a group this admin opened: until when. */
+  openedUntil?: string | null;
+}) {
   const [pending, startTransition] = useTransition();
 
   function act(action: () => Promise<ActionResult>, done: string) {
@@ -88,6 +117,16 @@ export function ReportCard({ report }: { report: AdminReport }) {
       aria-label={`Report about a ${report.target_type}`}
       className="rounded-xl border bg-card p-4"
     >
+      {openedUntil ? (
+        <p className="mb-3 text-sm text-muted-foreground">
+          <Lock className="mr-1.5" />
+          {GROUP_COPY.adminOpened(report.track?.group?.name ?? null)}{" "}
+          <time dateTime={openedUntil} suppressHydrationWarning>
+            {until(openedUntil)}
+          </time>
+          {GROUP_COPY.adminLogged}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Badge variant="outline">{REPORT_REASON_LABELS[report.reason]}</Badge>
         <span className="text-muted-foreground">

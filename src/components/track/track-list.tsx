@@ -33,6 +33,8 @@ export function TrackList({
   showOwner = true,
   variant = "row",
   beforePlay,
+  menuFor,
+  showPlace = true,
   className,
 }: {
   tracks: PlayableTrack[];
@@ -47,6 +49,10 @@ export function TrackList({
    * aside first (it may be using the same element).
    */
   beforePlay?: () => Promise<void> | void;
+  /** A menu at the end of a row, like the group owner's ⋯. */
+  menuFor?: (track: PlayableTrack) => React.ReactNode;
+  /** Off on a group's own page: the lock and the group on every row. */
+  showPlace?: boolean;
   className?: string;
 }) {
   const shared = useSharedAudio();
@@ -266,6 +272,8 @@ export function TrackList({
               onSeek={seek}
               onCue={cue}
               showOwner={showOwner}
+              menu={menuFor?.(track)}
+              showPlace={showPlace}
             />
           )}
         </li>

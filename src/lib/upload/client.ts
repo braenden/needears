@@ -22,6 +22,8 @@ export type TrackInput = {
   durationMs: number;
   loudness: number | null;
   referenceUrl: string | null;
+  /** The group it is uploaded in, or null for the feed. */
+  groupId?: string | null;
 };
 
 export class UploadError extends Error {
@@ -31,6 +33,7 @@ export class UploadError extends Error {
       | "upload_interrupted"
       | "unauthenticated"
       | "rejected"
+      | "not_in_group"
       | "unknown",
     readonly detail?: string,
   ) {
@@ -55,6 +58,8 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   const message = json?.error?.message;
   if (response.status === 429) throw new UploadError("rate_limited", message);
   if (response.status === 401) throw new UploadError("unauthenticated");
+  if (response.status === 403 && json?.error?.code === "not_in_group")
+    throw new UploadError("not_in_group");
   if (response.status === 400 || response.status === 422)
     throw new UploadError("rejected", message);
   throw new UploadError("unknown");

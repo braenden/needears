@@ -31,7 +31,9 @@ describe("SearchField", () => {
     expect(form).toHaveAttribute("action", "/search");
     expect(form).toHaveAttribute("method", "get");
     expect(
-      screen.getByRole("searchbox", { name: "Search tracks and people" }),
+      screen.getByRole("searchbox", {
+        name: "Search tracks, people and groups",
+      }),
     ).toHaveAttribute("name", "q");
   });
 

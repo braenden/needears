@@ -65,7 +65,7 @@ test("publishing after the sign-in has ended says so and keeps the track", async
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("checkbox", { name: /Made by me/ }).check();
   await page.context().clearCookies();
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish to everyone" }).click();
 
   await expect(
     page.getByRole("alert").filter({ hasText: "You've been signed out." }),

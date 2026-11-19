@@ -11,7 +11,7 @@ test.describe("search", () => {
   }) => {
     await page.goto("/feed");
     const box = page
-      .getByRole("search", { name: "Search tracks and people" })
+      .getByRole("search", { name: "Search tracks, people and groups" })
       .getByRole("searchbox");
     // The shortcut works once the page has hydrated.
     await expect(async () => {
@@ -61,7 +61,7 @@ test.describe("search on a phone", () => {
     await page.getByRole("link", { name: "Search" }).click();
     await expect(page).toHaveURL(/\/search$/);
     const box = page
-      .getByRole("search", { name: "Search tracks and people" })
+      .getByRole("search", { name: "Search tracks, people and groups" })
       .getByRole("searchbox");
     await expect(box).toBeFocused();
     // Nothing but the box until something is searched for.

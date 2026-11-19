@@ -86,3 +86,22 @@ export async function setBanned(
     s.rpc("admin_set_banned", { p_user: userId, p_banned: banned === true }),
   );
 }
+
+/**
+ * Opens a track in a group for this report, for 24 hours. The
+ * database checks the report is open and about that track, and logs it.
+ */
+export async function openClosedForReport(
+  trackId: string,
+  reportId: string,
+): Promise<ActionResult> {
+  if (!uuid.safeParse(trackId).success || !uuid.safeParse(reportId).success)
+    return { ok: false, message: "Bad id." };
+  return run((s) =>
+    s.rpc("admin_open_closed", {
+      p_track: trackId,
+      p_reason: "report",
+      p_report: reportId,
+    }),
+  );
+}
